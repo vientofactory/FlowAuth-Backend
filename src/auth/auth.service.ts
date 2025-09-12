@@ -1,4 +1,125 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from '../user/user.entity';
+import { Client } from '../client/client.entity';
+import * as bcrypt from 'bcrypt';
+import { CreateUserDto } from './dto/create-user.dto';
+import { LoginDto } from './dto/login.dto';
+import { CreateClientDto } from './dto/create-client.dto';
 
 @Injectable()
-export class AuthService {}
+export class AuthService {
+  constructor(
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
+    @InjectRepository(Client)
+    private clientRepository: Repository<Client>,
+  ) {}
+
+  async register(createUserDto: CreateUserDto): Promise<User> {
+    const { username, email, password, firstName, lastName } = createUserDto;
+
+    // Check if user already exists
+    const existingUser = await this.userRepository.findOne({
+      where: [{ username }, { email }],
+    });
+
+    if (existingUser) {
+      throw new ConflictException('User already exists');
+    }
+
+    // Hash password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Create user
+    const user = this.userRepository.create({
+      username,
+      email,
+      password: hashedPassword,
+      firstName,
+      lastName,
+      roles: ['user'], // Default role
+    });
+
+    return this.userRepository.save(user);
+  }
+
+  async login(loginDto: LoginDto): Promise<User> {
+    const { email, password } = loginDto;
+
+    // Find user
+    const user = await this.userRepository.findOne({ where: { email } });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Check password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return user;
+  }
+
+  async findById(id: number): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id } });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    return user;
+  }
+
+  async createClient(createClientDto: CreateClientDto): Promise<Client> {
+    const { name, description, redirectUris, grants } = createClientDto;
+
+    // Generate clientId and clientSecret
+    const clientId = this.generateRandomString(32);
+    const clientSecret = this.generateRandomString(64);
+
+    const client = this.clientRepository.create({
+      clientId,
+      clientSecret,
+      name,
+      description,
+      redirectUris,
+      grants,
+    });
+
+    return this.clientRepository.save(client);
+  }
+
+  async getClients(): Promise<Client[]> {
+    return this.clientRepository.find();
+  }
+
+  async getClientById(id: number): Promise<Client> {
+    const client = await this.clientRepository.findOne({ where: { id } });
+
+    if (!client) {
+      throw new UnauthorizedException('Client not found');
+    }
+
+    return client;
+  }
+
+  private generateRandomString(length: number): string {
+    const chars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+}
