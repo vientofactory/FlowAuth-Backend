@@ -11,11 +11,23 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { CreateClientDto } from './dto/create-client.dto';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { User } from '../user/user.entity';
+
+interface AuthenticatedRequest {
+  user: User;
+}
 
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
@@ -43,6 +55,22 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: '로그인 성공',
+    schema: {
+      type: 'object',
+      properties: {
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'number' },
+            username: { type: 'string' },
+            email: { type: 'string' },
+            firstName: { type: 'string' },
+            lastName: { type: 'string' },
+          },
+        },
+        accessToken: { type: 'string' },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
@@ -50,12 +78,13 @@ export class AuthController {
   })
   @ApiBody({ type: LoginDto })
   async login(@Body() loginDto: LoginDto) {
-    const user = await this.authService.login(loginDto);
-    // TODO: JWT 토큰 생성 및 반환
-    return { user, message: 'Login successful' };
+    const { user, accessToken } = await this.authService.login(loginDto);
+    return { user, accessToken };
   }
 
   @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: '사용자 프로필 조회' })
   @ApiResponse({
     status: 200,
@@ -65,13 +94,14 @@ export class AuthController {
     status: 401,
     description: '인증되지 않은 사용자',
   })
-  async getProfile() {
-    // TODO: JWT에서 사용자 ID 추출
-    const userId = 1; // 임시
+  async getProfile(@Request() req: AuthenticatedRequest) {
+    const userId = req.user.id;
     return this.authService.findById(userId);
   }
 
   @Put('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: '사용자 프로필 업데이트' })
   @ApiResponse({
     status: 200,
@@ -91,10 +121,10 @@ export class AuthController {
     },
   })
   async updateProfile(
+    @Request() req: AuthenticatedRequest,
     @Body() updateData: Partial<{ firstName: string; lastName: string }>,
   ) {
-    // TODO: JWT에서 사용자 ID 추출
-    const userId = 1; // 임시
+    const userId = req.user.id;
     return this.authService.updateProfile(userId, updateData);
   }
 

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import * as bcrypt from 'bcrypt';
@@ -19,6 +20,7 @@ export class AuthService {
     private userRepository: Repository<User>,
     @InjectRepository(Client)
     private clientRepository: Repository<Client>,
+    private jwtService: JwtService,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
@@ -50,7 +52,9 @@ export class AuthService {
     return this.userRepository.save(user);
   }
 
-  async login(loginDto: LoginDto): Promise<User> {
+  async login(
+    loginDto: LoginDto,
+  ): Promise<{ user: User; accessToken: string }> {
     const { email, password } = loginDto;
 
     // Find user
@@ -67,7 +71,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return user;
+    // Generate JWT token
+    const payload = { sub: user.id, email: user.email };
+    const accessToken = this.jwtService.sign(payload);
+
+    return { user, accessToken };
   }
 
   async findById(id: number): Promise<User> {
