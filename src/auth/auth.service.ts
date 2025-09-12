@@ -122,4 +122,65 @@ export class AuthService {
     }
     return result;
   }
+
+  async updateProfile(
+    userId: number,
+    updateData: Partial<User>,
+  ): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // 업데이트 가능한 필드만 허용
+    const allowedFields = ['firstName', 'lastName'] as const;
+    const filteredData: Partial<Pick<User, 'firstName' | 'lastName'>> = {};
+
+    for (const field of allowedFields) {
+      if (updateData[field] !== undefined) {
+        filteredData[field] = updateData[field];
+      }
+    }
+
+    await this.userRepository.update(userId, filteredData);
+
+    const updatedUser = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+    if (!updatedUser) {
+      throw new UnauthorizedException('User not found after update');
+    }
+
+    return updatedUser;
+  }
+
+  async updateClientStatus(id: number, isActive: boolean): Promise<Client> {
+    const client = await this.clientRepository.findOne({ where: { id } });
+
+    if (!client) {
+      throw new UnauthorizedException('Client not found');
+    }
+
+    await this.clientRepository.update(id, { isActive });
+
+    const updatedClient = await this.clientRepository.findOne({
+      where: { id },
+    });
+    if (!updatedClient) {
+      throw new UnauthorizedException('Client not found after update');
+    }
+
+    return updatedClient;
+  }
+
+  async deleteClient(id: number): Promise<void> {
+    const client = await this.clientRepository.findOne({ where: { id } });
+
+    if (!client) {
+      throw new UnauthorizedException('Client not found');
+    }
+
+    await this.clientRepository.remove(client);
+  }
 }
