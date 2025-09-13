@@ -5,6 +5,8 @@ import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
+import { Scope } from '../scope/scope.entity';
+import { SeedService } from './seed.service';
 
 @Module({
   imports: [
@@ -17,12 +19,15 @@ import { AuthorizationCode } from '../authorization-code/authorization-code.enti
         username: configService.get<string>('DB_USERNAME', 'root'),
         password: configService.get<string>('DB_PASSWORD', ''),
         database: configService.get<string>('DB_NAME', 'flowauth'),
-        entities: [User, Client, Token, AuthorizationCode],
+        entities: [User, Client, Token, AuthorizationCode, Scope],
         synchronize: configService.get<string>('NODE_ENV') !== 'production',
         logging: configService.get<string>('NODE_ENV') === 'development',
       }),
       inject: [ConfigService],
     }),
+    TypeOrmModule.forFeature([Scope]),
   ],
+  providers: [SeedService],
+  exports: [SeedService],
 })
 export class DatabaseModule {}

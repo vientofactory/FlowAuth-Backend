@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { OAuth2Module } from './oauth2/oauth2.module';
 import { DatabaseModule } from './database/database.module';
 
 @Module({
@@ -22,6 +23,7 @@ import { DatabaseModule } from './database/database.module';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     DatabaseModule,
     AuthModule,
+    OAuth2Module,
   ],
   controllers: [AppController],
   providers: [AppService],

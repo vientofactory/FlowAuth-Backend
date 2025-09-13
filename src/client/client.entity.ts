@@ -4,9 +4,11 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 
 @Entity()
+@Index(['clientId'], { unique: true })
 export class Client {
   @PrimaryGeneratedColumn()
   id: number;
@@ -23,6 +25,9 @@ export class Client {
   @Column('simple-array')
   grants: string[];
 
+  @Column('simple-array', { nullable: true })
+  scopes: string[];
+
   @Column()
   name: string;
 
@@ -31,6 +36,18 @@ export class Client {
 
   @Column({ default: true })
   isActive: boolean;
+
+  @Column({ default: false })
+  isConfidential: boolean;
+
+  @Column({ nullable: true })
+  logoUri: string;
+
+  @Column({ nullable: true })
+  termsOfServiceUri: string;
+
+  @Column({ nullable: true })
+  policyUri: string;
 
   @CreateDateColumn()
   createdAt: Date;

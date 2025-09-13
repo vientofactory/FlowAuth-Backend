@@ -5,19 +5,23 @@ import {
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
+  Index,
 } from 'typeorm';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 
 @Entity()
+@Index(['accessToken'], { unique: true })
+@Index(['refreshToken'], { unique: true })
+@Index(['client', 'user'])
 export class Token {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ unique: true })
   accessToken: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, unique: true })
   refreshToken: string;
 
   @Column()
@@ -26,11 +30,20 @@ export class Token {
   @Column({ nullable: true })
   refreshExpiresAt: Date;
 
-  @ManyToOne(() => User)
+  @Column('simple-array', { nullable: true })
+  scopes: string[];
+
+  @Column({ default: 'bearer' })
+  tokenType: string;
+
+  @Column({ default: false })
+  isRevoked: boolean;
+
+  @ManyToOne(() => User, { eager: true })
   @JoinColumn()
   user: User;
 
-  @ManyToOne(() => Client)
+  @ManyToOne(() => Client, { eager: true })
   @JoinColumn()
   client: Client;
 
