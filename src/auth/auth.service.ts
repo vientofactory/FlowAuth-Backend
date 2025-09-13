@@ -12,6 +12,11 @@ import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { CreateClientDto } from './dto/create-client.dto';
+import {
+  AUTH_CONSTANTS,
+  AUTH_ERROR_MESSAGES,
+} from '../constants/auth.constants';
+import { JwtPayload, LoginResponse } from '../types/auth.types';
 
 @Injectable()
 export class AuthService {
@@ -32,12 +37,14 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('User already exists');
+      throw new ConflictException(AUTH_ERROR_MESSAGES.USER_ALREADY_EXISTS);
     }
 
     // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const hashedPassword = await bcrypt.hash(
+      password,
+      AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
+    );
 
     // Create user
     const user = this.userRepository.create({
@@ -46,36 +53,69 @@ export class AuthService {
       password: hashedPassword,
       firstName,
       lastName,
-      roles: ['user'], // Default role
+      roles: [...AUTH_CONSTANTS.DEFAULT_USER_ROLES], // Default role
     });
 
     return this.userRepository.save(user);
   }
 
-  async login(
-    loginDto: LoginDto,
-  ): Promise<{ user: User; accessToken: string }> {
+  async login(loginDto: LoginDto): Promise<LoginResponse> {
     const { email, password } = loginDto;
 
-    // Find user
-    const user = await this.userRepository.findOne({ where: { email } });
+    try {
+      // Find user
+      const user = await this.userRepository.findOne({
+        where: { email },
+        select: [
+          'id',
+          'email',
+          'username',
+          'password',
+          'firstName',
+          'lastName',
+          'roles',
+        ],
+      });
 
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      if (!user) {
+        throw new UnauthorizedException(
+          AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
+        );
+      }
+
+      // Check password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+
+      if (!isPasswordValid) {
+        throw new UnauthorizedException(
+          AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
+        );
+      }
+
+      // Generate JWT token with enhanced payload
+      const payload: JwtPayload = {
+        sub: user.id,
+        email: user.email,
+        username: user.username,
+        roles: user.roles || [],
+        type: AUTH_CONSTANTS.TOKEN_TYPE,
+      };
+
+      // Generate JWT token (uses global expiration settings)
+      const accessToken = this.jwtService.sign(payload);
+
+      return {
+        user,
+        accessToken,
+        expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.LOGIN_FAILED);
     }
-
-    // Check password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    // Generate JWT token
-    const payload = { sub: user.id, email: user.email };
-    const accessToken = this.jwtService.sign(payload);
-
-    return { user, accessToken };
   }
 
   async findById(id: number): Promise<User> {

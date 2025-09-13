@@ -24,6 +24,7 @@ import { LoginDto } from './dto/login.dto';
 import { CreateClientDto } from './dto/create-client.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { User } from '../user/user.entity';
+import { LoginResponse } from '../types/auth.types';
 
 interface AuthenticatedRequest {
   user: User;
@@ -46,8 +47,9 @@ export class AuthController {
     description: '잘못된 요청 데이터',
   })
   @ApiBody({ type: CreateUserDto })
-  async register(@Body() createUserDto: CreateUserDto) {
-    return this.authService.register(createUserDto);
+  async register(@Body() createUserDto: CreateUserDto): Promise<User> {
+    const user = await this.authService.register(createUserDto);
+    return user;
   }
 
   @Post('login')
@@ -77,9 +79,9 @@ export class AuthController {
     description: '인증 실패',
   })
   @ApiBody({ type: LoginDto })
-  async login(@Body() loginDto: LoginDto) {
-    const { user, accessToken } = await this.authService.login(loginDto);
-    return { user, accessToken };
+  async login(@Body() loginDto: LoginDto): Promise<LoginResponse> {
+    const result = await this.authService.login(loginDto);
+    return result;
   }
 
   @Get('profile')
@@ -95,8 +97,8 @@ export class AuthController {
     description: '인증되지 않은 사용자',
   })
   async getProfile(@Request() req: AuthenticatedRequest) {
-    const userId = req.user.id;
-    return this.authService.findById(userId);
+    const user = await this.authService.findById(req.user.id);
+    return user;
   }
 
   @Put('profile')
