@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { OAuth2Controller } from './oauth2.controller';
 import { OAuth2Service } from './oauth2.service';
 import { AuthorizationCodeService } from './authorization-code.service';
@@ -15,9 +16,12 @@ import { Scope } from '../scope/scope.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Client, AuthorizationCode, Token, Scope]),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-secret-key',
-      signOptions: { expiresIn: '1h' },
+    JwtModule.registerAsync({
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET') || 'your-secret-key',
+        signOptions: { expiresIn: '1h' },
+      }),
+      inject: [ConfigService],
     }),
   ],
   controllers: [OAuth2Controller],

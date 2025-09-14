@@ -9,6 +9,7 @@ import {
   Patch,
   Delete,
   UseGuards,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,6 +18,7 @@ import {
   ApiBody,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
@@ -73,8 +75,20 @@ export class AuthController {
     description: '인증 실패',
   })
   @ApiBody({ type: LoginDto })
-  async login(@Body() loginDto: LoginDto): Promise<LoginResponse> {
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LoginResponse> {
     const result = await this.authService.login(loginDto);
+
+    // OAuth2 플로우를 위해 쿠키에 토큰 설정
+    res.cookie('token', result.accessToken, {
+      httpOnly: false, // JavaScript에서 접근 가능하도록 설정
+      secure: false, // 개발 환경에서는 false, 프로덕션에서는 true
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000, // 24시간
+    });
+
     return result;
   }
 
