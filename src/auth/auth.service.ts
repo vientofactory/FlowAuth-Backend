@@ -107,27 +107,8 @@ export class AuthService {
         roles: user.roles || [],
         type: AUTH_CONSTANTS.TOKEN_TYPE,
       };
-
-      // Add debugging for JWT generation
-      const jwtSecret =
-        this.configService.get<string>('JWT_SECRET') || 'your-secret-key';
-      console.log(
-        'AuthService: Generating JWT with secret:',
-        jwtSecret.substring(0, 10) + '...',
-      );
-      console.log('AuthService: Full JWT secret for comparison:', jwtSecret);
-      console.log('AuthService: JWT payload:', {
-        sub: payload.sub,
-        email: payload.email,
-      });
-
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
-      console.log('AuthService: Generated token length:', accessToken.length);
-      console.log(
-        'AuthService: Generated token preview:',
-        accessToken.substring(0, 50) + '...',
-      );
 
       return {
         user,
