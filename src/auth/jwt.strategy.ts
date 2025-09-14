@@ -33,7 +33,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload): Promise<User> {
     try {
       // Validate payload structure
-      if (!payload.sub || typeof payload.sub !== 'number') {
+      if (!payload.sub || typeof payload.sub !== 'string') {
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
       }
 
@@ -48,7 +48,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
       // Find user in database
       const user = await this.userRepository.findOne({
-        where: { id: payload.sub },
+        where: { id: parseInt(payload.sub) },
         select: [
           'id',
           'email',

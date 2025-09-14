@@ -18,10 +18,10 @@ export class Token {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column({ type: 'text', unique: true })
   accessToken: string;
 
-  @Column({ nullable: true, unique: true })
+  @Column({ type: 'text', nullable: true, unique: true })
   refreshToken: string;
 
   @Column()

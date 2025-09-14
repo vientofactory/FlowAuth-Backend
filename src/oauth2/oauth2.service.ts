@@ -327,9 +327,9 @@ export class OAuth2Service {
     };
   }
 
-  async getUserInfo(userId: number): Promise<User> {
+  async getUserInfo(userId: string): Promise<User> {
     const user = await this.userRepository.findOne({
-      where: { id: userId },
+      where: { id: parseInt(userId) },
     });
 
     if (!user) {

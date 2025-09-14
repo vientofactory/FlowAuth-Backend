@@ -2,7 +2,7 @@ import { User } from '../user/user.entity';
 
 // 인증 관련 타입 정의들
 export interface JwtPayload {
-  sub: number;
+  sub: string;
   email: string;
   username: string;
   roles: string[];

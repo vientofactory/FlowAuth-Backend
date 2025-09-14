@@ -101,7 +101,7 @@ export class AuthService {
 
       // Generate JWT token with enhanced payload
       const payload: JwtPayload = {
-        sub: user.id,
+        sub: user.id.toString(),
         email: user.email,
         username: user.username,
         roles: user.roles || [],
