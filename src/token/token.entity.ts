@@ -39,9 +39,9 @@ export class Token {
   @Column({ default: false })
   isRevoked: boolean;
 
-  @ManyToOne(() => User, { eager: true })
+  @ManyToOne(() => User, { eager: true, nullable: true })
   @JoinColumn()
-  user: User;
+  user: User | null;
 
   @ManyToOne(() => Client, { eager: true })
   @JoinColumn()

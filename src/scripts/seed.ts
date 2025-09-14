@@ -8,9 +8,9 @@ async function bootstrap(): Promise<void> {
 
   try {
     await seedService.seedDatabase();
-    console.log('🎉 Seeding completed successfully!');
+    console.log('Seeding completed successfully!');
   } catch (error: unknown) {
-    console.error('❌ Seeding failed:', error);
+    console.error('Seeding failed:', error);
     process.exit(1);
   } finally {
     await app.close();

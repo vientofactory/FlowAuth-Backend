@@ -35,4 +35,13 @@ export class CreateClientDto {
   @IsArray()
   @IsString({ each: true })
   grants: string[];
+
+  @ApiProperty({
+    description: '허용된 스코프 목록',
+    example: ['read', 'write', 'profile'],
+    type: [String],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  scopes: string[];
 }

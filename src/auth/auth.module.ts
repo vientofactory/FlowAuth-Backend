@@ -9,10 +9,11 @@ import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
+import { Token } from '../token/token.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Client]),
+    TypeOrmModule.forFeature([User, Client, Token]),
     PassportModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({

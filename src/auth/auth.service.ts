@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
+import { Token } from '../token/token.entity';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
@@ -17,6 +18,8 @@ import {
   AUTH_ERROR_MESSAGES,
 } from '../constants/auth.constants';
 import { JwtPayload, LoginResponse } from '../types/auth.types';
+import { snowflakeGenerator } from '../utils/snowflake-id.util';
+import { CryptoUtils } from '../utils/crypto.util';
 
 @Injectable()
 export class AuthService {
@@ -25,6 +28,8 @@ export class AuthService {
     private userRepository: Repository<User>,
     @InjectRepository(Client)
     private clientRepository: Repository<Client>,
+    @InjectRepository(Token)
+    private tokenRepository: Repository<Token>,
     private jwtService: JwtService,
   ) {}
 
@@ -131,9 +136,9 @@ export class AuthService {
   async createClient(createClientDto: CreateClientDto): Promise<Client> {
     const { name, description, redirectUris, grants } = createClientDto;
 
-    // Generate clientId and clientSecret
-    const clientId = this.generateRandomString(32);
-    const clientSecret = this.generateRandomString(64);
+    // Generate clientId using Snowflake ID and clientSecret using crypto-safe random string
+    const clientId = snowflakeGenerator.generate();
+    const clientSecret = CryptoUtils.generateRandomString(64);
 
     const client = this.clientRepository.create({
       clientId,
@@ -159,16 +164,6 @@ export class AuthService {
     }
 
     return client;
-  }
-
-  private generateRandomString(length: number): string {
-    const chars =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
   }
 
   async updateProfile(
@@ -222,6 +217,38 @@ export class AuthService {
     return updatedClient;
   }
 
+  async updateClient(
+    id: number,
+    updateData: Partial<CreateClientDto>,
+  ): Promise<Client> {
+    const client = await this.clientRepository.findOne({ where: { id } });
+
+    if (!client) {
+      throw new UnauthorizedException('Client not found');
+    }
+
+    // Update only provided fields
+    const updateFields: Partial<Client> = {};
+    if (updateData.name !== undefined) updateFields.name = updateData.name;
+    if (updateData.description !== undefined)
+      updateFields.description = updateData.description;
+    if (updateData.redirectUris !== undefined)
+      updateFields.redirectUris = updateData.redirectUris;
+    if (updateData.scopes !== undefined)
+      updateFields.scopes = updateData.scopes;
+
+    await this.clientRepository.update(id, updateFields);
+
+    const updatedClient = await this.clientRepository.findOne({
+      where: { id },
+    });
+    if (!updatedClient) {
+      throw new UnauthorizedException('Client not found after update');
+    }
+
+    return updatedClient;
+  }
+
   async deleteClient(id: number): Promise<void> {
     const client = await this.clientRepository.findOne({ where: { id } });
 
@@ -230,5 +257,33 @@ export class AuthService {
     }
 
     await this.clientRepository.remove(client);
+  }
+
+  async getUserTokens(userId: number): Promise<Token[]> {
+    return this.tokenRepository.find({
+      where: { user: { id: userId } },
+      relations: ['client'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async revokeToken(userId: number, tokenId: number): Promise<void> {
+    const token = await this.tokenRepository.findOne({
+      where: { id: tokenId, user: { id: userId } },
+    });
+
+    if (!token) {
+      throw new UnauthorizedException('Token not found');
+    }
+
+    token.isRevoked = true;
+    await this.tokenRepository.save(token);
+  }
+
+  async revokeAllUserTokens(userId: number): Promise<void> {
+    await this.tokenRepository.update(
+      { user: { id: userId } },
+      { isRevoked: true },
+    );
   }
 }

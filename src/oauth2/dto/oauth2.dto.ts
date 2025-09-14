@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsIn, IsNotEmpty } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsIn,
+  IsNotEmpty,
+  IsBoolean,
+} from 'class-validator';
 
 export class AuthorizeRequestDto {
   @IsString()
@@ -29,6 +35,41 @@ export class AuthorizeRequestDto {
   @IsOptional()
   @IsIn(['plain', 'S256'])
   code_challenge_method?: string;
+}
+
+export class ConsentDto {
+  @IsString()
+  @IsNotEmpty()
+  client_id: string;
+
+  @IsString()
+  @IsNotEmpty()
+  redirect_uri: string;
+
+  @IsString()
+  @IsIn(['code', 'token'])
+  response_type: string;
+
+  @IsString()
+  @IsOptional()
+  scope?: string;
+
+  @IsString()
+  @IsOptional()
+  state?: string;
+
+  @IsString()
+  @IsOptional()
+  code_challenge?: string;
+
+  @IsString()
+  @IsOptional()
+  @IsIn(['plain', 'S256'])
+  code_challenge_method?: string;
+
+  @IsBoolean()
+  @IsNotEmpty()
+  approved: boolean;
 }
 
 export class TokenRequestDto {

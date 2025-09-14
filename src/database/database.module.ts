@@ -25,7 +25,7 @@ import { SeedService } from './seed.service';
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([Scope]),
+    TypeOrmModule.forFeature([Scope, Client]),
   ],
   providers: [SeedService],
   exports: [SeedService],

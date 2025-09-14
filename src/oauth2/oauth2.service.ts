@@ -36,6 +36,59 @@ export class OAuth2Service {
     private readonly scopeService: ScopeService,
   ) {}
 
+  async validateAuthorizationRequest(
+    authorizeDto: AuthorizeRequestDto,
+    user: User,
+  ): Promise<{ client: Client; requestedScopes: string[] }> {
+    const { client_id, redirect_uri, response_type, scope } = authorizeDto;
+
+    // Type validation
+    if (typeof client_id !== 'string') {
+      throw new BadRequestException('Invalid client_id parameter');
+    }
+    if (typeof redirect_uri !== 'string') {
+      throw new BadRequestException('Invalid redirect_uri parameter');
+    }
+    if (typeof response_type !== 'string') {
+      throw new BadRequestException('Invalid response_type parameter');
+    }
+
+    // Validate response type
+    if (response_type !== OAuth2Service.SUPPORTED_RESPONSE_TYPE) {
+      throw new BadRequestException(
+        `Unsupported response type: ${response_type}`,
+      );
+    }
+
+    // Find and validate client
+    const client = await this.clientRepository.findOne({
+      where: { clientId: client_id, isActive: true },
+    });
+
+    if (!client) {
+      throw new BadRequestException('Invalid client_id');
+    }
+
+    // Validate redirect URI
+    if (!client.redirectUris.includes(redirect_uri)) {
+      throw new BadRequestException('Invalid redirect_uri');
+    }
+
+    // Validate scopes
+    const scopeValue = typeof scope === 'string' ? scope : '';
+    const requestedScopes = scopeValue ? scopeValue.split(' ') : [];
+    const validScopes = await this.scopeService.validateScopes(requestedScopes);
+
+    if (!validScopes && requestedScopes.length > 0) {
+      throw new BadRequestException('Invalid scope parameter');
+    }
+
+    return {
+      client,
+      requestedScopes,
+    };
+  }
+
   async authorize(
     authorizeDto: AuthorizeRequestDto,
     user: User,
@@ -164,17 +217,17 @@ export class OAuth2Service {
     }
 
     // Create token
-    const token = await this.tokenService.createToken(
+    const tokenResponse = await this.tokenService.createToken(
       authCode.user,
       client,
       authCode.scopes,
     );
 
     return {
-      access_token: token.accessToken,
-      token_type: 'Bearer',
-      expires_in: 3600, // 1 hour in seconds
-      refresh_token: token.refreshToken,
+      access_token: tokenResponse.accessToken,
+      token_type: tokenResponse.tokenType,
+      expires_in: tokenResponse.expiresIn,
+      refresh_token: tokenResponse.refreshToken,
       scope: authCode.scopes.join(' '),
     };
   }
@@ -195,18 +248,18 @@ export class OAuth2Service {
     await this.validateClient(client_id, client_secret);
 
     // Refresh token
-    const token = await this.tokenService.refreshToken(refresh_token);
+    const tokenResponse = await this.tokenService.refreshToken(refresh_token);
 
-    if (!token) {
+    if (!tokenResponse) {
       throw new BadRequestException('Invalid refresh token');
     }
 
     return {
-      access_token: token.accessToken,
-      token_type: 'Bearer',
-      expires_in: 3600, // 1 hour in seconds
-      refresh_token: token.refreshToken,
-      scope: token.scopes.join(' '),
+      access_token: tokenResponse.accessToken,
+      token_type: tokenResponse.tokenType,
+      expires_in: tokenResponse.expiresIn,
+      refresh_token: tokenResponse.refreshToken,
+      scope: tokenResponse.scopes.join(' '),
     };
   }
 
@@ -232,16 +285,16 @@ export class OAuth2Service {
     }
 
     // Create token for client credentials
-    const token = await this.tokenService.createToken(
+    const tokenResponse = await this.tokenService.createToken(
       null,
       client,
       requestedScopes,
     );
 
     return {
-      access_token: token.accessToken,
-      token_type: 'Bearer',
-      expires_in: 3600, // 1 hour in seconds
+      access_token: tokenResponse.accessToken,
+      token_type: tokenResponse.tokenType,
+      expires_in: tokenResponse.expiresIn,
       scope: requestedScopes.join(' '),
     };
   }

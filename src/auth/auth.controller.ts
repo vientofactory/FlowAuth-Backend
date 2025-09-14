@@ -10,7 +10,6 @@ import {
   Delete,
   UseGuards,
 } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
@@ -24,14 +23,9 @@ import { LoginDto } from './dto/login.dto';
 import { CreateClientDto } from './dto/create-client.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { User } from '../user/user.entity';
-import { LoginResponse } from '../types/auth.types';
-
-interface AuthenticatedRequest {
-  user: User;
-}
+import type { LoginResponse, AuthenticatedRequest } from '../types/auth.types';
 
 @Controller('auth')
-@UseGuards(ThrottlerGuard)
 @ApiTags('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -194,6 +188,42 @@ export class AuthController {
     return this.authService.updateClientStatus(parseInt(id), body.isActive);
   }
 
+  @Patch('clients/:id')
+  @ApiOperation({ summary: 'OAuth2 클라이언트 정보 업데이트' })
+  @ApiResponse({
+    status: 200,
+    description: '클라이언트 정보가 성공적으로 업데이트됨',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '클라이언트를 찾을 수 없음',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', example: 'My App' },
+        description: { type: 'string', example: 'My awesome application' },
+        redirectUris: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['https://example.com/callback'],
+        },
+        scopes: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['read', 'write'],
+        },
+      },
+    },
+  })
+  async updateClient(
+    @Param('id') id: string,
+    @Body() updateData: Partial<CreateClientDto>,
+  ) {
+    return this.authService.updateClient(parseInt(id), updateData);
+  }
+
   @Delete('clients/:id')
   @ApiOperation({ summary: 'OAuth2 클라이언트 삭제' })
   @ApiResponse({
@@ -207,5 +237,50 @@ export class AuthController {
   async deleteClient(@Param('id') id: string) {
     await this.authService.deleteClient(parseInt(id));
     return { message: 'Client deleted successfully' };
+  }
+
+  @Get('tokens')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '사용자 토큰 목록 조회' })
+  @ApiResponse({
+    status: 200,
+    description: '토큰 목록 반환',
+  })
+  async getUserTokens(@Request() req: AuthenticatedRequest) {
+    return this.authService.getUserTokens(req.user.id);
+  }
+
+  @Delete('tokens/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '특정 토큰 취소' })
+  @ApiResponse({
+    status: 200,
+    description: '토큰이 성공적으로 취소됨',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '토큰을 찾을 수 없음',
+  })
+  async revokeToken(
+    @Request() req: AuthenticatedRequest,
+    @Param('id') tokenId: string,
+  ) {
+    await this.authService.revokeToken(req.user.id, parseInt(tokenId));
+    return { message: 'Token revoked successfully' };
+  }
+
+  @Delete('tokens')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '모든 사용자 토큰 취소' })
+  @ApiResponse({
+    status: 200,
+    description: '모든 토큰이 성공적으로 취소됨',
+  })
+  async revokeAllUserTokens(@Request() req: AuthenticatedRequest) {
+    await this.authService.revokeAllUserTokens(req.user.id);
+    return { message: 'All user tokens revoked successfully' };
   }
 }
