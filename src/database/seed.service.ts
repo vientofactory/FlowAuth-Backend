@@ -54,16 +54,16 @@ export class SeedService {
   ) {}
 
   async seedDatabase(): Promise<void> {
-    console.log('🌱 Starting database seeding...');
+    console.log('Starting database seeding...');
 
     await this.seedScopes();
     await this.seedDefaultClient();
 
-    console.log('✅ Database seeding completed!');
+    console.log('Database seeding completed!');
   }
 
   private async seedScopes(): Promise<void> {
-    console.log('📋 Seeding scopes...');
+    console.log('Seeding scopes...');
 
     for (const scopeData of SeedService.DEFAULT_SCOPES) {
       const existingScope = await this.scopeRepository.findOne({
@@ -73,15 +73,15 @@ export class SeedService {
       if (!existingScope) {
         const scope = this.scopeRepository.create(scopeData);
         await this.scopeRepository.save(scope);
-        console.log(`   ✅ Created scope: ${scopeData.name}`);
+        console.log(`Created scope: ${scopeData.name}`);
       } else {
-        console.log(`   ⚠️  Scope already exists: ${scopeData.name}`);
+        console.log(`Scope already exists: ${scopeData.name}`);
       }
     }
   }
 
   private async seedDefaultClient(): Promise<void> {
-    console.log('🔑 Seeding default OAuth2 client...');
+    console.log('Seeding default OAuth2 client...');
 
     const clientId = snowflakeGenerator.generate();
     const existingClient = await this.clientRepository.findOne({
@@ -104,9 +104,9 @@ export class SeedService {
       });
 
       await this.clientRepository.save(client);
-      console.log(`   ✅ Created default client with ID: ${clientId}`);
+      console.log(`Created default client with ID: ${clientId}`);
     } else {
-      console.log('   ⚠️  Default client already exists');
+      console.log('Default client already exists');
     }
   }
 }

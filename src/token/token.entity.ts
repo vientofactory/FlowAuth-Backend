@@ -18,10 +18,10 @@ export class Token {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'text', unique: true })
+  @Column({ type: 'varchar', length: 2048, nullable: true })
   accessToken: string;
 
-  @Column({ type: 'text', nullable: true, unique: true })
+  @Column({ type: 'varchar', length: 2048, nullable: true })
   refreshToken: string;
 
   @Column()
@@ -30,20 +30,20 @@ export class Token {
   @Column({ nullable: true })
   refreshExpiresAt: Date;
 
-  @Column('simple-array', { nullable: true })
+  @Column({ type: 'json', nullable: true })
   scopes: string[];
 
   @Column({ default: 'bearer' })
   tokenType: string;
 
-  @Column({ default: false })
+  @Column({ type: 'tinyint', default: 0 })
   isRevoked: boolean;
 
-  @ManyToOne(() => User, { eager: true, nullable: true })
+  @ManyToOne(() => User, { nullable: true })
   @JoinColumn()
   user: User | null;
 
-  @ManyToOne(() => Client, { eager: true })
+  @ManyToOne(() => Client)
   @JoinColumn()
   client: Client;
 

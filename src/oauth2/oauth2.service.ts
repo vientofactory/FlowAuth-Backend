@@ -92,75 +92,15 @@ export class OAuth2Service {
     authorizeDto: AuthorizeRequestDto,
     user: User,
   ): Promise<AuthorizeResponseDto> {
-    const {
-      client_id,
-      redirect_uri,
-      response_type,
-      scope,
-      state,
-      code_challenge,
-      code_challenge_method,
-    } = authorizeDto;
+    // 먼저 검증 수행
+    const { client, requestedScopes } =
+      await this.validateAuthorizationRequest(authorizeDto);
 
-    // Type validation
-    if (typeof client_id !== 'string') {
-      throw new BadRequestException('Invalid client_id parameter');
-    }
-    if (typeof redirect_uri !== 'string') {
-      throw new BadRequestException('Invalid redirect_uri parameter');
-    }
-    if (typeof response_type !== 'string') {
-      throw new BadRequestException('Invalid response_type parameter');
-    }
+    const { redirect_uri, state, code_challenge, code_challenge_method } =
+      authorizeDto;
 
-    // Validate response type
-    if (response_type !== OAuth2Service.SUPPORTED_RESPONSE_TYPE) {
-      throw new BadRequestException(
-        `Unsupported response type: ${response_type}`,
-      );
-    }
-
-    // Find and validate client
-    const client = await this.clientRepository.findOne({
-      where: { clientId: client_id, isActive: true },
-    });
-
-    if (!client) {
-      throw new BadRequestException('Invalid client_id');
-    }
-
-    // Validate redirect URI
-    if (!client.redirectUris.includes(redirect_uri)) {
-      throw new BadRequestException('Invalid redirect_uri');
-    }
-
-    // Validate scopes
-    const scopeValue = typeof scope === 'string' ? scope : '';
-    const requestedScopes = scopeValue ? scopeValue.split(' ') : [];
-    const validScopes = await this.scopeService.validateScopes(requestedScopes);
-
-    if (!validScopes && requestedScopes.length > 0) {
-      throw new BadRequestException('Invalid scope parameter');
-    }
-
-    // Validate PKCE parameters if provided
-    if (code_challenge || code_challenge_method) {
-      if (!code_challenge) {
-        throw new BadRequestException(
-          'code_challenge_method is provided but code_challenge is missing',
-        );
-      }
-      if (!code_challenge_method) {
-        throw new BadRequestException(
-          'code_challenge is provided but code_challenge_method is missing',
-        );
-      }
-      if (!['plain', 'S256'].includes(code_challenge_method)) {
-        throw new BadRequestException(
-          `Invalid code_challenge_method: ${code_challenge_method}. Supported methods are 'plain' and 'S256'`,
-        );
-      }
-    }
+    // PKCE 파라미터 검증
+    this.validatePKCEParameters(code_challenge, code_challenge_method);
 
     // Generate authorization code
     const authCode = await this.authCodeService.createAuthorizationCode(
@@ -180,6 +120,29 @@ export class OAuth2Service {
       state: typeof state === 'string' ? state : undefined,
       redirect_uri,
     };
+  }
+
+  private validatePKCEParameters(
+    codeChallenge?: string,
+    codeChallengeMethod?: string,
+  ): void {
+    if (codeChallenge || codeChallengeMethod) {
+      if (!codeChallenge) {
+        throw new BadRequestException(
+          'code_challenge_method is provided but code_challenge is missing',
+        );
+      }
+      if (!codeChallengeMethod) {
+        throw new BadRequestException(
+          'code_challenge is provided but code_challenge_method is missing',
+        );
+      }
+      if (!['plain', 'S256'].includes(codeChallengeMethod)) {
+        throw new BadRequestException(
+          `Invalid code_challenge_method: ${codeChallengeMethod}. Supported methods are 'plain' and 'S256'`,
+        );
+      }
+    }
   }
 
   async token(tokenDto: TokenRequestDto): Promise<TokenResponseDto> {

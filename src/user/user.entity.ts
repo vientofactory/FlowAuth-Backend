@@ -11,13 +11,13 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
   username: string;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', length: 255 })
   email: string;
 
-  @Column()
+  @Column({ nullable: true })
   password: string;
 
   @Column({ nullable: true })
@@ -26,7 +26,7 @@ export class User {
   @Column({ nullable: true })
   lastName: string;
 
-  @Column({ default: false })
+  @Column({ type: 'tinyint', default: 0 })
   isEmailVerified: boolean;
 
   @Column({ type: 'json', nullable: true })

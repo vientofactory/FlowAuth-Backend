@@ -1,8 +1,12 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, LessThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
+import { AppConfigService } from '../config/app-config.service';
 import { Token } from '../token/token.entity';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
@@ -27,30 +31,21 @@ interface TokenCreateResponse {
 
 @Injectable()
 export class TokenService {
-  private static readonly DEFAULT_ACCESS_TOKEN_EXPIRY_HOURS = 1;
-  private static readonly DEFAULT_REFRESH_TOKEN_EXPIRY_DAYS = 30;
-
   constructor(
     @InjectRepository(Token)
     private readonly tokenRepository: Repository<Token>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private readonly appConfig: AppConfigService,
   ) {}
 
   private getAccessTokenExpiryHours(): number {
-    return parseInt(
-      this.configService.get<string>('OAUTH2_ACCESS_TOKEN_EXPIRY_HOURS') ||
-        TokenService.DEFAULT_ACCESS_TOKEN_EXPIRY_HOURS.toString(),
-      10,
-    );
+    return this.appConfig.accessTokenExpiryHours;
   }
 
   private getRefreshTokenExpiryDays(): number {
-    return parseInt(
-      this.configService.get<string>('OAUTH2_REFRESH_TOKEN_EXPIRY_DAYS') ||
-        TokenService.DEFAULT_REFRESH_TOKEN_EXPIRY_DAYS.toString(),
-      10,
-    );
+    return this.appConfig.refreshTokenExpiryDays;
   }
 
   private getAccessTokenExpirySeconds(): number {
@@ -149,6 +144,14 @@ export class TokenService {
 
   async validateToken(accessToken: string): Promise<JwtPayload | null> {
     try {
+      // 캐시에서 먼저 확인
+      const cachedToken = await this.cacheManager.get<JwtPayload>(
+        `token:${accessToken}`,
+      );
+      if (cachedToken) {
+        return cachedToken;
+      }
+
       const decoded = this.jwtService.verify<JwtPayload>(accessToken);
 
       // Check if token exists in database and is not revoked
@@ -167,6 +170,9 @@ export class TokenService {
         await this.tokenRepository.remove(token);
         return null;
       }
+
+      // 유효한 토큰을 캐시에 저장 (5분)
+      await this.cacheManager.set(`token:${accessToken}`, decoded, 300000);
 
       return decoded;
     } catch {
@@ -204,6 +210,14 @@ export class TokenService {
     await this.tokenRepository.delete({
       client: { clientId },
     });
+  }
+
+  async cleanupExpiredTokens(): Promise<number> {
+    const now = new Date();
+    const result = await this.tokenRepository.delete({
+      expiresAt: LessThan(now),
+    });
+    return result.affected || 0;
   }
 
   private generateAccessToken(

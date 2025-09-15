@@ -13,6 +13,8 @@ import { ConfigService } from '@nestjs/config';
 import type { Request as ExpressRequest, Response } from 'express';
 import { OAuth2Service } from './oauth2.service';
 import { OAuth2BearerGuard } from './oauth2-bearer.guard';
+import { TokenService } from './token.service';
+import { AuthorizationCodeService } from './authorization-code.service';
 import { JwtService } from '@nestjs/jwt';
 import type { User } from '../user/user.entity';
 import type { JwtPayload } from '../types/auth.types';
@@ -33,6 +35,8 @@ export class OAuth2Controller {
     private readonly oauth2Service: OAuth2Service,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly tokenService: TokenService,
+    private readonly authorizationCodeService: AuthorizationCodeService,
   ) {}
 
   private async getAuthenticatedUser(
@@ -168,30 +172,60 @@ export class OAuth2Controller {
     @Request() req: ExpressRequest,
     @Res() res: Response,
   ): Promise<void> {
-    // Validate basic OAuth2 parameters
-    if (!authorizeDto.response_type || authorizeDto.response_type !== 'code') {
-      const redirectUrl = new URL(authorizeDto.redirect_uri);
-      redirectUrl.searchParams.set('error', 'unsupported_response_type');
-      redirectUrl.searchParams.set(
-        'error_description',
-        'Response type must be "code"',
+    try {
+      // Validate basic OAuth2 parameters
+      if (
+        !authorizeDto.response_type ||
+        authorizeDto.response_type !== 'code'
+      ) {
+        return this.handleAuthorizeError(
+          res,
+          authorizeDto.redirect_uri,
+          'unsupported_response_type',
+          'Response type must be "code"',
+          authorizeDto.state,
+        );
+      }
+
+      // Check if user is authenticated
+      const user = await this.getAuthenticatedUser(req);
+
+      if (!user) {
+        // Redirect to login with return URL
+        const loginUrl = this.buildLoginRedirectUrl(authorizeDto);
+        return res.redirect(loginUrl);
+      }
+
+      // Check if this is a direct authorize call (no consent yet)
+      // Redirect to consent page for user approval
+      const consentUrl = this.buildConsentRedirectUrl(authorizeDto);
+      return res.redirect(consentUrl);
+    } catch (error) {
+      console.error('Authorize error:', error);
+      return this.handleAuthorizeError(
+        res,
+        authorizeDto.redirect_uri,
+        'server_error',
+        'Internal server error',
+        authorizeDto.state,
       );
-      return res.redirect(redirectUrl.toString());
     }
+  }
 
-    // Check if user is authenticated
-    const user = await this.getAuthenticatedUser(req);
-
-    if (!user) {
-      // Redirect to login with return URL
-      const loginUrl = this.buildLoginRedirectUrl(authorizeDto);
-      return res.redirect(loginUrl);
+  private handleAuthorizeError(
+    res: Response,
+    redirectUri: string,
+    error: string,
+    errorDescription: string,
+    state?: string,
+  ): void {
+    const redirectUrl = new URL(redirectUri);
+    redirectUrl.searchParams.set('error', error);
+    redirectUrl.searchParams.set('error_description', errorDescription);
+    if (state) {
+      redirectUrl.searchParams.set('state', state);
     }
-
-    // Check if this is a direct authorize call (no consent yet)
-    // Redirect to consent page for user approval
-    const consentUrl = this.buildConsentRedirectUrl(authorizeDto);
-    return res.redirect(consentUrl);
+    res.redirect(redirectUrl.toString());
   }
 
   @Post('token')
@@ -324,5 +358,18 @@ export class OAuth2Controller {
 
     // For now, automatically approve consent
     await this.handleAuthorizeFlow(user, authorizeDto, res);
+  }
+
+  @Post('cleanup')
+  async cleanupExpiredData() {
+    const deletedTokens = await this.tokenService.cleanupExpiredTokens();
+    const deletedCodes =
+      await this.authorizationCodeService.cleanupExpiredCodes();
+
+    return {
+      message: 'Cleanup completed',
+      deletedTokens,
+      deletedCodes,
+    };
   }
 }

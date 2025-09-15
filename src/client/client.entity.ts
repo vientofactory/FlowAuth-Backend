@@ -13,19 +13,19 @@ export class Client {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column()
   clientId: string;
 
-  @Column()
+  @Column({ nullable: true })
   clientSecret: string;
 
-  @Column('simple-array')
+  @Column({ type: 'json' })
   redirectUris: string[];
 
-  @Column('simple-array')
+  @Column({ type: 'json' })
   grants: string[];
 
-  @Column('simple-array', { nullable: true })
+  @Column({ type: 'json', nullable: true })
   scopes: string[];
 
   @Column()
@@ -34,10 +34,10 @@ export class Client {
   @Column({ nullable: true })
   description: string;
 
-  @Column({ default: true })
+  @Column({ type: 'tinyint', default: 1 })
   isActive: boolean;
 
-  @Column({ default: false })
+  @Column({ type: 'tinyint', default: 0 })
   isConfidential: boolean;
 
   @Column({ nullable: true })

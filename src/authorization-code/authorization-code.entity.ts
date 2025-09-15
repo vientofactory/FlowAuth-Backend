@@ -17,7 +17,7 @@ export class AuthorizationCode {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', length: 128, nullable: true })
   code: string;
 
   @Column()
@@ -26,7 +26,7 @@ export class AuthorizationCode {
   @Column({ nullable: true })
   redirectUri: string;
 
-  @Column('simple-array', { nullable: true })
+  @Column({ type: 'json', nullable: true })
   scopes: string[];
 
   @Column({ nullable: true })
@@ -38,14 +38,14 @@ export class AuthorizationCode {
   @Column({ nullable: true })
   codeChallengeMethod: string;
 
-  @Column({ default: false })
+  @Column({ type: 'tinyint', default: 0 })
   isUsed: boolean;
 
-  @ManyToOne(() => User, { eager: true })
+  @ManyToOne(() => User)
   @JoinColumn()
   user: User;
 
-  @ManyToOne(() => Client, { eager: true })
+  @ManyToOne(() => Client)
   @JoinColumn()
   client: Client;
 
