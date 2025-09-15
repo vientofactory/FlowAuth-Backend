@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { BadRequestException } from '@nestjs/common';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
@@ -78,15 +79,15 @@ export class AuthorizationCodeService {
 
     // Check PKCE if code challenge was used
     if (authCode.codeChallenge && codeVerifier) {
-      if (
-        !this.verifyCodeChallenge(
-          codeVerifier,
-          authCode.codeChallenge,
-          authCode.codeChallengeMethod,
-        )
-      ) {
-        return null;
-      }
+      this.verifyCodeChallenge(
+        codeVerifier,
+        authCode.codeChallenge,
+        authCode.codeChallengeMethod,
+      );
+    } else if (authCode.codeChallenge && !codeVerifier) {
+      throw new BadRequestException(
+        'PKCE is required for this authorization code but code_verifier was not provided',
+      );
     }
 
     // Mark as used
@@ -107,15 +108,33 @@ export class AuthorizationCodeService {
     challenge: string,
     method: string = 'plain',
   ): boolean {
+    if (!verifier || !challenge) {
+      throw new BadRequestException('PKCE parameters are required but missing');
+    }
+
     if (method === 'plain') {
-      return verifier === challenge;
+      if (verifier !== challenge) {
+        throw new BadRequestException(
+          'PKCE verification failed: code verifier does not match code challenge (plain method)',
+        );
+      }
+      return true;
     } else if (method === 'S256') {
       const hash = crypto
         .createHash('sha256')
         .update(verifier)
         .digest('base64url');
-      return hash === challenge;
+
+      if (hash !== challenge) {
+        throw new BadRequestException(
+          'PKCE verification failed: code verifier hash does not match code challenge (S256 method)',
+        );
+      }
+      return true;
     }
-    return false;
+
+    throw new BadRequestException(
+      `Unsupported code challenge method: ${method}. Supported methods are 'plain' and 'S256'`,
+    );
   }
 }

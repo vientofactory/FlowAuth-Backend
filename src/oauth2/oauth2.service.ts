@@ -143,6 +143,25 @@ export class OAuth2Service {
       throw new BadRequestException('Invalid scope parameter');
     }
 
+    // Validate PKCE parameters if provided
+    if (code_challenge || code_challenge_method) {
+      if (!code_challenge) {
+        throw new BadRequestException(
+          'code_challenge_method is provided but code_challenge is missing',
+        );
+      }
+      if (!code_challenge_method) {
+        throw new BadRequestException(
+          'code_challenge is provided but code_challenge_method is missing',
+        );
+      }
+      if (!['plain', 'S256'].includes(code_challenge_method)) {
+        throw new BadRequestException(
+          `Invalid code_challenge_method: ${code_challenge_method}. Supported methods are 'plain' and 'S256'`,
+        );
+      }
+    }
+
     // Generate authorization code
     const authCode = await this.authCodeService.createAuthorizationCode(
       user,
