@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
@@ -9,13 +10,22 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthorizationCodeService {
-  private static readonly CODE_EXPIRY_MINUTES = 10;
+  private static readonly DEFAULT_CODE_EXPIRY_MINUTES = 10;
   private static readonly CODE_LENGTH = 32;
 
   constructor(
     @InjectRepository(AuthorizationCode)
     private readonly authCodeRepository: Repository<AuthorizationCode>,
+    private readonly configService: ConfigService,
   ) {}
+
+  private getCodeExpiryMinutes(): number {
+    return parseInt(
+      this.configService.get<string>('OAUTH2_CODE_EXPIRY_MINUTES') ||
+        AuthorizationCodeService.DEFAULT_CODE_EXPIRY_MINUTES.toString(),
+      10,
+    );
+  }
 
   async createAuthorizationCode(
     user: User,
@@ -28,9 +38,7 @@ export class AuthorizationCodeService {
   ): Promise<AuthorizationCode> {
     const code = this.generateCode();
     const expiresAt = new Date();
-    expiresAt.setMinutes(
-      expiresAt.getMinutes() + AuthorizationCodeService.CODE_EXPIRY_MINUTES,
-    );
+    expiresAt.setMinutes(expiresAt.getMinutes() + this.getCodeExpiryMinutes());
 
     const authCode = this.authCodeRepository.create({
       code,

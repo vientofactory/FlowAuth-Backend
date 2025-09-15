@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { Token } from '../token/token.entity';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
@@ -26,16 +27,35 @@ interface TokenCreateResponse {
 
 @Injectable()
 export class TokenService {
-  private static readonly ACCESS_TOKEN_EXPIRY_HOURS = 1;
-  private static readonly REFRESH_TOKEN_EXPIRY_DAYS = 30;
-  private static readonly ACCESS_TOKEN_EXPIRY_SECONDS =
-    TokenService.ACCESS_TOKEN_EXPIRY_HOURS * 86400;
+  private static readonly DEFAULT_ACCESS_TOKEN_EXPIRY_HOURS = 1;
+  private static readonly DEFAULT_REFRESH_TOKEN_EXPIRY_DAYS = 30;
 
   constructor(
     @InjectRepository(Token)
     private readonly tokenRepository: Repository<Token>,
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
+
+  private getAccessTokenExpiryHours(): number {
+    return parseInt(
+      this.configService.get<string>('OAUTH2_ACCESS_TOKEN_EXPIRY_HOURS') ||
+        TokenService.DEFAULT_ACCESS_TOKEN_EXPIRY_HOURS.toString(),
+      10,
+    );
+  }
+
+  private getRefreshTokenExpiryDays(): number {
+    return parseInt(
+      this.configService.get<string>('OAUTH2_REFRESH_TOKEN_EXPIRY_DAYS') ||
+        TokenService.DEFAULT_REFRESH_TOKEN_EXPIRY_DAYS.toString(),
+      10,
+    );
+  }
+
+  private getAccessTokenExpirySeconds(): number {
+    return this.getAccessTokenExpiryHours() * 3600;
+  }
 
   async createToken(
     user: User | null,
@@ -46,13 +66,11 @@ export class TokenService {
     const refreshToken = this.generateRefreshToken();
 
     const expiresAt = new Date();
-    expiresAt.setHours(
-      expiresAt.getHours() + TokenService.ACCESS_TOKEN_EXPIRY_HOURS,
-    );
+    expiresAt.setHours(expiresAt.getHours() + this.getAccessTokenExpiryHours());
 
     const refreshExpiresAt = new Date();
     refreshExpiresAt.setDate(
-      refreshExpiresAt.getDate() + TokenService.REFRESH_TOKEN_EXPIRY_DAYS,
+      refreshExpiresAt.getDate() + this.getRefreshTokenExpiryDays(),
     );
 
     const token = this.tokenRepository.create({
@@ -70,7 +88,7 @@ export class TokenService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: TokenService.ACCESS_TOKEN_EXPIRY_SECONDS,
+      expiresIn: this.getAccessTokenExpirySeconds(),
       scopes,
       tokenType: 'Bearer',
     };
@@ -105,13 +123,11 @@ export class TokenService {
     const newRefreshToken = this.generateRefreshToken();
 
     const expiresAt = new Date();
-    expiresAt.setHours(
-      expiresAt.getHours() + TokenService.ACCESS_TOKEN_EXPIRY_HOURS,
-    );
+    expiresAt.setHours(expiresAt.getHours() + this.getAccessTokenExpiryHours());
 
     const refreshExpiresAt = new Date();
     refreshExpiresAt.setDate(
-      refreshExpiresAt.getDate() + TokenService.REFRESH_TOKEN_EXPIRY_DAYS,
+      refreshExpiresAt.getDate() + this.getRefreshTokenExpiryDays(),
     );
 
     // Update token
@@ -125,7 +141,7 @@ export class TokenService {
     return {
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
-      expiresIn: TokenService.ACCESS_TOKEN_EXPIRY_SECONDS,
+      expiresIn: this.getAccessTokenExpirySeconds(),
       scopes: token.scopes,
       tokenType: 'Bearer',
     };
@@ -203,7 +219,7 @@ export class TokenService {
     };
 
     return this.jwtService.sign(payload, {
-      expiresIn: `${TokenService.ACCESS_TOKEN_EXPIRY_HOURS}h`,
+      expiresIn: `${this.getAccessTokenExpiryHours()}h`,
     });
   }
 
