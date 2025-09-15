@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -33,7 +29,7 @@ export class TokenService {
   private static readonly ACCESS_TOKEN_EXPIRY_HOURS = 1;
   private static readonly REFRESH_TOKEN_EXPIRY_DAYS = 30;
   private static readonly ACCESS_TOKEN_EXPIRY_SECONDS =
-    TokenService.ACCESS_TOKEN_EXPIRY_HOURS * 3600;
+    TokenService.ACCESS_TOKEN_EXPIRY_HOURS * 86400;
 
   constructor(
     @InjectRepository(Token)
@@ -137,7 +133,7 @@ export class TokenService {
 
   async validateToken(accessToken: string): Promise<JwtPayload | null> {
     try {
-      const decoded = this.jwtService.verify(accessToken);
+      const decoded = this.jwtService.verify<JwtPayload>(accessToken);
 
       // Check if token exists in database and is not revoked
       const token = await this.tokenRepository.findOne({
@@ -157,7 +153,7 @@ export class TokenService {
       }
 
       return decoded;
-    } catch (error) {
+    } catch {
       return null;
     }
   }

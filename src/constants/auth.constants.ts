@@ -10,7 +10,7 @@ export const JWT_CONSTANTS = {
 export const AUTH_CONSTANTS = {
   BCRYPT_SALT_ROUNDS: 10,
   DEFAULT_USER_ROLES: ['user'] as const,
-  TOKEN_EXPIRATION_SECONDS: 3600, // 1 hour
+  TOKEN_EXPIRATION_SECONDS: 86400, // 24 hours
   TOKEN_TYPE: 'access' as const,
 } as const;
 
