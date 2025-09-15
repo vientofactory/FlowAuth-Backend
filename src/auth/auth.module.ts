@@ -10,10 +10,11 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
+import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Client, Token]),
+    TypeOrmModule.forFeature([User, Client, Token, AuthorizationCode]),
     PassportModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({

@@ -150,7 +150,20 @@ export class AuthController {
   })
   @ApiBody({ type: CreateClientDto })
   async createClient(@Body() createClientDto: CreateClientDto) {
-    return this.authService.createClient(createClientDto);
+    const client = await this.authService.createClient(createClientDto);
+    return {
+      id: client.id,
+      clientId: client.clientId,
+      clientSecret: client.clientSecret,
+      name: client.name,
+      description: client.description,
+      redirectUris: client.redirectUris,
+      grants: client.grants,
+      scopes: client.scopes,
+      isActive: client.isActive,
+      createdAt: client.createdAt,
+      updatedAt: client.updatedAt,
+    };
   }
 
   @Get('clients')
@@ -239,6 +252,8 @@ export class AuthController {
   }
 
   @Delete('clients/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'OAuth2 클라이언트 삭제' })
   @ApiResponse({
     status: 200,

@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
+import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
@@ -31,6 +32,8 @@ export class AuthService {
     private clientRepository: Repository<Client>,
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
+    @InjectRepository(AuthorizationCode)
+    private authorizationCodeRepository: Repository<AuthorizationCode>,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -257,6 +260,13 @@ export class AuthService {
       throw new UnauthorizedException('Client not found');
     }
 
+    // Delete related authorization codes
+    await this.authorizationCodeRepository.delete({ client: { id } });
+
+    // Delete related tokens
+    await this.tokenRepository.delete({ client: { id } });
+
+    // Delete the client
     await this.clientRepository.remove(client);
   }
 
