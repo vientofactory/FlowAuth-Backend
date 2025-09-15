@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   Index,
 } from 'typeorm';
+import { Exclude } from 'class-transformer';
 
 @Entity()
 @Index(['clientId'], { unique: true })
@@ -17,6 +18,7 @@ export class Client {
   clientId: string;
 
   @Column({ nullable: true })
+  @Exclude()
   clientSecret: string;
 
   @Column({ type: 'json' })

@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
+import { Exclude } from 'class-transformer';
 
 @Entity()
 @Index(['accessToken'], { unique: true })
@@ -19,9 +20,11 @@ export class Token {
   id: number;
 
   @Column({ type: 'varchar', length: 2048, nullable: true })
+  @Exclude()
   accessToken: string;
 
   @Column({ type: 'varchar', length: 2048, nullable: true })
+  @Exclude()
   refreshToken: string;
 
   @Column()

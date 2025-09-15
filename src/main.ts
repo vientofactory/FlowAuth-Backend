@@ -1,8 +1,9 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { Reflector } from '@nestjs/core';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 
@@ -34,6 +35,9 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // Serialization
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
   // Swagger API Documentation
   const config = new DocumentBuilder()
