@@ -39,38 +39,55 @@ export class OAuth2Controller {
     private readonly authorizationCodeService: AuthorizationCodeService,
   ) {}
 
+  private async getAuthenticatedUserFromCookie(
+    req: ExpressRequest,
+  ): Promise<User | null> {
+    const cookies = req.cookies as Record<string, unknown> | undefined;
+    const cookieToken = cookies?.token;
+
+    if (cookieToken && typeof cookieToken === 'string') {
+      try {
+        const payload = this.jwtService.verify<JwtPayload>(cookieToken);
+        const user = await this.oauth2Service.getUserInfo(payload.sub);
+        return user;
+      } catch {
+        // Continue to check authorization header
+      }
+    }
+
+    return null;
+  }
+
+  private async getAuthenticatedUserFromHeader(
+    req: ExpressRequest,
+  ): Promise<User | null> {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const payload = this.jwtService.verify<JwtPayload>(token);
+        const user = await this.oauth2Service.getUserInfo(payload.sub);
+        return user;
+      } catch {
+        // Token verification failed
+      }
+    }
+
+    return null;
+  }
+
   private async getAuthenticatedUser(
     req: ExpressRequest,
   ): Promise<User | null> {
     try {
       // Check cookie first
-      const cookies = req.cookies as Record<string, unknown> | undefined;
-      const cookieToken = cookies?.token;
-
-      if (cookieToken && typeof cookieToken === 'string') {
-        try {
-          const payload = this.jwtService.verify<JwtPayload>(cookieToken);
-          const user = await this.oauth2Service.getUserInfo(payload.sub);
-          return user;
-        } catch {
-          // Continue to check authorization header
-        }
+      const userFromCookie = await this.getAuthenticatedUserFromCookie(req);
+      if (userFromCookie) {
+        return userFromCookie;
       }
 
       // Check Authorization header
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-          const token = authHeader.substring(7);
-          const payload = this.jwtService.verify<JwtPayload>(token);
-          const user = await this.oauth2Service.getUserInfo(payload.sub);
-          return user;
-        } catch {
-          // Token verification failed
-        }
-      }
-
-      return null;
+      return await this.getAuthenticatedUserFromHeader(req);
     } catch {
       return null;
     }
@@ -174,18 +191,7 @@ export class OAuth2Controller {
   ): Promise<void> {
     try {
       // Validate basic OAuth2 parameters
-      if (
-        !authorizeDto.response_type ||
-        authorizeDto.response_type !== 'code'
-      ) {
-        return this.handleAuthorizeError(
-          res,
-          authorizeDto.redirect_uri,
-          'unsupported_response_type',
-          'Response type must be "code"',
-          authorizeDto.state,
-        );
-      }
+      this.validateBasicAuthorizeParameters(authorizeDto);
 
       // Check if user is authenticated
       const user = await this.getAuthenticatedUser(req);
@@ -196,13 +202,10 @@ export class OAuth2Controller {
         return res.redirect(loginUrl);
       }
 
-      // Check if this is a direct authorize call (no consent yet)
-      // Redirect to consent page for user approval
-      const consentUrl = this.buildConsentRedirectUrl(authorizeDto);
-      return res.redirect(consentUrl);
-    } catch (error) {
-      console.error('Authorize error:', error);
-      return this.handleAuthorizeError(
+      // Handle the authorization flow
+      await this.handleAuthorizationFlowWithConsent(authorizeDto, res);
+    } catch {
+      this.handleAuthorizeError(
         res,
         authorizeDto.redirect_uri,
         'server_error',
@@ -212,6 +215,25 @@ export class OAuth2Controller {
     }
   }
 
+  private validateBasicAuthorizeParameters(
+    authorizeDto: AuthorizeRequestDto,
+  ): void {
+    if (!authorizeDto.response_type || authorizeDto.response_type !== 'code') {
+      throw new BadRequestException('Response type must be "code"');
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  private async handleAuthorizationFlowWithConsent(
+    authorizeDto: AuthorizeRequestDto,
+    res: Response,
+  ): Promise<void> {
+    // Check if this is a direct authorize call (no consent yet)
+    // Redirect to consent page for user approval
+    const consentUrl = this.buildConsentRedirectUrl(authorizeDto);
+    res.redirect(consentUrl);
+  }
+
   private handleAuthorizeError(
     res: Response,
     redirectUri: string,
@@ -219,13 +241,91 @@ export class OAuth2Controller {
     errorDescription: string,
     state?: string,
   ): void {
-    const redirectUrl = new URL(redirectUri);
-    redirectUrl.searchParams.set('error', error);
-    redirectUrl.searchParams.set('error_description', errorDescription);
-    if (state) {
-      redirectUrl.searchParams.set('state', state);
+    try {
+      // Validate redirect URI to prevent open redirect attacks
+      const allowedRedirectUri = this.validateRedirectUriForError(redirectUri);
+      if (!allowedRedirectUri) {
+        // If redirect URI is invalid, return generic error without redirect
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Invalid redirect URI',
+        });
+        return;
+      }
+
+      const redirectUrl = new URL(allowedRedirectUri);
+
+      // Only allow safe error parameters
+      const safeErrors = [
+        'invalid_request',
+        'unauthorized_client',
+        'access_denied',
+        'unsupported_response_type',
+        'invalid_scope',
+        'server_error',
+        'temporarily_unavailable',
+      ];
+
+      if (safeErrors.includes(error)) {
+        redirectUrl.searchParams.set('error', error);
+        // Sanitize error description to prevent information leakage
+        const sanitizedDescription =
+          this.sanitizeErrorDescription(errorDescription);
+        redirectUrl.searchParams.set('error_description', sanitizedDescription);
+      } else {
+        // Unknown error - use generic message
+        redirectUrl.searchParams.set('error', 'server_error');
+        redirectUrl.searchParams.set('error_description', 'An error occurred');
+      }
+
+      if (state && typeof state === 'string' && state.length <= 500) {
+        redirectUrl.searchParams.set('state', state);
+      }
+
+      res.redirect(redirectUrl.toString());
+    } catch {
+      // If redirect fails, return JSON error
+      res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'Invalid redirect URI',
+      });
     }
-    res.redirect(redirectUrl.toString());
+  }
+
+  private validateRedirectUriForError(redirectUri: string): string | null {
+    try {
+      const url = new URL(redirectUri);
+      // Only allow HTTP/HTTPS schemes
+      if (!['http:', 'https:'].includes(url.protocol)) {
+        return null;
+      }
+      // Prevent localhost/private IP redirects in production
+      if (process.env.NODE_ENV === 'production') {
+        const hostname = url.hostname.toLowerCase();
+        if (
+          hostname === 'localhost' ||
+          hostname === '127.0.0.1' ||
+          hostname.startsWith('192.168.') ||
+          hostname.startsWith('10.') ||
+          hostname.startsWith('172.')
+        ) {
+          return null;
+        }
+      }
+      return redirectUri;
+    } catch {
+      return null;
+    }
+  }
+
+  private sanitizeErrorDescription(description: string): string {
+    // Remove potentially sensitive information from error messages
+    return description
+      .replace(/token[^a-zA-Z0-9]/gi, '[REDACTED]')
+      .replace(/secret[^a-zA-Z0-9]/gi, '[REDACTED]')
+      .replace(/password[^a-zA-Z0-9]/gi, '[REDACTED]')
+      .replace(/key[^a-zA-Z0-9]/gi, '[REDACTED]')
+      .substring(0, 200); // Limit length
   }
 
   @Post('token')
@@ -283,6 +383,9 @@ export class OAuth2Controller {
         id: client.clientId,
         name: client.name,
         description: client.description,
+        logoUri: client.logoUri,
+        termsOfServiceUri: client.termsOfServiceUri,
+        policyUri: client.policyUri,
       },
       scopes,
     };

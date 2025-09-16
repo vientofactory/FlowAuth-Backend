@@ -42,6 +42,9 @@ export class Token {
   @Column({ type: 'tinyint', default: 0 })
   isRevoked: boolean;
 
+  @Column({ type: 'tinyint', default: 0 })
+  isRefreshTokenUsed: boolean;
+
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn()
   user: User | null;

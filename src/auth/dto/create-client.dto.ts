@@ -44,4 +44,28 @@ export class CreateClientDto {
   @IsArray()
   @IsString({ each: true })
   scopes: string[];
+
+  @ApiPropertyOptional({
+    description: '클라이언트 로고 URL',
+    example: 'https://myapp.com/logo.png',
+  })
+  @IsString()
+  @IsOptional()
+  logoUri?: string;
+
+  @ApiPropertyOptional({
+    description: '이용약관 URL',
+    example: 'https://myapp.com/terms',
+  })
+  @IsString()
+  @IsOptional()
+  termsOfServiceUri?: string;
+
+  @ApiPropertyOptional({
+    description: '개인정보처리방침 URL',
+    example: 'https://myapp.com/privacy',
+  })
+  @IsString()
+  @IsOptional()
+  policyUri?: string;
 }

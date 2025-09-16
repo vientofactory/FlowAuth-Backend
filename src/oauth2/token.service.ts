@@ -91,55 +91,89 @@ export class TokenService {
 
   async refreshToken(
     refreshTokenValue: string,
+    clientId: string,
   ): Promise<TokenCreateResponse | null> {
-    // Find token by refresh token
-    const token = await this.tokenRepository.findOne({
-      where: { refreshToken: refreshTokenValue },
-      relations: ['user', 'client'],
+    // Use transaction to prevent race conditions
+    return await this.tokenRepository.manager.transaction(async (manager) => {
+      // Find token by refresh token with pessimistic locking
+      const token = await manager.findOne(Token, {
+        where: { refreshToken: refreshTokenValue },
+        relations: ['user', 'client'],
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!token) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      // Verify that the refresh token belongs to the requesting client
+      if (token.client.clientId !== clientId) {
+        throw new UnauthorizedException(
+          'Refresh token does not belong to this client',
+        );
+      }
+
+      // Check if refresh token is expired
+      if (token.refreshExpiresAt && new Date() > token.refreshExpiresAt) {
+        // Remove expired token
+        await manager.remove(Token, token);
+        throw new UnauthorizedException('Refresh token expired');
+      }
+
+      // Check if refresh token has been used (prevent reuse)
+      if (token.isRefreshTokenUsed) {
+        // Remove compromised token
+        await manager.remove(Token, token);
+        throw new UnauthorizedException('Refresh token has already been used');
+      }
+
+      // Mark refresh token as used to prevent reuse
+      token.isRefreshTokenUsed = true;
+      await manager.save(Token, token);
+
+      // Generate new access token
+      const newAccessToken = this.generateAccessToken(
+        token.user,
+        token.client,
+        token.scopes,
+      );
+      const newRefreshToken = this.generateRefreshToken();
+
+      const expiresAt = new Date();
+      expiresAt.setHours(
+        expiresAt.getHours() + this.getAccessTokenExpiryHours(),
+      );
+
+      const refreshExpiresAt = new Date();
+      refreshExpiresAt.setDate(
+        refreshExpiresAt.getDate() + this.getRefreshTokenExpiryDays(),
+      );
+
+      // Create new token record (rotation)
+      const newToken = manager.create(Token, {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        expiresAt,
+        refreshExpiresAt,
+        scopes: token.scopes,
+        user: token.user,
+        client: token.client,
+        isRefreshTokenUsed: false,
+      });
+
+      await manager.save(Token, newToken);
+
+      // Remove old token after creating new one
+      await manager.remove(Token, token);
+
+      return {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        expiresIn: this.getAccessTokenExpirySeconds(),
+        scopes: token.scopes,
+        tokenType: 'Bearer',
+      };
     });
-
-    if (!token) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
-    // Check if refresh token is expired
-    if (token.refreshExpiresAt && new Date() > token.refreshExpiresAt) {
-      // Remove expired token
-      await this.tokenRepository.remove(token);
-      throw new UnauthorizedException('Refresh token expired');
-    }
-
-    // Generate new access token
-    const newAccessToken = this.generateAccessToken(
-      token.user,
-      token.client,
-      token.scopes,
-    );
-    const newRefreshToken = this.generateRefreshToken();
-
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + this.getAccessTokenExpiryHours());
-
-    const refreshExpiresAt = new Date();
-    refreshExpiresAt.setDate(
-      refreshExpiresAt.getDate() + this.getRefreshTokenExpiryDays(),
-    );
-
-    // Update token
-    token.accessToken = newAccessToken;
-    token.refreshToken = newRefreshToken;
-    token.expiresAt = expiresAt;
-    token.refreshExpiresAt = refreshExpiresAt;
-
-    await this.tokenRepository.save(token);
-
-    return {
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-      expiresIn: this.getAccessTokenExpirySeconds(),
-      scopes: token.scopes,
-      tokenType: 'Bearer',
-    };
   }
 
   async validateToken(accessToken: string): Promise<JwtPayload | null> {

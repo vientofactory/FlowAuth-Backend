@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -16,15 +17,21 @@ import {
   AuthorizeResponseDto,
   TokenResponseDto,
 } from './dto/oauth2.dto';
+import {
+  OAUTH2_CONSTANTS,
+  RATE_LIMIT_CONSTANTS,
+  OAUTH2_ERROR_MESSAGES,
+} from '../constants/oauth2.constants';
 
 @Injectable()
 export class OAuth2Service {
-  private static readonly SUPPORTED_RESPONSE_TYPE = 'code';
-  private static readonly SUPPORTED_GRANT_TYPES = [
-    'authorization_code',
-    'refresh_token',
-    'client_credentials',
-  ] as const;
+  private readonly logger = new Logger(OAuth2Service.name);
+
+  // Rate limiting configuration
+  private rateLimitStore = new Map<
+    string,
+    { count: number; resetTime: number }
+  >();
 
   constructor(
     @InjectRepository(User)
@@ -39,21 +46,37 @@ export class OAuth2Service {
   async validateAuthorizationRequest(
     authorizeDto: AuthorizeRequestDto,
   ): Promise<{ client: Client; requestedScopes: string[] }> {
-    const { client_id, redirect_uri, response_type, scope } = authorizeDto;
+    const { client_id, redirect_uri, response_type, scope, state } =
+      authorizeDto;
+
+    // Rate limiting check
+    if (!this.checkRateLimit(`auth:${client_id}`)) {
+      throw new BadRequestException(OAUTH2_ERROR_MESSAGES.RATE_LIMIT_EXCEEDED);
+    }
+
+    // Clean up old rate limit records periodically
+    this.cleanupRateLimitStore();
 
     // Type validation
     if (typeof client_id !== 'string') {
-      throw new BadRequestException('Invalid client_id parameter');
+      throw new BadRequestException(OAUTH2_ERROR_MESSAGES.INVALID_CLIENT_ID);
     }
     if (typeof redirect_uri !== 'string') {
-      throw new BadRequestException('Invalid redirect_uri parameter');
+      throw new BadRequestException(OAUTH2_ERROR_MESSAGES.INVALID_REDIRECT_URI);
     }
     if (typeof response_type !== 'string') {
-      throw new BadRequestException('Invalid response_type parameter');
+      throw new BadRequestException(
+        OAUTH2_ERROR_MESSAGES.INVALID_RESPONSE_TYPE,
+      );
+    }
+
+    // Validate state parameter (REQUIRED for CSRF protection)
+    if (!state || typeof state !== 'string' || state.length === 0) {
+      throw new BadRequestException(OAUTH2_ERROR_MESSAGES.STATE_REQUIRED);
     }
 
     // Validate response type
-    if (response_type !== OAuth2Service.SUPPORTED_RESPONSE_TYPE) {
+    if (response_type !== OAUTH2_CONSTANTS.SUPPORTED_RESPONSE_TYPE) {
       throw new BadRequestException(
         `Unsupported response type: ${response_type}`,
       );
@@ -65,12 +88,22 @@ export class OAuth2Service {
     });
 
     if (!client) {
-      throw new BadRequestException('Invalid client_id');
+      throw new BadRequestException(OAUTH2_ERROR_MESSAGES.INVALID_CLIENT);
     }
 
     // Validate redirect URI
-    if (!client.redirectUris.includes(redirect_uri)) {
-      throw new BadRequestException('Invalid redirect_uri');
+    const sanitizedRedirectUri = this.sanitizeRedirectUri(redirect_uri);
+    if (!sanitizedRedirectUri) {
+      throw new BadRequestException(
+        OAUTH2_ERROR_MESSAGES.INVALID_REDIRECT_URI_FORMAT,
+      );
+    }
+
+    // Validate redirect URI against client's registered URIs
+    if (!this.isValidRedirectUri(sanitizedRedirectUri, client.redirectUris)) {
+      throw new BadRequestException(
+        OAUTH2_ERROR_MESSAGES.INVALID_REDIRECT_URI_CLIENT,
+      );
     }
 
     // Validate scopes
@@ -79,7 +112,7 @@ export class OAuth2Service {
     const validScopes = await this.scopeService.validateScopes(requestedScopes);
 
     if (!validScopes && requestedScopes.length > 0) {
-      throw new BadRequestException('Invalid scope parameter');
+      throw new BadRequestException(OAUTH2_ERROR_MESSAGES.INVALID_SCOPE);
     }
 
     return {
@@ -99,8 +132,10 @@ export class OAuth2Service {
     const { redirect_uri, state, code_challenge, code_challenge_method } =
       authorizeDto;
 
-    // PKCE 파라미터 검증
-    this.validatePKCEParameters(code_challenge, code_challenge_method);
+    // PKCE 파라미터 검증 (OPTIONAL but RECOMMENDED for security)
+    if (code_challenge || code_challenge_method) {
+      this.validatePKCEParameters(code_challenge, code_challenge_method);
+    }
 
     // Generate authorization code
     const authCode = await this.authCodeService.createAuthorizationCode(
@@ -126,34 +161,82 @@ export class OAuth2Service {
     codeChallenge?: string,
     codeChallengeMethod?: string,
   ): void {
+    // PKCE is OPTIONAL but RECOMMENDED for security (RFC 7636)
     if (codeChallenge || codeChallengeMethod) {
-      if (!codeChallenge) {
+      this.validatePKCEChallengeAndMethod(codeChallenge, codeChallengeMethod);
+      this.validatePKCEChallengeFormat(codeChallenge!, codeChallengeMethod!);
+    }
+  }
+
+  private validatePKCEChallengeAndMethod(
+    codeChallenge?: string,
+    codeChallengeMethod?: string,
+  ): void {
+    if (!codeChallenge) {
+      throw new BadRequestException(
+        OAUTH2_ERROR_MESSAGES.PKCE_CHALLENGE_MISSING,
+      );
+    }
+    if (!codeChallengeMethod) {
+      throw new BadRequestException(OAUTH2_ERROR_MESSAGES.PKCE_METHOD_MISSING);
+    }
+    if (!OAUTH2_CONSTANTS.PKCE_METHODS.includes(codeChallengeMethod as never)) {
+      throw new BadRequestException(
+        `${OAUTH2_ERROR_MESSAGES.INVALID_PKCE_METHOD}: ${codeChallengeMethod}. Supported methods are 'plain' and 'S256'`,
+      );
+    }
+  }
+
+  private validatePKCEChallengeFormat(
+    codeChallenge: string,
+    codeChallengeMethod: string,
+  ): void {
+    if (codeChallengeMethod === 'S256') {
+      // Base64url encoded SHA256 hash should be 43 characters
+      if (!/^[A-Za-z0-9_-]{43}$/.test(codeChallenge)) {
         throw new BadRequestException(
-          'code_challenge_method is provided but code_challenge is missing',
+          OAUTH2_ERROR_MESSAGES.INVALID_PKCE_FORMAT_S256,
         );
       }
-      if (!codeChallengeMethod) {
+    } else if (codeChallengeMethod === 'plain') {
+      // Plain method should be 43-128 characters
+      if (
+        codeChallenge.length <
+          OAUTH2_CONSTANTS.CODE_CHALLENGE_PLAIN_MIN_LENGTH ||
+        codeChallenge.length > OAUTH2_CONSTANTS.CODE_CHALLENGE_PLAIN_MAX_LENGTH
+      ) {
         throw new BadRequestException(
-          'code_challenge is provided but code_challenge_method is missing',
-        );
-      }
-      if (!['plain', 'S256'].includes(codeChallengeMethod)) {
-        throw new BadRequestException(
-          `Invalid code_challenge_method: ${codeChallengeMethod}. Supported methods are 'plain' and 'S256'`,
+          OAUTH2_ERROR_MESSAGES.INVALID_PKCE_LENGTH_PLAIN,
         );
       }
     }
   }
 
   async token(tokenDto: TokenRequestDto): Promise<TokenResponseDto> {
-    const { grant_type } = tokenDto;
+    const { grant_type, client_id } = tokenDto;
+
+    // Rate limiting check for token requests (stricter limits)
+    if (
+      client_id &&
+      !this.checkRateLimit(
+        `token:${client_id}`,
+        RATE_LIMIT_CONSTANTS.MAX_TOKEN_REQUESTS,
+      )
+    ) {
+      throw new BadRequestException(
+        OAUTH2_ERROR_MESSAGES.TOKEN_RATE_LIMIT_EXCEEDED,
+      );
+    }
+
+    // Clean up old rate limit records periodically
+    this.cleanupRateLimitStore();
 
     // Type validation
     if (typeof grant_type !== 'string') {
       throw new BadRequestException('Invalid grant_type parameter');
     }
 
-    if (!OAuth2Service.SUPPORTED_GRANT_TYPES.includes(grant_type as never)) {
+    if (!OAUTH2_CONSTANTS.SUPPORTED_GRANT_TYPES.includes(grant_type as never)) {
       throw new BadRequestException(`Unsupported grant type: ${grant_type}`);
     }
 
@@ -228,12 +311,27 @@ export class OAuth2Service {
 
     await this.validateClient(client_id, client_secret);
 
+    // Log refresh token request for security monitoring
+    this.logger.log(
+      `Refresh token request from client ${client_id} for user token`,
+    );
+
     // Refresh token
-    const tokenResponse = await this.tokenService.refreshToken(refresh_token);
+    const tokenResponse = await this.tokenService.refreshToken(
+      refresh_token,
+      client_id,
+    );
 
     if (!tokenResponse) {
+      this.logger.warn(
+        `Invalid refresh token attempt from client ${client_id}`,
+      );
       throw new BadRequestException('Invalid refresh token');
     }
+
+    this.logger.log(
+      `Refresh token successfully renewed for client ${client_id}`,
+    );
 
     return {
       access_token: tokenResponse.accessToken,
@@ -341,5 +439,133 @@ export class OAuth2Service {
     }
 
     return client;
+  }
+
+  private sanitizeRedirectUri(redirectUri: string): string | null {
+    try {
+      const url = new URL(redirectUri);
+
+      // Only allow HTTP/HTTPS schemes
+      if (!['http:', 'https:'].includes(url.protocol)) {
+        return null;
+      }
+
+      // Prevent localhost/private IP redirects in production
+      if (process.env.NODE_ENV === 'production') {
+        const hostname = url.hostname.toLowerCase();
+        if (
+          hostname === 'localhost' ||
+          hostname === '127.0.0.1' ||
+          hostname.startsWith('192.168.') ||
+          hostname.startsWith('10.') ||
+          hostname.startsWith('172.')
+        ) {
+          return null;
+        }
+      }
+
+      // Remove fragment (#) as it's not allowed in redirect URIs
+      url.hash = '';
+
+      return url.toString();
+    } catch {
+      return null;
+    }
+  }
+
+  private isValidRedirectUri(
+    redirectUri: string,
+    registeredUris: string[],
+  ): boolean {
+    // Exact match first
+    if (registeredUris.includes(redirectUri)) {
+      return true;
+    }
+
+    try {
+      const requestUrl = new URL(redirectUri);
+
+      // Check for prefix matches (more secure than wildcards)
+      for (const registeredUri of registeredUris) {
+        try {
+          const registeredUrl = new URL(registeredUri);
+
+          // Same scheme, host, port
+          if (
+            requestUrl.protocol === registeredUrl.protocol &&
+            requestUrl.hostname === registeredUrl.hostname &&
+            requestUrl.port === registeredUrl.port
+          ) {
+            // Path should start with registered path
+            if (requestUrl.pathname.startsWith(registeredUrl.pathname)) {
+              // If registered URI has query params, request must match them
+              if (registeredUrl.search) {
+                const registeredParams = new URLSearchParams(
+                  registeredUrl.search,
+                );
+                const requestParams = new URLSearchParams(requestUrl.search);
+
+                let paramsMatch = true;
+                for (const [key, value] of registeredParams) {
+                  if (requestParams.get(key) !== value) {
+                    paramsMatch = false;
+                    break;
+                  }
+                }
+
+                if (!paramsMatch) {
+                  continue;
+                }
+              }
+
+              return true;
+            }
+          }
+        } catch {
+          // Invalid registered URI, skip
+          continue;
+        }
+      }
+    } catch {
+      // Invalid redirect URI
+      return false;
+    }
+
+    return false;
+  }
+
+  private checkRateLimit(
+    identifier: string,
+    maxRequests: number = RATE_LIMIT_CONSTANTS.MAX_REQUESTS,
+  ): boolean {
+    const now = Date.now();
+    const key = `ratelimit:${identifier}`;
+    const record = this.rateLimitStore.get(key);
+
+    if (!record || now > record.resetTime) {
+      // First request or window expired
+      this.rateLimitStore.set(key, {
+        count: 1,
+        resetTime: now + RATE_LIMIT_CONSTANTS.WINDOW_MS,
+      });
+      return true;
+    }
+
+    if (record.count >= maxRequests) {
+      return false; // Rate limit exceeded
+    }
+
+    record.count++;
+    this.rateLimitStore.set(key, record);
+    return true;
+  }
+
+  private cleanupRateLimitStore(): void {
+    const now = Date.now();
+    for (const [key, record] of this.rateLimitStore.entries()) {
+      if (now > record.resetTime) {
+        this.rateLimitStore.delete(key);
+      }
+    }
   }
 }
