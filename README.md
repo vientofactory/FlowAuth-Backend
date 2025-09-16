@@ -77,47 +77,52 @@ NODE_ENV=development
 
 # JWT Configuration
 
+```
 JWT_SECRET=your_super_secret_jwt_key_here
 JWT_EXPIRES_IN=1h
 JWT_REFRESH_EXPIRES_IN=7d
+```
 
 # OAuth2 Token Expiry Configuration (선택사항)
 
+```
 OAUTH2_CODE_EXPIRY_MINUTES=10 # Authorization Code 만료 시간 (분)
 OAUTH2_ACCESS_TOKEN_EXPIRY_HOURS=1 # Access Token 만료 시간 (시간)
 OAUTH2_REFRESH_TOKEN_EXPIRY_DAYS=30 # Refresh Token 만료 시간 (일)
+```
 
 # Frontend Configuration (for CORS)
 
+```
 FRONTEND_URL=http://localhost:5173
-
 ```
 
 ## ✨ 주요 기능
 
 ### 🔐 OAuth2 인증 시스템
+
 - Authorization Code Grant
 - Refresh Token 지원
 - PKCE (Proof Key for Code Exchange) 지원
 - 다중 클라이언트 지원
 
 ### 🗄️ 데이터베이스 최적화
+
 - **자동 정리**: 만료된 토큰과 인증 코드를 주기적으로 정리
 - **스키마 최적화**: 데이터 타입 최적화 및 인덱스 추가
 - **캐싱**: Redis를 활용한 토큰 검증 캐싱
 
 ### 🔧 설정 관리
+
 - **중앙 집중식 설정**: 모든 설정을 환경변수로 관리
 - **설정 검증**: 애플리케이션 시작 시 설정 유효성 검증
 - **유연한 구성**: 기본값 제공으로 선택적 설정 가능
 
 ### 📊 모니터링 및 로깅
+
 - 구조화된 로깅
 - 정리 작업 결과 로깅
 - 설정 검증 오류 보고
-
-### 3. 데이터베이스 설정
-```
 
 ### 3. 데이터베이스 설정
 
@@ -379,119 +384,3 @@ npm run start:dev
 ## 📄 라이선스
 
 This project is licensed under the MIT License.
-
-### 3. 데이터베이스 설정
-
-MySQL 데이터베이스를 생성하세요:
-
-```sql
-CREATE DATABASE flowauth;
-```
-
-### 4. 개발 서버 실행
-
-```bash
-# 개발 모드 (핫 리로드)
-npm run start:dev
-
-# 프로덕션 모드
-npm run start:prod
-```
-
-서버가 `http://localhost:3000`에서 실행됩니다.
-
-## 📚 API 문서
-
-서버 실행 후 다음 엔드포인트에서 API 문서를 확인할 수 있습니다:
-
-- **Swagger UI**: `http://localhost:3000/api`
-
-## 🧪 테스트
-
-```bash
-# 단위 테스트
-npm run test
-
-# e2e 테스트
-npm run test:e2e
-
-# 테스트 커버리지
-npm run test:cov
-```
-
-## 🏗 프로젝트 구조
-
-```
-src/
-├── app.module.ts              # 메인 애플리케이션 모듈
-├── main.ts                    # 애플리케이션 진입점
-├── database/                  # 데이터베이스 설정 모듈
-│   └── database.module.ts
-├── auth/                      # 인증 관련 모듈
-│   ├── auth.module.ts
-│   ├── auth.service.ts
-│   ├── auth.controller.ts
-│   └── dto/
-├── user/                      # 사용자 엔티티
-│   └── user.entity.ts
-├── client/                    # OAuth2 클라이언트 엔티티
-│   └── client.entity.ts
-├── token/                     # 토큰 엔티티
-│   └── token.entity.ts
-├── authorization-code/        # 인가 코드 엔티티
-│   └── authorization-code.entity.ts
-└── ...
-```
-
-## 🔧 주요 기능
-
-### 사용자 관리
-
-- 사용자 등록/로그인
-- 프로필 관리
-- 비밀번호 해싱 (bcrypt)
-
-### OAuth2 클라이언트 관리
-
-- 클라이언트 등록
-- 클라이언트 정보 조회/수정/삭제
-- 자동 clientId/clientSecret 생성
-
-### 보안 기능
-
-- JWT 토큰 기반 인증
-- CORS 설정
-- 헬멧 보안 미들웨어
-- 입력 검증 및 sanitization
-
-## 📡 API 엔드포인트
-
-### 인증 관련
-
-- `POST /auth/register` - 사용자 등록
-- `POST /auth/login` - 사용자 로그인
-
-### 클라이언트 관리
-
-- `POST /auth/clients` - OAuth2 클라이언트 등록
-- `GET /auth/clients` - 클라이언트 목록 조회
-- `GET /auth/clients/:id` - 특정 클라이언트 조회
-
-## 🔒 보안 고려사항
-
-- 프로덕션 환경에서는 `synchronize: false`로 설정
-- 강력한 JWT 시크릿 사용
-- HTTPS 사용 권장
-- Rate limiting 적용
-
-## 🤝 기여하기
-
-1. 이 리포지토리를 포크하세요
-2. 기능 브랜치를 생성하세요 (`git checkout -b feature/AmazingFeature`)
-3. 변경사항을 커밋하세요 (`git commit -m 'Add some AmazingFeature'`)
-4. 브랜치에 푸시하세요 (`git push origin feature/AmazingFeature`)
-5. Pull Request를 생성하세요
-
-## 📄 라이선스
-
-이 프로젝트는 MIT 라이선스 하에 있습니다.
