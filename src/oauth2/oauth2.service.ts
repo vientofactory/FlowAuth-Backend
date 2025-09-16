@@ -568,4 +568,12 @@ export class OAuth2Service {
       }
     }
   }
+
+  async getTotalClientsCount(): Promise<number> {
+    return await this.clientRepository.count({ where: { isActive: true } });
+  }
+
+  async getActiveTokensCount(userId: number): Promise<number> {
+    return await this.tokenService.getActiveTokensCountForUser(userId);
+  }
 }

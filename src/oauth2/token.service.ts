@@ -274,4 +274,15 @@ export class TokenService {
   private generateRefreshToken(): string {
     return crypto.randomBytes(32).toString('hex');
   }
+
+  async getActiveTokensCountForUser(userId: number): Promise<number> {
+    const now = new Date();
+    return await this.tokenRepository.count({
+      where: {
+        user: { id: userId },
+        expiresAt: LessThan(now),
+        isRevoked: false,
+      },
+    });
+  }
 }

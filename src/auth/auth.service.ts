@@ -18,10 +18,12 @@ import { CreateClientDto } from './dto/create-client.dto';
 import {
   AUTH_CONSTANTS,
   AUTH_ERROR_MESSAGES,
+  ROLES,
 } from '../constants/auth.constants';
 import { JwtPayload, LoginResponse } from '../types/auth.types';
 import { snowflakeGenerator } from '../utils/snowflake-id.util';
 import { CryptoUtils } from '../utils/crypto.util';
+import { PermissionUtils } from '../utils/permission.util';
 
 @Injectable()
 export class AuthService {
@@ -56,6 +58,10 @@ export class AuthService {
       AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
     );
 
+    // Check if this is the first user (should get admin permissions)
+    const userCount = await this.userRepository.count();
+    const isFirstUser = userCount === 0;
+
     // Create user
     const user = this.userRepository.create({
       username,
@@ -63,7 +69,9 @@ export class AuthService {
       password: hashedPassword,
       firstName,
       lastName,
-      roles: [...AUTH_CONSTANTS.DEFAULT_USER_ROLES], // Default role
+      permissions: isFirstUser
+        ? ROLES.ADMIN
+        : AUTH_CONSTANTS.DEFAULT_USER_PERMISSIONS,
     });
 
     return this.userRepository.save(user);
@@ -83,7 +91,7 @@ export class AuthService {
           'password',
           'firstName',
           'lastName',
-          'roles',
+          'permissions',
         ],
       });
 
@@ -107,7 +115,7 @@ export class AuthService {
         sub: user.id.toString(),
         email: user.email,
         username: user.username,
-        roles: user.roles || [],
+        roles: [PermissionUtils.getRoleName(user.permissions)], // 권한 기반 역할 계산
         type: AUTH_CONSTANTS.TOKEN_TYPE,
       };
       // Generate JWT token (uses global expiration settings)

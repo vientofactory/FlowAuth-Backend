@@ -16,8 +16,10 @@ import { OAuth2BearerGuard } from './oauth2-bearer.guard';
 import { TokenService } from './token.service';
 import { AuthorizationCodeService } from './authorization-code.service';
 import { JwtService } from '@nestjs/jwt';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { User } from '../user/user.entity';
 import type { JwtPayload } from '../types/auth.types';
+import { PermissionUtils } from '../utils/permission.util';
 import {
   AuthorizeRequestDto,
   TokenRequestDto,
@@ -26,6 +28,10 @@ import {
 } from './dto/oauth2.dto';
 
 interface AuthenticatedRequest extends ExpressRequest {
+  user: User;
+}
+
+interface OAuth2AuthenticatedRequest extends ExpressRequest {
   user: JwtPayload;
 }
 
@@ -344,7 +350,7 @@ export class OAuth2Controller {
 
   @Get('userinfo')
   @UseGuards(OAuth2BearerGuard)
-  async userinfo(@Request() req: AuthenticatedRequest): Promise<{
+  async userinfo(@Request() req: OAuth2AuthenticatedRequest): Promise<{
     sub: string;
     email: string;
     username: string;
@@ -360,7 +366,7 @@ export class OAuth2Controller {
       sub: user.id.toString(),
       email: user.email,
       username: user.username,
-      roles: user.roles || [],
+      roles: [PermissionUtils.getRoleName(user.permissions)],
     };
   }
 
@@ -444,6 +450,30 @@ export class OAuth2Controller {
 
       return { redirect_url: redirectUrl.toString() };
     }
+  }
+
+  @Get('dashboard/stats')
+  @UseGuards(JwtAuthGuard)
+  async getDashboardStats(@Request() req: AuthenticatedRequest): Promise<{
+    totalClients: number;
+    activeTokens: number;
+    lastLoginDate: Date | null;
+    accountCreated: Date | null;
+  }> {
+    const user = req.user;
+
+    // Get total clients count
+    const totalClients = await this.oauth2Service.getTotalClientsCount();
+
+    // Get active tokens count for this user
+    const activeTokens = await this.oauth2Service.getActiveTokensCount(user.id);
+
+    return {
+      totalClients,
+      activeTokens,
+      lastLoginDate: null, // TODO: Add lastLoginAt field to User entity
+      accountCreated: user.createdAt || null,
+    };
   }
 
   @Get('consent')

@@ -31,8 +31,8 @@ export class User {
   @Column({ type: 'tinyint', default: 0 })
   isEmailVerified: boolean;
 
-  @Column({ type: 'json', nullable: true })
-  roles: string[];
+  @Column({ type: 'bigint', default: 1 }) // 기본적으로 READ_USER 권한
+  permissions: number;
 
   @CreateDateColumn()
   createdAt: Date;

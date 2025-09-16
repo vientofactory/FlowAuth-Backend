@@ -6,10 +6,86 @@ export const JWT_CONSTANTS = {
   TOKEN_TYPE: 'access' as const,
 } as const;
 
+// 권한 비트마스크 상수들
+export const PERMISSIONS = {
+  // 사용자 권한
+  READ_USER: 1 << 0, // 1
+  WRITE_USER: 1 << 1, // 2
+  DELETE_USER: 1 << 2, // 4
+
+  // 클라이언트 권한
+  READ_CLIENT: 1 << 3, // 8
+  WRITE_CLIENT: 1 << 4, // 16
+  DELETE_CLIENT: 1 << 5, // 32
+
+  // 토큰 권한
+  READ_TOKEN: 1 << 6, // 64
+  WRITE_TOKEN: 1 << 7, // 128
+  DELETE_TOKEN: 1 << 8, // 256
+
+  // 시스템 권한
+  MANAGE_USERS: 1 << 9, // 512
+  MANAGE_SYSTEM: 1 << 10, // 1024
+  // ADMIN 권한은 별도로 계산됨 (모든 권한의 조합)
+} as const;
+
+// 권한 헬퍼 함수들
+export const PERMISSION_UTILS = {
+  /**
+   * 모든 권한의 비트마스크를 계산
+   */
+  getAllPermissionsMask: (): number => {
+    return Object.values(PERMISSIONS).reduce((acc, perm) => acc | perm, 0);
+  },
+
+  /**
+   * ADMIN 권한 값 (모든 권한의 조합)
+   */
+  getAdminPermission: (): number => {
+    return PERMISSION_UTILS.getAllPermissionsMask();
+  },
+
+  /**
+   * 사용 가능한 모든 권한 목록
+   */
+  getAllPermissions: () => Object.values(PERMISSIONS),
+
+  /**
+   * 권한 이름으로 값 찾기
+   */
+  getPermissionValue: (name: keyof typeof PERMISSIONS) => PERMISSIONS[name],
+} as const;
+
+// 사전 정의된 역할들
+export const ROLES = {
+  USER: PERMISSIONS.READ_USER,
+  CLIENT_MANAGER:
+    PERMISSIONS.READ_CLIENT |
+    PERMISSIONS.WRITE_CLIENT |
+    PERMISSIONS.DELETE_CLIENT,
+  TOKEN_MANAGER:
+    PERMISSIONS.READ_TOKEN | PERMISSIONS.WRITE_TOKEN | PERMISSIONS.DELETE_TOKEN,
+  USER_MANAGER:
+    PERMISSIONS.READ_USER |
+    PERMISSIONS.WRITE_USER |
+    PERMISSIONS.DELETE_USER |
+    PERMISSIONS.MANAGE_USERS,
+  ADMIN: PERMISSION_UTILS.getAdminPermission(), // 동적으로 계산된 모든 권한
+} as const;
+
+// 역할 이름 매핑
+export const ROLE_NAMES = {
+  [ROLES.USER]: '일반 사용자',
+  [ROLES.CLIENT_MANAGER]: '클라이언트 관리자',
+  [ROLES.TOKEN_MANAGER]: '토큰 관리자',
+  [ROLES.USER_MANAGER]: '사용자 관리자',
+  [ROLES.ADMIN]: '시스템 관리자',
+} as const;
+
 // 인증 관련 상수들
 export const AUTH_CONSTANTS = {
   BCRYPT_SALT_ROUNDS: 10,
-  DEFAULT_USER_ROLES: ['user'] as const,
+  DEFAULT_USER_PERMISSIONS: ROLES.USER,
   TOKEN_EXPIRATION_SECONDS: 86400, // 24 hours
   TOKEN_TYPE: 'access' as const,
 } as const;
