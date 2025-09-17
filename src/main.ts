@@ -1,15 +1,22 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
+import {
+  ValidationPipe,
+  ClassSerializerInterceptor,
+  INestApplication,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { Reflector } from '@nestjs/core';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import { SeedService } from './database/seed.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
+  const logger = new Logger('Bootstrap');
 
   // Security
   app.use(helmet());
@@ -39,6 +46,9 @@ async function bootstrap() {
   // Serialization
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
+  // Auto-seed database on startup
+  await autoSeedDatabase(app, logger);
+
   // Swagger API Documentation
   const config = new DocumentBuilder()
     .setTitle('FlowAuth API')
@@ -51,6 +61,25 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  await app.listen(configService.get<number>('PORT') ?? 3000);
+  const port = configService.get<number>('PORT') ?? 3000;
+  await app.listen(port);
+  logger.log(`Application is listening on port ${port}`);
 }
+
+async function autoSeedDatabase(
+  app: INestApplication,
+  logger: Logger,
+): Promise<void> {
+  try {
+    const seedService = app.get(SeedService);
+    await seedService.seedDatabase();
+    logger.log('Database seeding completed successfully!');
+  } catch (error: unknown) {
+    logger.error('Database seeding failed:', error);
+    logger.warn(
+      'Continuing with application startup despite seeding failure...',
+    );
+  }
+}
+
 void bootstrap();
