@@ -95,9 +95,10 @@ export class SeedService {
 
     if (!existingClient) {
       // Find the first user to assign as the owner of the test client
-      const firstUser = await this.userRepository.findOne({
-        order: { id: 'ASC' },
-      });
+      const firstUser = await this.userRepository
+        .createQueryBuilder('user')
+        .orderBy('user.id', 'ASC')
+        .getOne();
 
       if (!firstUser) {
         this.logger.warn('No users found. Skipping default client creation.');

@@ -16,7 +16,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { extname } from 'path';
 import type { Response } from 'express';
 import { FileUploadService } from './file-upload.service';
-import type { MulterFile, UploadResponse, FileInfo } from './types';
+import type { MulterFile, UploadResponse } from './types';
 import { UPLOAD_CONFIG } from './config';
 import { UPLOAD_ERRORS } from './types';
 import type { StorageEngine, Options } from 'multer';
@@ -125,17 +125,6 @@ export class UploadController implements OnModuleInit {
         throw UPLOAD_ERRORS.UPLOAD_FAILED;
       }
     });
-  }
-
-  @Get('logo/current')
-  getCurrentLogo(): FileInfo {
-    // For now, return a default logo or the first uploaded logo
-    // In a real application, you might want to store the current logo in database
-    return {
-      url: '/uploads/logos/default-logo.png',
-      message:
-        'Current logo endpoint - implement database storage for production',
-    };
   }
 
   @Get('config/:type')

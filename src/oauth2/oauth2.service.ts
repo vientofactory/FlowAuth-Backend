@@ -223,7 +223,7 @@ export class OAuth2Service {
       // Base64url encoded SHA256 hash should be exactly 43 characters and valid format
       if (
         codeChallenge.length !== OAUTH2_CONSTANTS.CODE_CHALLENGE_S256_LENGTH ||
-        !/^[A-Za-z0-9_-]{43}$/.test(codeChallenge)
+        !OAUTH2_CONSTANTS.CODE_CHALLENGE_S256_PATTERN.test(codeChallenge)
       ) {
         throw new BadRequestException(
           OAUTH2_ERROR_MESSAGES.INVALID_PKCE_FORMAT_S256,
@@ -236,7 +236,7 @@ export class OAuth2Service {
           OAUTH2_CONSTANTS.CODE_CHALLENGE_PLAIN_MIN_LENGTH ||
         codeChallenge.length >
           OAUTH2_CONSTANTS.CODE_CHALLENGE_PLAIN_MAX_LENGTH ||
-        !/^[A-Za-z0-9_-]*$/.test(codeChallenge)
+        !OAUTH2_CONSTANTS.PKCE_UNRESERVED_CHAR_PATTERN.test(codeChallenge)
       ) {
         throw new BadRequestException(
           OAUTH2_ERROR_MESSAGES.INVALID_PKCE_LENGTH_PLAIN,
@@ -303,7 +303,7 @@ export class OAuth2Service {
     if (client_id.length > OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH) {
       throw new BadRequestException('client_id parameter is too long');
     }
-    if (code.length > 100) {
+    if (code.length > OAUTH2_CONSTANTS.AUTHORIZATION_CODE_MAX_LENGTH) {
       // Authorization code length limit
       throw new BadRequestException('code parameter is too long');
     }
@@ -349,7 +349,7 @@ export class OAuth2Service {
       token_type: tokenResponse.tokenType,
       expires_in: tokenResponse.expiresIn,
       refresh_token: tokenResponse.refreshToken,
-      scope: authCode.scopes.join(' '),
+      scope: authCode.scopes?.join(' ') || '',
     };
   }
 
@@ -367,7 +367,7 @@ export class OAuth2Service {
     }
 
     // Length validation
-    if (refresh_token.length > 500) {
+    if (refresh_token.length > OAUTH2_CONSTANTS.REFRESH_TOKEN_MAX_LENGTH) {
       // Refresh token length limit
       throw new BadRequestException('refresh_token parameter is too long');
     }
@@ -404,7 +404,7 @@ export class OAuth2Service {
       token_type: tokenResponse.tokenType,
       expires_in: tokenResponse.expiresIn,
       refresh_token: tokenResponse.refreshToken,
-      scope: tokenResponse.scopes.join(' '),
+      scope: tokenResponse.scopes?.join(' ') || '',
     };
   }
 

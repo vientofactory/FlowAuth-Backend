@@ -6,7 +6,10 @@ import { AppConfigService } from '../config/app-config.service';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
-import { OAUTH2_ERROR_MESSAGES } from '../constants/oauth2.constants';
+import {
+  OAUTH2_ERROR_MESSAGES,
+  OAUTH2_CONSTANTS,
+} from '../constants/oauth2.constants';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -183,14 +186,14 @@ export class AuthorizationCodeService {
     }
 
     // Validate verifier format (RFC 7636: unreserved characters)
-    if (!/^[A-Za-z0-9._~-]+$/.test(verifier)) {
+    if (!OAUTH2_CONSTANTS.PKCE_UNRESERVED_CHAR_PATTERN.test(verifier)) {
       throw new BadRequestException(
         'Invalid code_verifier format. Only unreserved characters are allowed.',
       );
     }
 
     // Validate challenge format
-    if (!/^[A-Za-z0-9._~-]+$/.test(challenge)) {
+    if (!OAUTH2_CONSTANTS.PKCE_UNRESERVED_CHAR_PATTERN.test(challenge)) {
       throw new BadRequestException(
         'Invalid code_challenge format. Only unreserved characters are allowed.',
       );

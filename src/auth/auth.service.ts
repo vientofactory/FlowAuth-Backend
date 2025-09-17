@@ -281,17 +281,18 @@ export class AuthService {
     const updateFields: Partial<Client> = {};
     if (updateData.name !== undefined) updateFields.name = updateData.name;
     if (updateData.description !== undefined)
-      updateFields.description = updateData.description;
+      updateFields.description = updateData.description || undefined;
     if (updateData.redirectUris !== undefined)
       updateFields.redirectUris = updateData.redirectUris;
     if (updateData.scopes !== undefined)
       updateFields.scopes = updateData.scopes;
     if (updateData.logoUri !== undefined)
-      updateFields.logoUri = updateData.logoUri;
+      updateFields.logoUri = updateData.logoUri || undefined;
     if (updateData.termsOfServiceUri !== undefined)
-      updateFields.termsOfServiceUri = updateData.termsOfServiceUri;
+      updateFields.termsOfServiceUri =
+        updateData.termsOfServiceUri || undefined;
     if (updateData.policyUri !== undefined)
-      updateFields.policyUri = updateData.policyUri;
+      updateFields.policyUri = updateData.policyUri || undefined;
 
     await this.clientRepository.update(id, updateFields);
 
@@ -357,9 +358,10 @@ export class AuthService {
     }
 
     // Remove logo URI from client
-    await this.clientRepository.update(id, {
-      logoUri: null as unknown as string,
-    });
+    await this.clientRepository.query(
+      'UPDATE client SET logoUri = NULL WHERE id = ?',
+      [id],
+    );
 
     const updatedClient = await this.clientRepository.findOne({
       where: { id },

@@ -17,12 +17,12 @@ export class Client {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ type: 'varchar', length: 255 })
   clientId: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   @Exclude()
-  clientSecret: string;
+  clientSecret?: string;
 
   @Column({ type: 'json' })
   redirectUris: string[];
@@ -31,13 +31,13 @@ export class Client {
   grants: string[];
 
   @Column({ type: 'json', nullable: true })
-  scopes: string[];
+  scopes?: string[];
 
-  @Column()
+  @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ nullable: true })
-  description: string;
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  description?: string;
 
   @Column({ type: 'tinyint', default: 1 })
   isActive: boolean;
@@ -45,16 +45,16 @@ export class Client {
   @Column({ type: 'tinyint', default: 0 })
   isConfidential: boolean;
 
-  @Column({ nullable: true })
-  logoUri: string;
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  logoUri?: string;
 
-  @Column({ nullable: true })
-  termsOfServiceUri: string;
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  termsOfServiceUri?: string;
 
-  @Column({ nullable: true })
-  policyUri: string;
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  policyUri?: string;
 
-  @Column()
+  @Column({ type: 'int' })
   userId: number;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })

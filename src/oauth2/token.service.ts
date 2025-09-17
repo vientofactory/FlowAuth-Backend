@@ -74,7 +74,7 @@ export class TokenService {
       expiresAt,
       refreshExpiresAt,
       scopes,
-      user: user || null,
+      user: user || undefined,
       client,
     });
 
@@ -84,7 +84,7 @@ export class TokenService {
       accessToken,
       refreshToken,
       expiresIn: this.getAccessTokenExpirySeconds(),
-      scopes,
+      scopes: scopes || [],
       tokenType: 'Bearer',
     };
   }
@@ -133,9 +133,9 @@ export class TokenService {
 
       // Generate new access token
       const newAccessToken = this.generateAccessToken(
-        token.user,
+        token.user || null,
         token.client,
-        token.scopes,
+        token.scopes || [],
       );
       const newRefreshToken = this.generateRefreshToken();
 
@@ -170,7 +170,7 @@ export class TokenService {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
         expiresIn: this.getAccessTokenExpirySeconds(),
-        scopes: token.scopes,
+        scopes: token.scopes || [],
         tokenType: 'Bearer',
       };
     });
