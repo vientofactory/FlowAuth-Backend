@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { OAuth2Module } from './oauth2/oauth2.module';
 import { DatabaseModule } from './database/database.module';
 import { AppConfigService } from './config/app-config.service';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AppConfigService } from './config/app-config.service';
     DatabaseModule,
     AuthModule,
     OAuth2Module,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppConfigService],

@@ -19,24 +19,24 @@ export class Token {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 2048, nullable: true })
+  @Column({ type: 'varchar', length: 2048 })
   @Exclude()
   accessToken: string;
 
   @Column({ type: 'varchar', length: 2048, nullable: true })
   @Exclude()
-  refreshToken: string;
+  refreshToken?: string;
 
-  @Column()
+  @Column({ type: 'datetime' })
   expiresAt: Date;
 
-  @Column({ nullable: true })
-  refreshExpiresAt: Date;
+  @Column({ type: 'datetime', nullable: true })
+  refreshExpiresAt?: Date;
 
   @Column({ type: 'json', nullable: true })
-  scopes: string[];
+  scopes?: string[];
 
-  @Column({ default: 'bearer' })
+  @Column({ type: 'varchar', length: 20, default: 'bearer' })
   tokenType: string;
 
   @Column({ type: 'tinyint', default: 0 })
@@ -47,7 +47,7 @@ export class Token {
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn()
-  user: User | null;
+  user?: User;
 
   @ManyToOne(() => Client)
   @JoinColumn()

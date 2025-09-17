@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -24,9 +25,12 @@ import { JwtPayload, LoginResponse } from '../types/auth.types';
 import { snowflakeGenerator } from '../utils/snowflake-id.util';
 import { CryptoUtils } from '../utils/crypto.util';
 import { PermissionUtils } from '../utils/permission.util';
+import { FileUploadService } from '../upload/file-upload.service';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
@@ -38,6 +42,7 @@ export class AuthService {
     private authorizationCodeRepository: Repository<AuthorizationCode>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private fileUploadService: FileUploadService,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
@@ -146,8 +151,20 @@ export class AuthService {
     return user;
   }
 
-  async createClient(createClientDto: CreateClientDto): Promise<Client> {
-    const { name, description, redirectUris, grants } = createClientDto;
+  async createClient(
+    createClientDto: CreateClientDto,
+    userId: number,
+  ): Promise<Client> {
+    const {
+      name,
+      description,
+      redirectUris,
+      grants,
+      scopes,
+      logoUri,
+      termsOfServiceUri,
+      policyUri,
+    } = createClientDto;
 
     // Generate clientId using Snowflake ID and clientSecret using crypto-safe random string
     const clientId = snowflakeGenerator.generate();
@@ -160,20 +177,31 @@ export class AuthService {
       description,
       redirectUris,
       grants,
+      scopes,
+      logoUri,
+      termsOfServiceUri,
+      policyUri,
+      userId,
     });
 
     return this.clientRepository.save(client);
   }
 
-  async getClients(): Promise<Client[]> {
-    return this.clientRepository.find();
+  async getClients(userId: number): Promise<Client[]> {
+    return this.clientRepository.find({
+      where: { userId },
+      relations: ['user'],
+    });
   }
 
-  async getClientById(id: number): Promise<Client> {
-    const client = await this.clientRepository.findOne({ where: { id } });
+  async getClientById(id: number, userId: number): Promise<Client> {
+    const client = await this.clientRepository.findOne({
+      where: { id, userId },
+      relations: ['user'],
+    });
 
     if (!client) {
-      throw new UnauthorizedException('Client not found');
+      throw new UnauthorizedException('Client not found or access denied');
     }
 
     return client;
@@ -211,17 +239,23 @@ export class AuthService {
     return updatedUser;
   }
 
-  async updateClientStatus(id: number, isActive: boolean): Promise<Client> {
-    const client = await this.clientRepository.findOne({ where: { id } });
+  async updateClientStatus(
+    id: number,
+    isActive: boolean,
+    userId: number,
+  ): Promise<Client> {
+    const client = await this.clientRepository.findOne({
+      where: { id, userId },
+    });
 
     if (!client) {
-      throw new UnauthorizedException('Client not found');
+      throw new UnauthorizedException('Client not found or access denied');
     }
 
     await this.clientRepository.update(id, { isActive });
 
     const updatedClient = await this.clientRepository.findOne({
-      where: { id },
+      where: { id, userId },
     });
     if (!updatedClient) {
       throw new UnauthorizedException('Client not found after update');
@@ -233,28 +267,32 @@ export class AuthService {
   async updateClient(
     id: number,
     updateData: Partial<CreateClientDto>,
+    userId: number,
   ): Promise<Client> {
-    const client = await this.clientRepository.findOne({ where: { id } });
+    const client = await this.clientRepository.findOne({
+      where: { id, userId },
+    });
 
     if (!client) {
-      throw new UnauthorizedException('Client not found');
+      throw new UnauthorizedException('Client not found or access denied');
     }
 
     // Update only provided fields
     const updateFields: Partial<Client> = {};
     if (updateData.name !== undefined) updateFields.name = updateData.name;
     if (updateData.description !== undefined)
-      updateFields.description = updateData.description;
+      updateFields.description = updateData.description || undefined;
     if (updateData.redirectUris !== undefined)
       updateFields.redirectUris = updateData.redirectUris;
     if (updateData.scopes !== undefined)
       updateFields.scopes = updateData.scopes;
     if (updateData.logoUri !== undefined)
-      updateFields.logoUri = updateData.logoUri;
+      updateFields.logoUri = updateData.logoUri || undefined;
     if (updateData.termsOfServiceUri !== undefined)
-      updateFields.termsOfServiceUri = updateData.termsOfServiceUri;
+      updateFields.termsOfServiceUri =
+        updateData.termsOfServiceUri || undefined;
     if (updateData.policyUri !== undefined)
-      updateFields.policyUri = updateData.policyUri;
+      updateFields.policyUri = updateData.policyUri || undefined;
 
     await this.clientRepository.update(id, updateFields);
 
@@ -268,11 +306,95 @@ export class AuthService {
     return updatedClient;
   }
 
+  async resetClientSecret(id: number, userId: number): Promise<Client> {
+    const client = await this.clientRepository.findOne({
+      where: { id, userId },
+    });
+
+    if (!client) {
+      throw new UnauthorizedException('Client not found or access denied');
+    }
+
+    // Generate new client secret
+    const newClientSecret = CryptoUtils.generateRandomString(64);
+
+    await this.clientRepository.update(id, { clientSecret: newClientSecret });
+
+    const updatedClient = await this.clientRepository.findOne({
+      where: { id, userId },
+    });
+    if (!updatedClient) {
+      throw new UnauthorizedException('Client not found after update');
+    }
+
+    return updatedClient;
+  }
+
+  async removeClientLogo(id: number, userId: number): Promise<Client> {
+    const client = await this.clientRepository.findOne({
+      where: { id, userId },
+    });
+
+    if (!client) {
+      throw new UnauthorizedException('Client not found or access denied');
+    }
+
+    // Delete logo file if exists
+    if (client.logoUri) {
+      try {
+        const deleted = this.fileUploadService.deleteFile(client.logoUri);
+        if (!deleted) {
+          this.logger.warn(
+            `Failed to delete logo file (file may not exist): ${client.logoUri}`,
+          );
+        }
+      } catch (error) {
+        this.logger.error(
+          `Error deleting logo file: ${client.logoUri}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+        // Continue with logo URI removal even if file deletion fails
+      }
+    }
+
+    // Remove logo URI from client
+    await this.clientRepository.query(
+      'UPDATE client SET logoUri = NULL WHERE id = ?',
+      [id],
+    );
+
+    const updatedClient = await this.clientRepository.findOne({
+      where: { id },
+    });
+
+    if (!updatedClient) {
+      throw new UnauthorizedException('Client not found after logo removal');
+    }
+
+    return updatedClient;
+  }
+
   async deleteClient(id: number): Promise<void> {
     const client = await this.clientRepository.findOne({ where: { id } });
 
     if (!client) {
       throw new UnauthorizedException('Client not found');
+    }
+
+    // Delete logo file if exists
+    if (client.logoUri) {
+      try {
+        this.fileUploadService.deleteFile(client.logoUri);
+      } catch (error) {
+        this.logger.error(
+          `Error deleting logo file: ${client.logoUri}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+        // Continue with client deletion even if file deletion fails
+        this.logger.warn(
+          'Continuing with client deletion despite logo file deletion failure',
+        );
+      }
     }
 
     // Delete related authorization codes

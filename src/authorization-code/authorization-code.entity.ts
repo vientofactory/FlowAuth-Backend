@@ -17,26 +17,26 @@ export class AuthorizationCode {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 128, nullable: true })
+  @Column({ type: 'varchar', length: 128 })
   code: string;
 
-  @Column()
+  @Column({ type: 'datetime' })
   expiresAt: Date;
 
-  @Column({ nullable: true })
-  redirectUri: string;
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  redirectUri?: string;
 
   @Column({ type: 'json', nullable: true })
-  scopes: string[];
+  scopes?: string[];
 
-  @Column({ nullable: true })
-  state: string;
+  @Column({ type: 'varchar', length: 256, nullable: true })
+  state?: string;
 
-  @Column({ nullable: true })
-  codeChallenge: string;
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  codeChallenge?: string;
 
-  @Column({ nullable: true })
-  codeChallengeMethod: string;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  codeChallengeMethod?: string;
 
   @Column({ type: 'tinyint', default: 0 })
   isUsed: boolean;

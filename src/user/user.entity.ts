@@ -12,21 +12,21 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
+  @Column({ type: 'varchar', length: 100 })
   username: string;
 
   @Column({ type: 'varchar', length: 255 })
   email: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 255 })
   @Exclude()
   password: string;
 
-  @Column({ nullable: true })
-  firstName: string;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  firstName?: string;
 
-  @Column({ nullable: true })
-  lastName: string;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  lastName?: string;
 
   @Column({ type: 'tinyint', default: 0 })
   isEmailVerified: boolean;

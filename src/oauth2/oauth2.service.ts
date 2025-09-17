@@ -70,9 +70,27 @@ export class OAuth2Service {
       );
     }
 
+    // Length validation for security
+    if (client_id.length > OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH) {
+      throw new BadRequestException('client_id parameter is too long');
+    }
+    if (redirect_uri.length > OAUTH2_CONSTANTS.REDIRECT_URI_MAX_LENGTH) {
+      throw new BadRequestException('redirect_uri parameter is too long');
+    }
+    if (
+      scope &&
+      typeof scope === 'string' &&
+      scope.length > OAUTH2_CONSTANTS.SCOPE_MAX_LENGTH
+    ) {
+      throw new BadRequestException('scope parameter is too long');
+    }
+
     // Validate state parameter (REQUIRED for CSRF protection)
     if (!state || typeof state !== 'string' || state.length === 0) {
       throw new BadRequestException(OAUTH2_ERROR_MESSAGES.STATE_REQUIRED);
+    }
+    if (state.length > OAUTH2_CONSTANTS.STATE_MAX_LENGTH) {
+      throw new BadRequestException('state parameter is too long');
     }
 
     // Validate response type
@@ -137,6 +155,16 @@ export class OAuth2Service {
       this.validatePKCEParameters(code_challenge, code_challenge_method);
     }
 
+    // If only one PKCE parameter is provided, require both
+    if (
+      (code_challenge && !code_challenge_method) ||
+      (!code_challenge && code_challenge_method)
+    ) {
+      throw new BadRequestException(
+        'Both code_challenge and code_challenge_method must be provided together',
+      );
+    }
+
     // Generate authorization code
     const authCode = await this.authCodeService.createAuthorizationCode(
       user,
@@ -192,18 +220,23 @@ export class OAuth2Service {
     codeChallengeMethod: string,
   ): void {
     if (codeChallengeMethod === 'S256') {
-      // Base64url encoded SHA256 hash should be 43 characters
-      if (!/^[A-Za-z0-9_-]{43}$/.test(codeChallenge)) {
+      // Base64url encoded SHA256 hash should be exactly 43 characters and valid format
+      if (
+        codeChallenge.length !== OAUTH2_CONSTANTS.CODE_CHALLENGE_S256_LENGTH ||
+        !OAUTH2_CONSTANTS.CODE_CHALLENGE_S256_PATTERN.test(codeChallenge)
+      ) {
         throw new BadRequestException(
           OAUTH2_ERROR_MESSAGES.INVALID_PKCE_FORMAT_S256,
         );
       }
     } else if (codeChallengeMethod === 'plain') {
-      // Plain method should be 43-128 characters
+      // Plain method should be 43-128 characters and valid format
       if (
         codeChallenge.length <
           OAUTH2_CONSTANTS.CODE_CHALLENGE_PLAIN_MIN_LENGTH ||
-        codeChallenge.length > OAUTH2_CONSTANTS.CODE_CHALLENGE_PLAIN_MAX_LENGTH
+        codeChallenge.length >
+          OAUTH2_CONSTANTS.CODE_CHALLENGE_PLAIN_MAX_LENGTH ||
+        !OAUTH2_CONSTANTS.PKCE_UNRESERVED_CHAR_PATTERN.test(codeChallenge)
       ) {
         throw new BadRequestException(
           OAUTH2_ERROR_MESSAGES.INVALID_PKCE_LENGTH_PLAIN,
@@ -266,6 +299,30 @@ export class OAuth2Service {
       throw new BadRequestException('Invalid code parameter');
     }
 
+    // Length validation
+    if (client_id.length > OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH) {
+      throw new BadRequestException('client_id parameter is too long');
+    }
+    if (code.length > OAUTH2_CONSTANTS.AUTHORIZATION_CODE_MAX_LENGTH) {
+      // Authorization code length limit
+      throw new BadRequestException('code parameter is too long');
+    }
+    if (
+      redirect_uri &&
+      typeof redirect_uri === 'string' &&
+      redirect_uri.length > OAUTH2_CONSTANTS.REDIRECT_URI_MAX_LENGTH
+    ) {
+      throw new BadRequestException('redirect_uri parameter is too long');
+    }
+    if (
+      code_verifier &&
+      typeof code_verifier === 'string' &&
+      code_verifier.length > OAUTH2_CONSTANTS.CODE_VERIFIER_MAX_LENGTH
+    ) {
+      // PKCE verifier max length
+      throw new BadRequestException('code_verifier parameter is too long');
+    }
+
     const client = await this.validateClient(client_id, client_secret);
 
     // Validate and consume authorization code
@@ -292,7 +349,7 @@ export class OAuth2Service {
       token_type: tokenResponse.tokenType,
       expires_in: tokenResponse.expiresIn,
       refresh_token: tokenResponse.refreshToken,
-      scope: authCode.scopes.join(' '),
+      scope: authCode.scopes?.join(' ') || '',
     };
   }
 
@@ -307,6 +364,15 @@ export class OAuth2Service {
     }
     if (typeof client_id !== 'string') {
       throw new BadRequestException('Invalid client_id parameter');
+    }
+
+    // Length validation
+    if (refresh_token.length > OAUTH2_CONSTANTS.REFRESH_TOKEN_MAX_LENGTH) {
+      // Refresh token length limit
+      throw new BadRequestException('refresh_token parameter is too long');
+    }
+    if (client_id.length > OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH) {
+      throw new BadRequestException('client_id parameter is too long');
     }
 
     await this.validateClient(client_id, client_secret);
@@ -338,7 +404,7 @@ export class OAuth2Service {
       token_type: tokenResponse.tokenType,
       expires_in: tokenResponse.expiresIn,
       refresh_token: tokenResponse.refreshToken,
-      scope: tokenResponse.scopes.join(' '),
+      scope: tokenResponse.scopes?.join(' ') || '',
     };
   }
 
@@ -350,6 +416,18 @@ export class OAuth2Service {
     // Type validation
     if (typeof client_id !== 'string') {
       throw new BadRequestException('Invalid client_id parameter');
+    }
+
+    // Length validation
+    if (client_id.length > OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH) {
+      throw new BadRequestException('client_id parameter is too long');
+    }
+    if (
+      scope &&
+      typeof scope === 'string' &&
+      scope.length > OAUTH2_CONSTANTS.SCOPE_MAX_LENGTH
+    ) {
+      throw new BadRequestException('scope parameter is too long');
     }
 
     const client = await this.validateClient(client_id, client_secret);
@@ -569,8 +647,10 @@ export class OAuth2Service {
     }
   }
 
-  async getTotalClientsCount(): Promise<number> {
-    return await this.clientRepository.count({ where: { isActive: true } });
+  async getTotalClientsCount(userId: number): Promise<number> {
+    return await this.clientRepository.count({
+      where: { isActive: true, userId },
+    });
   }
 
   async getActiveTokensCount(userId: number): Promise<number> {

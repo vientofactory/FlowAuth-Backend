@@ -462,8 +462,8 @@ export class OAuth2Controller {
   }> {
     const user = req.user;
 
-    // Get total clients count
-    const totalClients = await this.oauth2Service.getTotalClientsCount();
+    // Get total clients count for this user
+    const totalClients = await this.oauth2Service.getTotalClientsCount(user.id);
 
     // Get active tokens count for this user
     const activeTokens = await this.oauth2Service.getActiveTokensCount(user.id);
