@@ -115,7 +115,8 @@ export class AuthService {
         sub: user.id.toString(),
         email: user.email,
         username: user.username,
-        roles: [PermissionUtils.getRoleName(user.permissions)], // 권한 기반 역할 계산
+        roles: [PermissionUtils.getRoleName(user.permissions)],
+        permissions: user.permissions,
         type: AUTH_CONSTANTS.TOKEN_TYPE,
       };
       // Generate JWT token (uses global expiration settings)

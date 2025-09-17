@@ -3,14 +3,16 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  SetMetadata,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PermissionUtils } from '../utils/permission.util';
 
 export const PERMISSIONS_KEY = 'permissions';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const REQUIRE_PERMISSIONS = (permissions: number[]) =>
-  Reflector.createDecorator<number[]>({ key: PERMISSIONS_KEY });
+
+// 간단한 권한 요구 데코레이터
+export const RequirePermissions = (...permissions: number[]) =>
+  SetMetadata(PERMISSIONS_KEY, permissions);
 
 interface RequestWithUser {
   user?: {
@@ -35,12 +37,22 @@ export class PermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<RequestWithUser>();
     const user = request.user;
 
-    if (!user || typeof user.permissions !== 'number') {
+    if (!user || user.permissions === undefined || user.permissions === null) {
       throw new ForbiddenException('권한 정보가 없습니다.');
     }
 
+    // permissions가 string인 경우 number로 변환
+    const userPermissions =
+      typeof user.permissions === 'string'
+        ? parseInt(user.permissions, 10)
+        : user.permissions;
+
+    if (typeof userPermissions !== 'number' || isNaN(userPermissions)) {
+      throw new ForbiddenException('권한 정보가 올바르지 않습니다.');
+    }
+
     const hasPermission = PermissionUtils.hasAnyPermission(
-      user.permissions,
+      userPermissions,
       requiredPermissions,
     );
 

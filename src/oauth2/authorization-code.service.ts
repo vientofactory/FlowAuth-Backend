@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { AppConfigService } from '../config/app-config.service';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
 import { User } from '../user/user.entity';
@@ -15,7 +14,6 @@ export class AuthorizationCodeService {
   constructor(
     @InjectRepository(AuthorizationCode)
     private readonly authCodeRepository: Repository<AuthorizationCode>,
-    private readonly configService: ConfigService,
     private readonly appConfig: AppConfigService,
   ) {}
 

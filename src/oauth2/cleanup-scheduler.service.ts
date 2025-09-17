@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { TokenService } from './token.service';
 import { AuthorizationCodeService } from './authorization-code.service';
-import { AppConfigService } from '../config/app-config.service';
 
 @Injectable()
 export class CleanupSchedulerService {
@@ -11,7 +10,6 @@ export class CleanupSchedulerService {
   constructor(
     private readonly tokenService: TokenService,
     private readonly authorizationCodeService: AuthorizationCodeService,
-    private readonly appConfig: AppConfigService,
   ) {}
 
   @Cron(CronExpression.EVERY_10_MINUTES)

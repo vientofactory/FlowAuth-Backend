@@ -24,8 +24,10 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { CreateClientDto } from './dto/create-client.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard, RequirePermissions } from './permissions.guard';
 import { User } from '../user/user.entity';
 import type { LoginResponse, AuthenticatedRequest } from '../types/auth.types';
+import { PERMISSIONS } from '../constants/auth.constants';
 
 @Controller('auth')
 @ApiTags('auth')
@@ -121,6 +123,10 @@ export class AuthController {
     status: 400,
     description: '잘못된 요청 데이터',
   })
+  @ApiResponse({
+    status: 401,
+    description: '인증되지 않은 사용자',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -139,6 +145,9 @@ export class AuthController {
   }
 
   @Post('clients')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'OAuth2 클라이언트 생성' })
   @ApiResponse({
     status: 201,
@@ -147,6 +156,10 @@ export class AuthController {
   @ApiResponse({
     status: 400,
     description: '잘못된 요청 데이터',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
   })
   @ApiBody({ type: CreateClientDto })
   async createClient(@Body() createClientDto: CreateClientDto) {
@@ -170,16 +183,26 @@ export class AuthController {
   }
 
   @Get('clients')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.READ_CLIENT)
+  @ApiBearerAuth()
   @ApiOperation({ summary: '모든 OAuth2 클라이언트 조회' })
   @ApiResponse({
     status: 200,
     description: '클라이언트 목록 반환',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
   })
   async getClients() {
     return this.authService.getClients();
   }
 
   @Get('clients/:id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.READ_CLIENT)
+  @ApiBearerAuth()
   @ApiOperation({ summary: '특정 OAuth2 클라이언트 조회' })
   @ApiResponse({
     status: 200,
@@ -189,11 +212,18 @@ export class AuthController {
     status: 404,
     description: '클라이언트를 찾을 수 없음',
   })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
+  })
   async getClientById(@Param('id') id: string) {
     return this.authService.getClientById(parseInt(id));
   }
 
   @Patch('clients/:id/status')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'OAuth2 클라이언트 상태 업데이트' })
   @ApiResponse({
     status: 200,
@@ -202,6 +232,10 @@ export class AuthController {
   @ApiResponse({
     status: 404,
     description: '클라이언트를 찾을 수 없음',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
   })
   @ApiBody({
     schema: {
@@ -219,6 +253,9 @@ export class AuthController {
   }
 
   @Patch('clients/:id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'OAuth2 클라이언트 정보 업데이트' })
   @ApiResponse({
     status: 200,
@@ -227,6 +264,10 @@ export class AuthController {
   @ApiResponse({
     status: 404,
     description: '클라이언트를 찾을 수 없음',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
   })
   @ApiBody({
     schema: {
@@ -255,7 +296,8 @@ export class AuthController {
   }
 
   @Delete('clients/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.DELETE_CLIENT)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'OAuth2 클라이언트 삭제' })
   @ApiResponse({
@@ -265,6 +307,10 @@ export class AuthController {
   @ApiResponse({
     status: 404,
     description: '클라이언트를 찾을 수 없음',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
   })
   async deleteClient(@Param('id') id: string) {
     await this.authService.deleteClient(parseInt(id));
@@ -284,7 +330,8 @@ export class AuthController {
   }
 
   @Delete('tokens/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.DELETE_TOKEN)
   @ApiBearerAuth()
   @ApiOperation({ summary: '특정 토큰 취소' })
   @ApiResponse({
@@ -295,6 +342,10 @@ export class AuthController {
     status: 404,
     description: '토큰을 찾을 수 없음',
   })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
+  })
   async revokeToken(
     @Request() req: AuthenticatedRequest,
     @Param('id') tokenId: string,
@@ -304,12 +355,17 @@ export class AuthController {
   }
 
   @Delete('tokens')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.DELETE_TOKEN)
   @ApiBearerAuth()
   @ApiOperation({ summary: '모든 사용자 토큰 취소' })
   @ApiResponse({
     status: 200,
     description: '모든 토큰이 성공적으로 취소됨',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
   })
   async revokeAllUserTokens(@Request() req: AuthenticatedRequest) {
     await this.authService.revokeAllUserTokens(req.user.id);
