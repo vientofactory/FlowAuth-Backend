@@ -11,7 +11,7 @@ import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
-import { UploadModule } from '../uploads/upload.module';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
   imports: [

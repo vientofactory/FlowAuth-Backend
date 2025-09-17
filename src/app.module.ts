@@ -8,7 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { OAuth2Module } from './oauth2/oauth2.module';
 import { DatabaseModule } from './database/database.module';
 import { AppConfigService } from './config/app-config.service';
-import { UploadModule } from './uploads/upload.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [

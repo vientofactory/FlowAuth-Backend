@@ -25,7 +25,7 @@ import { JwtPayload, LoginResponse } from '../types/auth.types';
 import { snowflakeGenerator } from '../utils/snowflake-id.util';
 import { CryptoUtils } from '../utils/crypto.util';
 import { PermissionUtils } from '../utils/permission.util';
-import { FileUploadService } from '../uploads/file-upload.service';
+import { FileUploadService } from '../upload/file-upload.service';
 
 @Injectable()
 export class AuthService {
