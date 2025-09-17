@@ -70,9 +70,27 @@ export class OAuth2Service {
       );
     }
 
+    // Length validation for security
+    if (client_id.length > OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH) {
+      throw new BadRequestException('client_id parameter is too long');
+    }
+    if (redirect_uri.length > OAUTH2_CONSTANTS.REDIRECT_URI_MAX_LENGTH) {
+      throw new BadRequestException('redirect_uri parameter is too long');
+    }
+    if (
+      scope &&
+      typeof scope === 'string' &&
+      scope.length > OAUTH2_CONSTANTS.SCOPE_MAX_LENGTH
+    ) {
+      throw new BadRequestException('scope parameter is too long');
+    }
+
     // Validate state parameter (REQUIRED for CSRF protection)
     if (!state || typeof state !== 'string' || state.length === 0) {
       throw new BadRequestException(OAUTH2_ERROR_MESSAGES.STATE_REQUIRED);
+    }
+    if (state.length > OAUTH2_CONSTANTS.STATE_MAX_LENGTH) {
+      throw new BadRequestException('state parameter is too long');
     }
 
     // Validate response type
@@ -192,8 +210,10 @@ export class OAuth2Service {
     codeChallengeMethod: string,
   ): void {
     if (codeChallengeMethod === 'S256') {
-      // Base64url encoded SHA256 hash should be 43 characters
-      if (!/^[A-Za-z0-9_-]{43}$/.test(codeChallenge)) {
+      // Base64url encoded SHA256 hash should be exactly 43 characters
+      if (
+        codeChallenge.length !== OAUTH2_CONSTANTS.CODE_CHALLENGE_S256_LENGTH
+      ) {
         throw new BadRequestException(
           OAUTH2_ERROR_MESSAGES.INVALID_PKCE_FORMAT_S256,
         );
@@ -266,6 +286,30 @@ export class OAuth2Service {
       throw new BadRequestException('Invalid code parameter');
     }
 
+    // Length validation
+    if (client_id.length > OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH) {
+      throw new BadRequestException('client_id parameter is too long');
+    }
+    if (code.length > 100) {
+      // Authorization code length limit
+      throw new BadRequestException('code parameter is too long');
+    }
+    if (
+      redirect_uri &&
+      typeof redirect_uri === 'string' &&
+      redirect_uri.length > OAUTH2_CONSTANTS.REDIRECT_URI_MAX_LENGTH
+    ) {
+      throw new BadRequestException('redirect_uri parameter is too long');
+    }
+    if (
+      code_verifier &&
+      typeof code_verifier === 'string' &&
+      code_verifier.length > OAUTH2_CONSTANTS.CODE_VERIFIER_MAX_LENGTH
+    ) {
+      // PKCE verifier max length
+      throw new BadRequestException('code_verifier parameter is too long');
+    }
+
     const client = await this.validateClient(client_id, client_secret);
 
     // Validate and consume authorization code
@@ -309,6 +353,15 @@ export class OAuth2Service {
       throw new BadRequestException('Invalid client_id parameter');
     }
 
+    // Length validation
+    if (refresh_token.length > 500) {
+      // Refresh token length limit
+      throw new BadRequestException('refresh_token parameter is too long');
+    }
+    if (client_id.length > OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH) {
+      throw new BadRequestException('client_id parameter is too long');
+    }
+
     await this.validateClient(client_id, client_secret);
 
     // Log refresh token request for security monitoring
@@ -350,6 +403,18 @@ export class OAuth2Service {
     // Type validation
     if (typeof client_id !== 'string') {
       throw new BadRequestException('Invalid client_id parameter');
+    }
+
+    // Length validation
+    if (client_id.length > OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH) {
+      throw new BadRequestException('client_id parameter is too long');
+    }
+    if (
+      scope &&
+      typeof scope === 'string' &&
+      scope.length > OAUTH2_CONSTANTS.SCOPE_MAX_LENGTH
+    ) {
+      throw new BadRequestException('scope parameter is too long');
     }
 
     const client = await this.validateClient(client_id, client_secret);
