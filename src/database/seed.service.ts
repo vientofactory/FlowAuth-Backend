@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Scope } from '../scope/scope.entity';
 import { Client } from '../client/client.entity';
+import { User } from '../user/user.entity';
 import { snowflakeGenerator } from '../utils/snowflake-id.util';
 
 interface ScopeData {
@@ -53,6 +54,8 @@ export class SeedService {
     private readonly scopeRepository: Repository<Scope>,
     @InjectRepository(Client)
     private readonly clientRepository: Repository<Client>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   async seedDatabase(): Promise<void> {
@@ -91,6 +94,16 @@ export class SeedService {
     });
 
     if (!existingClient) {
+      // Find the first user to assign as the owner of the test client
+      const firstUser = await this.userRepository.findOne({
+        order: { id: 'ASC' },
+      });
+
+      if (!firstUser) {
+        this.logger.warn('No users found. Skipping default client creation.');
+        return;
+      }
+
       const client = this.clientRepository.create({
         name: 'Test Client',
         description: 'Default test client for OAuth2 development',
@@ -103,10 +116,13 @@ export class SeedService {
         grants: ['authorization_code', 'refresh_token'],
         scopes: ['read', 'write', 'profile', 'email'],
         isActive: true,
+        userId: firstUser.id, // Assign to the first user
       });
 
       await this.clientRepository.save(client);
-      this.logger.log(`Created default client with ID: ${clientId}`);
+      this.logger.log(
+        `Created default client with ID: ${clientId} assigned to user: ${firstUser.id}`,
+      );
     } else {
       this.logger.log('Default client already exists');
     }

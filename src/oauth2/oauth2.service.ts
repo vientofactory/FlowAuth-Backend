@@ -155,6 +155,16 @@ export class OAuth2Service {
       this.validatePKCEParameters(code_challenge, code_challenge_method);
     }
 
+    // If only one PKCE parameter is provided, require both
+    if (
+      (code_challenge && !code_challenge_method) ||
+      (!code_challenge && code_challenge_method)
+    ) {
+      throw new BadRequestException(
+        'Both code_challenge and code_challenge_method must be provided together',
+      );
+    }
+
     // Generate authorization code
     const authCode = await this.authCodeService.createAuthorizationCode(
       user,
@@ -210,20 +220,23 @@ export class OAuth2Service {
     codeChallengeMethod: string,
   ): void {
     if (codeChallengeMethod === 'S256') {
-      // Base64url encoded SHA256 hash should be exactly 43 characters
+      // Base64url encoded SHA256 hash should be exactly 43 characters and valid format
       if (
-        codeChallenge.length !== OAUTH2_CONSTANTS.CODE_CHALLENGE_S256_LENGTH
+        codeChallenge.length !== OAUTH2_CONSTANTS.CODE_CHALLENGE_S256_LENGTH ||
+        !/^[A-Za-z0-9_-]{43}$/.test(codeChallenge)
       ) {
         throw new BadRequestException(
           OAUTH2_ERROR_MESSAGES.INVALID_PKCE_FORMAT_S256,
         );
       }
     } else if (codeChallengeMethod === 'plain') {
-      // Plain method should be 43-128 characters
+      // Plain method should be 43-128 characters and valid format
       if (
         codeChallenge.length <
           OAUTH2_CONSTANTS.CODE_CHALLENGE_PLAIN_MIN_LENGTH ||
-        codeChallenge.length > OAUTH2_CONSTANTS.CODE_CHALLENGE_PLAIN_MAX_LENGTH
+        codeChallenge.length >
+          OAUTH2_CONSTANTS.CODE_CHALLENGE_PLAIN_MAX_LENGTH ||
+        !/^[A-Za-z0-9_-]*$/.test(codeChallenge)
       ) {
         throw new BadRequestException(
           OAUTH2_ERROR_MESSAGES.INVALID_PKCE_LENGTH_PLAIN,
@@ -634,8 +647,10 @@ export class OAuth2Service {
     }
   }
 
-  async getTotalClientsCount(): Promise<number> {
-    return await this.clientRepository.count({ where: { isActive: true } });
+  async getTotalClientsCount(userId: number): Promise<number> {
+    return await this.clientRepository.count({
+      where: { isActive: true, userId },
+    });
   }
 
   async getActiveTokensCount(userId: number): Promise<number> {

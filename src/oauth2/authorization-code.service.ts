@@ -125,11 +125,11 @@ export class AuthorizationCodeService {
           OAUTH2_ERROR_MESSAGES.PKCE_VERIFIER_REQUIRED,
         );
       }
-      this.verifyCodeChallenge(
-        codeVerifier,
-        authCode.codeChallenge,
-        authCode.codeChallengeMethod,
-      );
+
+      // Use stored method or default to 'plain'
+      const method = authCode.codeChallengeMethod || 'plain';
+
+      this.verifyCodeChallenge(codeVerifier, authCode.codeChallenge, method);
     }
   }
 
@@ -152,6 +152,13 @@ export class AuthorizationCodeService {
   ): boolean {
     this.validatePKCEParameters(verifier, challenge);
 
+    // Validate challenge length based on method
+    if (method === 'S256' && challenge.length !== 43) {
+      throw new BadRequestException(
+        'Invalid code_challenge length for S256 method. Must be exactly 43 characters.',
+      );
+    }
+
     if (method === 'plain') {
       return this.verifyPlainChallenge(verifier, challenge);
     } else if (method === 'S256') {
@@ -166,6 +173,27 @@ export class AuthorizationCodeService {
   private validatePKCEParameters(verifier: string, challenge: string): void {
     if (!verifier || !challenge) {
       throw new BadRequestException(OAUTH2_ERROR_MESSAGES.PKCE_PARAMS_MISSING);
+    }
+
+    // Validate verifier length (RFC 7636: 43-128 characters)
+    if (verifier.length < 43 || verifier.length > 128) {
+      throw new BadRequestException(
+        'Invalid code_verifier length. Must be between 43 and 128 characters.',
+      );
+    }
+
+    // Validate verifier format (RFC 7636: unreserved characters)
+    if (!/^[A-Za-z0-9._~-]+$/.test(verifier)) {
+      throw new BadRequestException(
+        'Invalid code_verifier format. Only unreserved characters are allowed.',
+      );
+    }
+
+    // Validate challenge format
+    if (!/^[A-Za-z0-9._~-]+$/.test(challenge)) {
+      throw new BadRequestException(
+        'Invalid code_challenge format. Only unreserved characters are allowed.',
+      );
     }
   }
 

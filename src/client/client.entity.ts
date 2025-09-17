@@ -5,8 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
+import { User } from '../user/user.entity';
 
 @Entity()
 @Index(['clientId'], { unique: true })
@@ -50,6 +53,13 @@ export class Client {
 
   @Column({ nullable: true })
   policyUri: string;
+
+  @Column()
+  userId: number;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'userId' })
+  user: User;
 
   @CreateDateColumn()
   createdAt: Date;

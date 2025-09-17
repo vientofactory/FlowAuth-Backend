@@ -12,29 +12,162 @@ import { Reflector } from '@nestjs/core';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { SeedService } from './database/seed.service';
+import { join } from 'path';
+import { Request, Response, NextFunction } from 'express';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+/**
+ * FlowAuth Application Bootstrap
+ * OAuth2 인증 시스템의 메인 진입점
+ */
+async function bootstrap(): Promise<void> {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
-  // Security
-  app.use(helmet());
+  // Configure application middleware and settings
+  await configureApp(app, configService, logger);
 
-  // Cookie parser middleware
+  // Start the server
+  const port = configService.get<number>('PORT') ?? 3000;
+  await app.listen(port);
+  logger.log(`FlowAuth server running on port ${port}`);
+}
+
+/**
+ * Configure application middleware, security, and features
+ */
+async function configureApp(
+  app: NestExpressApplication,
+  configService: ConfigService,
+  logger: Logger,
+): Promise<void> {
+  // Security configuration
+  configureSecurity(app);
+
+  // Middleware configuration
+  configureMiddleware(app);
+
+  // Static file serving
+  configureStaticFiles(app);
+
+  // CORS configuration
+  configureCORS(app);
+
+  // Validation and serialization
+  configureValidation(app);
+
+  // Database seeding
+  await seedDatabase(app, logger);
+
+  // API documentation
+  configureSwagger(app);
+}
+
+/**
+ * Configure security middleware (Helmet)
+ */
+function configureSecurity(app: NestExpressApplication): void {
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: false, // Disable for static file CORS
+      crossOriginEmbedderPolicy: false, // Disable for cross-origin embedding
+      contentSecurityPolicy: false, // Disable for development flexibility
+      hsts: false, // Disable HSTS for development
+      noSniff: false, // Allow content type sniffing for images
+    }),
+  );
+}
+
+/**
+ * Configure basic middleware
+ */
+function configureMiddleware(app: NestExpressApplication): void {
   app.use(cookieParser());
+}
 
-  // CORS
-  app.enableCors({
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      configService.get<string>('FRONTEND_URL') || 'http://localhost:5173',
-    ],
-    credentials: true,
+/**
+ * Configure static file serving with CORS headers
+ */
+function configureStaticFiles(app: NestExpressApplication): void {
+  // Custom CORS middleware for uploads path (both API and static files)
+  app.use('/uploads', (req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin;
+
+    // Set CORS headers for both API endpoints and static files
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma',
+    );
+    res.header(
+      'Access-Control-Expose-Headers',
+      'Content-Length, Content-Type, ETag, Last-Modified',
+    );
+    res.header('Access-Control-Max-Age', '86400');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Vary', 'Origin');
+    res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    // Set cache headers only for static file requests (not API endpoints)
+    if (
+      req.method === 'GET' &&
+      !req.path.endsWith('/logo') &&
+      !req.path.endsWith('/config')
+    ) {
+      res.header('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.status(200).end();
+      return;
+    }
+
+    next();
   });
 
-  // Validation
+  // Serve static files
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+    prefix: '/uploads/',
+  });
+}
+
+/**
+ * Configure CORS for API endpoints
+ */
+function configureCORS(app: NestExpressApplication): void {
+  app.enableCors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, postman, etc.)
+      if (!origin) return callback(null, true);
+
+      // Allow all origins in development
+      return callback(null, true);
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+    allowedHeaders: [
+      'Origin',
+      'X-Requested-With',
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'Cache-Control',
+      'X-CSRF-Token',
+    ],
+    exposedHeaders: ['Content-Length', 'ETag', 'Last-Modified'],
+    credentials: true,
+    maxAge: 86400,
+    optionsSuccessStatus: 200,
+  });
+}
+
+/**
+ * Configure validation and serialization
+ */
+function configureValidation(app: NestExpressApplication): void {
+  // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -43,43 +176,48 @@ async function bootstrap() {
     }),
   );
 
-  // Serialization
+  // Global serialization interceptor
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+}
 
-  // Auto-seed database on startup
-  await autoSeedDatabase(app, logger);
-
-  // Swagger API Documentation
+/**
+ * Configure Swagger API documentation
+ */
+function configureSwagger(app: NestExpressApplication): void {
   const config = new DocumentBuilder()
     .setTitle('FlowAuth API')
     .setDescription('FlowAuth OAuth2 시스템 API 문서')
+    .setVersion('1.0')
     .addTag('auth', '인증 관련 API')
     .addTag('users', '사용자 관리 API')
     .addTag('clients', 'OAuth2 클라이언트 관리 API')
+    .addTag('oauth2', 'OAuth2 인증 플로우 API')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
-
-  const port = configService.get<number>('PORT') ?? 3000;
-  await app.listen(port);
-  logger.log(`Application is listening on port ${port}`);
 }
 
-async function autoSeedDatabase(
+/**
+ * Seed database with initial data
+ */
+async function seedDatabase(
   app: INestApplication,
   logger: Logger,
 ): Promise<void> {
   try {
     const seedService = app.get(SeedService);
     await seedService.seedDatabase();
-    logger.log('Database seeding completed successfully!');
+    logger.log('Database seeding completed successfully');
   } catch (error: unknown) {
     logger.error('Database seeding failed:', error);
-    logger.warn(
-      'Continuing with application startup despite seeding failure...',
-    );
+    logger.warn('Continuing with application startup despite seeding failure');
   }
 }
 
-void bootstrap();
+// Start the application
+void bootstrap().catch((error) => {
+  console.error('Failed to start FlowAuth server:', error);
+  process.exit(1);
+});

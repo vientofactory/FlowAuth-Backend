@@ -162,8 +162,14 @@ export class AuthController {
     description: '권한이 없음',
   })
   @ApiBody({ type: CreateClientDto })
-  async createClient(@Body() createClientDto: CreateClientDto) {
-    const client = await this.authService.createClient(createClientDto);
+  async createClient(
+    @Body() createClientDto: CreateClientDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    const client = await this.authService.createClient(
+      createClientDto,
+      req.user.id,
+    );
     return {
       id: client.id,
       clientId: client.clientId,
@@ -195,8 +201,8 @@ export class AuthController {
     status: 403,
     description: '권한이 없음',
   })
-  async getClients() {
-    return this.authService.getClients();
+  async getClients(@Request() req: AuthenticatedRequest) {
+    return this.authService.getClients(req.user.id);
   }
 
   @Get('clients/:id')
@@ -216,8 +222,11 @@ export class AuthController {
     status: 403,
     description: '권한이 없음',
   })
-  async getClientById(@Param('id') id: string) {
-    return this.authService.getClientById(parseInt(id));
+  async getClientById(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.authService.getClientById(parseInt(id), req.user.id);
   }
 
   @Patch('clients/:id/status')
@@ -248,8 +257,13 @@ export class AuthController {
   async updateClientStatus(
     @Param('id') id: string,
     @Body() body: { isActive: boolean },
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.authService.updateClientStatus(parseInt(id), body.isActive);
+    return this.authService.updateClientStatus(
+      parseInt(id),
+      body.isActive,
+      req.user.id,
+    );
   }
 
   @Patch('clients/:id')
@@ -291,8 +305,48 @@ export class AuthController {
   async updateClient(
     @Param('id') id: string,
     @Body() updateData: Partial<CreateClientDto>,
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.authService.updateClient(parseInt(id), updateData);
+    return this.authService.updateClient(parseInt(id), updateData, req.user.id);
+  }
+
+  @Delete('clients/:id/logo')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'OAuth2 클라이언트 로고 제거' })
+  @ApiResponse({
+    status: 200,
+    description: '클라이언트 로고가 성공적으로 제거됨',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'number' },
+        clientId: { type: 'string' },
+        name: { type: 'string' },
+        description: { type: 'string' },
+        logoUri: { type: 'string', nullable: true },
+        termsOfServiceUri: { type: 'string' },
+        policyUri: { type: 'string' },
+        isActive: { type: 'boolean' },
+        createdAt: { type: 'string', format: 'date-time' },
+        updatedAt: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: '클라이언트를 찾을 수 없음',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
+  })
+  async removeClientLogo(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.authService.removeClientLogo(parseInt(id), req.user.id);
   }
 
   @Delete('clients/:id')
