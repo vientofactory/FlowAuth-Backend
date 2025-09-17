@@ -202,7 +202,22 @@ export class AuthController {
     description: '권한이 없음',
   })
   async getClients(@Request() req: AuthenticatedRequest) {
-    return this.authService.getClients(req.user.id);
+    const clients = await this.authService.getClients(req.user.id);
+    return clients.map((client) => ({
+      id: client.id,
+      clientId: client.clientId,
+      name: client.name,
+      description: client.description,
+      redirectUris: client.redirectUris,
+      grants: client.grants,
+      scopes: client.scopes,
+      logoUri: client.logoUri,
+      termsOfServiceUri: client.termsOfServiceUri,
+      policyUri: client.policyUri,
+      isActive: client.isActive,
+      createdAt: client.createdAt,
+      updatedAt: client.updatedAt,
+    }));
   }
 
   @Get('clients/:id')
@@ -226,7 +241,25 @@ export class AuthController {
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.authService.getClientById(parseInt(id), req.user.id);
+    const client = await this.authService.getClientById(
+      parseInt(id),
+      req.user.id,
+    );
+    return {
+      id: client.id,
+      clientId: client.clientId,
+      name: client.name,
+      description: client.description,
+      redirectUris: client.redirectUris,
+      grants: client.grants,
+      scopes: client.scopes,
+      logoUri: client.logoUri,
+      termsOfServiceUri: client.termsOfServiceUri,
+      policyUri: client.policyUri,
+      isActive: client.isActive,
+      createdAt: client.createdAt,
+      updatedAt: client.updatedAt,
+    };
   }
 
   @Patch('clients/:id/status')
@@ -308,6 +341,68 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.authService.updateClient(parseInt(id), updateData, req.user.id);
+  }
+
+  @Put('clients/:id/reset-secret')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'OAuth2 클라이언트 시크릿 재설정' })
+  @ApiResponse({
+    status: 200,
+    description: '클라이언트 시크릿이 성공적으로 재설정됨',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'number' },
+        clientId: { type: 'string' },
+        clientSecret: { type: 'string' },
+        name: { type: 'string' },
+        description: { type: 'string' },
+        redirectUris: { type: 'array', items: { type: 'string' } },
+        grants: { type: 'array', items: { type: 'string' } },
+        scopes: { type: 'array', items: { type: 'string' } },
+        logoUri: { type: 'string', nullable: true },
+        termsOfServiceUri: { type: 'string' },
+        policyUri: { type: 'string' },
+        isActive: { type: 'boolean' },
+        createdAt: { type: 'string', format: 'date-time' },
+        updatedAt: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: '클라이언트를 찾을 수 없음',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
+  })
+  async resetClientSecret(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    const client = await this.authService.resetClientSecret(
+      parseInt(id),
+      req.user.id,
+    );
+    return {
+      id: client.id,
+      clientId: client.clientId,
+      clientSecret: client.clientSecret,
+      name: client.name,
+      description: client.description,
+      redirectUris: client.redirectUris,
+      grants: client.grants,
+      scopes: client.scopes,
+      logoUri: client.logoUri,
+      termsOfServiceUri: client.termsOfServiceUri,
+      policyUri: client.policyUri,
+      isActive: client.isActive,
+      createdAt: client.createdAt,
+      updatedAt: client.updatedAt,
+    };
   }
 
   @Delete('clients/:id/logo')

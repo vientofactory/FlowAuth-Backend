@@ -305,6 +305,30 @@ export class AuthService {
     return updatedClient;
   }
 
+  async resetClientSecret(id: number, userId: number): Promise<Client> {
+    const client = await this.clientRepository.findOne({
+      where: { id, userId },
+    });
+
+    if (!client) {
+      throw new UnauthorizedException('Client not found or access denied');
+    }
+
+    // Generate new client secret
+    const newClientSecret = CryptoUtils.generateRandomString(64);
+
+    await this.clientRepository.update(id, { clientSecret: newClientSecret });
+
+    const updatedClient = await this.clientRepository.findOne({
+      where: { id, userId },
+    });
+    if (!updatedClient) {
+      throw new UnauthorizedException('Client not found after update');
+    }
+
+    return updatedClient;
+  }
+
   async removeClientLogo(id: number, userId: number): Promise<Client> {
     const client = await this.clientRepository.findOne({
       where: { id, userId },
