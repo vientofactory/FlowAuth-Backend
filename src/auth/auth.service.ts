@@ -141,16 +141,6 @@ export class AuthService {
     }
   }
 
-  async findById(id: number): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id } });
-
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    return user;
-  }
-
   async createClient(
     createClientDto: CreateClientDto,
     userId: number,
@@ -205,38 +195,6 @@ export class AuthService {
     }
 
     return client;
-  }
-
-  async updateProfile(
-    userId: number,
-    updateData: Partial<User>,
-  ): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    // 업데이트 가능한 필드만 허용
-    const allowedFields = ['firstName', 'lastName'] as const;
-    const filteredData: Partial<Pick<User, 'firstName' | 'lastName'>> = {};
-
-    for (const field of allowedFields) {
-      if (updateData[field] !== undefined) {
-        filteredData[field] = updateData[field];
-      }
-    }
-
-    await this.userRepository.update(userId, filteredData);
-
-    const updatedUser = await this.userRepository.findOne({
-      where: { id: userId },
-    });
-    if (!updatedUser) {
-      throw new UnauthorizedException('User not found after update');
-    }
-
-    return updatedUser;
   }
 
   async updateClientStatus(

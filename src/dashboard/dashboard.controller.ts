@@ -1,0 +1,46 @@
+import { Controller, Get, UseGuards, Request } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import { DashboardService } from './dashboard.service';
+import { DashboardStatsResponseDto } from './dto/dashboard-stats.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import type { AuthenticatedRequest } from '../types/auth.types';
+
+@Controller('dashboard')
+@ApiTags('Dashboard')
+export class DashboardController {
+  constructor(private readonly dashboardService: DashboardService) {}
+
+  @Get('stats')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '대시보드 통계 정보',
+    description: `
+사용자의 OAuth2 관련 통계 정보를 조회합니다.
+
+**포함 정보:**
+- 총 클라이언트 수
+- 활성 토큰 수
+- 계정 생성일
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '대시보드 통계',
+    type: DashboardStatsResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
+  async getDashboardStats(
+    @Request() req: AuthenticatedRequest,
+  ): Promise<DashboardStatsResponseDto> {
+    return this.dashboardService.getDashboardStats(req.user.id);
+  }
+}

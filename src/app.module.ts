@@ -9,6 +9,8 @@ import { OAuth2Module } from './oauth2/oauth2.module';
 import { DatabaseModule } from './database/database.module';
 import { AppConfigService } from './config/app-config.service';
 import { UploadModule } from './upload/upload.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { ProfileModule } from './profile/profile.module';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { UploadModule } from './upload/upload.module';
     AuthModule,
     OAuth2Module,
     UploadModule,
+    DashboardModule,
+    ProfileModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppConfigService],

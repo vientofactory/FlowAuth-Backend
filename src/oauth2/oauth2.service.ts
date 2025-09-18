@@ -129,7 +129,7 @@ export class OAuth2Service {
     const requestedScopes = scopeValue ? scopeValue.split(' ') : [];
     const validScopes = await this.scopeService.validateScopes(requestedScopes);
 
-    if (!validScopes && requestedScopes.length > 0) {
+    if (!validScopes) {
       throw new BadRequestException(OAUTH2_ERROR_MESSAGES.INVALID_SCOPE);
     }
 
@@ -184,6 +184,7 @@ export class OAuth2Service {
         ? code_challenge_method
         : undefined,
     );
+    console.log('[OAuth2Service] Authorization code created:', authCode.code);
 
     return {
       code: authCode.code,
@@ -295,54 +296,24 @@ export class OAuth2Service {
   private async handleAuthorizationCodeGrant(
     tokenDto: TokenRequestDto,
   ): Promise<TokenResponseDto> {
-    const { client_id, client_secret, code, redirect_uri, code_verifier } =
+    const { code, client_id, client_secret, redirect_uri, code_verifier } =
       tokenDto;
 
-    // Type validation
-    if (typeof client_id !== 'string') {
-      throw new BadRequestException('Invalid client_id parameter');
-    }
-    if (typeof code !== 'string') {
-      throw new BadRequestException('Invalid code parameter');
+    // Validate required parameters
+    if (!code || !client_id) {
+      throw new BadRequestException('Missing required parameters');
     }
 
-    // Length validation
-    if (client_id.length > OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH) {
-      throw new BadRequestException('client_id parameter is too long');
-    }
-    if (code.length > OAUTH2_CONSTANTS.AUTHORIZATION_CODE_MAX_LENGTH) {
-      // Authorization code length limit
-      throw new BadRequestException('code parameter is too long');
-    }
-    if (
-      redirect_uri &&
-      typeof redirect_uri === 'string' &&
-      redirect_uri.length > OAUTH2_CONSTANTS.REDIRECT_URI_MAX_LENGTH
-    ) {
-      throw new BadRequestException('redirect_uri parameter is too long');
-    }
-    if (
-      code_verifier &&
-      typeof code_verifier === 'string' &&
-      code_verifier.length > OAUTH2_CONSTANTS.CODE_VERIFIER_MAX_LENGTH
-    ) {
-      // PKCE verifier max length
-      throw new BadRequestException('code_verifier parameter is too long');
-    }
-
+    // Validate client
     const client = await this.validateClient(client_id, client_secret);
 
     // Validate and consume authorization code
     const authCode = await this.authCodeService.validateAndConsumeCode(
       code,
       client_id,
-      typeof redirect_uri === 'string' ? redirect_uri : undefined,
-      typeof code_verifier === 'string' ? code_verifier : undefined,
+      redirect_uri,
+      code_verifier,
     );
-
-    if (!authCode) {
-      throw new BadRequestException('Invalid authorization code');
-    }
 
     // Create token
     const tokenResponse = await this.tokenService.createToken(
@@ -523,11 +494,24 @@ export class OAuth2Service {
       throw new UnauthorizedException('Invalid client credentials');
     }
 
-    // For confidential clients, validate client secret
-    if (client.isConfidential && client.clientSecret) {
-      if (!clientSecret || clientSecret !== client.clientSecret) {
+    // If client_secret is provided, it MUST be validated regardless of client type
+    if (clientSecret) {
+      // Client MUST have a client secret configured in database
+      if (!client.clientSecret) {
+        throw new UnauthorizedException('Invalid client configuration');
+      }
+
+      // Client secret MUST match
+      if (clientSecret !== client.clientSecret) {
         throw new UnauthorizedException('Invalid client credentials');
       }
+    } else if (client.isConfidential) {
+      // For confidential clients, client_secret is REQUIRED even if not provided
+      if (!client.clientSecret) {
+        throw new UnauthorizedException('Invalid client configuration');
+      }
+
+      throw new UnauthorizedException('Client authentication required');
     }
 
     return client;
@@ -659,16 +643,6 @@ export class OAuth2Service {
         this.rateLimitStore.delete(key);
       }
     }
-  }
-
-  async getTotalClientsCount(userId: number): Promise<number> {
-    return await this.clientRepository.count({
-      where: { isActive: true, userId },
-    });
-  }
-
-  async getActiveTokensCount(userId: number): Promise<number> {
-    return await this.tokenService.getActiveTokensCountForUser(userId);
   }
 
   private validateClientScopes(

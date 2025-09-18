@@ -80,56 +80,6 @@ export class AuthController {
     return result;
   }
 
-  @Get('profile')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '사용자 프로필 조회' })
-  @ApiResponse({
-    status: 200,
-    description: '프로필 정보 반환',
-  })
-  @ApiResponse({
-    status: 401,
-    description: '인증되지 않은 사용자',
-  })
-  async getProfile(@Request() req: AuthenticatedRequest) {
-    const user = await this.authService.findById(req.user.id);
-    return user;
-  }
-
-  @Put('profile')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '사용자 프로필 업데이트' })
-  @ApiResponse({
-    status: 200,
-    description: '프로필 업데이트 성공',
-  })
-  @ApiResponse({
-    status: 400,
-    description: '잘못된 요청 데이터',
-  })
-  @ApiResponse({
-    status: 401,
-    description: '인증되지 않은 사용자',
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        firstName: { type: 'string', example: 'John' },
-        lastName: { type: 'string', example: 'Doe' },
-      },
-    },
-  })
-  async updateProfile(
-    @Request() req: AuthenticatedRequest,
-    @Body() updateData: Partial<{ firstName: string; lastName: string }>,
-  ) {
-    const userId = req.user.id;
-    return this.authService.updateProfile(userId, updateData);
-  }
-
   @Post('clients')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.WRITE_CLIENT)

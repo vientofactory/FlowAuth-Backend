@@ -21,7 +21,6 @@ import { ConfigService } from '@nestjs/config';
 import {
   UserinfoResponseDto,
   AuthorizeInfoResponseDto,
-  DashboardStatsResponseDto,
   ClientInfoDto,
 } from './dto/response.dto';
 import { AuthorizeConsentDto } from './dto/request.dto';
@@ -49,10 +48,6 @@ import {
   TokenRequestDto,
   TokenResponseDto,
 } from './dto/oauth2.dto';
-
-interface AuthenticatedRequest extends ExpressRequest {
-  user: User;
-}
 
 interface OAuth2AuthenticatedRequest extends ExpressRequest {
   user: OAuth2JwtPayload;
@@ -297,7 +292,9 @@ OAuth2 Authorization Code Flow의 시작점입니다.
       }
 
       // Handle the authorization flow
-      await this.handleAuthorizationFlowWithConsent(authorizeDto, res);
+      // 사용자가 인증되었으므로 동의 페이지로 리다이렉트
+      const consentUrl = this.buildConsentRedirectUrl(authorizeDto);
+      return res.redirect(consentUrl);
     } catch {
       this.handleAuthorizeError(
         res,
@@ -317,15 +314,30 @@ OAuth2 Authorization Code Flow의 시작점입니다.
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   private async handleAuthorizationFlowWithConsent(
     authorizeDto: AuthorizeRequestDto,
     res: Response,
+    req: ExpressRequest,
   ): Promise<void> {
-    // Check if this is a direct authorize call (no consent yet)
-    // Redirect to consent page for user approval
-    const consentUrl = this.buildConsentRedirectUrl(authorizeDto);
-    res.redirect(consentUrl);
+    // For now, directly handle the authorization without consent page
+    // TODO: Implement proper consent flow
+    try {
+      // Get authenticated user
+      const user = await this.getAuthenticatedUser(req);
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      await this.handleAuthorizeFlow(user, authorizeDto, res);
+    } catch {
+      this.handleAuthorizeError(
+        res,
+        authorizeDto.redirect_uri,
+        'server_error',
+        'Internal server error',
+        authorizeDto.state,
+      );
+    }
   }
 
   private handleAuthorizeError(
@@ -537,6 +549,57 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
   }
 
   @Get('authorize/info')
+  @ApiOperation({
+    summary: 'OAuth2 동의 정보 조회',
+    description: `
+OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를 조회합니다.
+
+**요구사항:**
+- 사용자가 로그인되어 있어야 함
+- 유효한 OAuth2 매개변수들이 쿼리 파라미터로 포함되어야 함
+
+**반환 정보:**
+- 클라이언트 정보 (이름, 설명, 로고 등)
+- 요청된 스코프 목록
+    `,
+  })
+  @ApiQuery({
+    name: 'client_id',
+    description: '클라이언트 식별자',
+    example: 'your-client-id',
+    required: true,
+  })
+  @ApiQuery({
+    name: 'redirect_uri',
+    description: '인증 완료 후 리다이렉트될 URI',
+    example: 'https://your-app.com/callback',
+    required: true,
+  })
+  @ApiQuery({
+    name: 'response_type',
+    description: '응답 타입 (현재 "code"만 지원)',
+    example: 'code',
+    required: true,
+  })
+  @ApiQuery({
+    name: 'scope',
+    description: '요청할 권한 스코프 (공백으로 구분)',
+    example: 'openid profile email',
+    required: false,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '동의 정보 조회 성공',
+    type: AuthorizeInfoResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: '잘못된 요청 파라미터',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
   async getAuthorizeInfo(
     @Query() authorizeDto: AuthorizeRequestDto,
     @Request() req: ExpressRequest,
@@ -597,6 +660,12 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
     @Body() consentDto: AuthorizeConsentDto,
     @Request() req: ExpressRequest,
   ): Promise<RedirectUrlResponseDto> {
+    console.log('[OAuth2] Consent request received:', {
+      client_id: consentDto.client_id,
+      approved: consentDto.approved,
+      scope: consentDto.scope,
+    });
+
     const user = await this.getAuthenticatedUser(req);
 
     if (!user) {
@@ -651,7 +720,13 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
       }
 
       return { redirect_url: redirectUrl.toString() };
-    } catch {
+    } catch (error) {
+      console.error('[OAuth2] Error in authorizeConsent:', error);
+      console.error('[OAuth2] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : 'Unknown',
+      });
       const redirectUrl = new URL(authorizeDto.redirect_uri);
       redirectUrl.searchParams.set('error', 'server_error');
       redirectUrl.searchParams.set(
@@ -665,77 +740,6 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
 
       return { redirect_url: redirectUrl.toString() };
     }
-  }
-
-  @Get('dashboard/stats')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('JWT-auth')
-  @ApiTags('Dashboard')
-  @ApiOperation({
-    summary: '대시보드 통계 정보',
-    description: `
-사용자의 OAuth2 관련 통계 정보를 조회합니다.
-
-**포함 정보:**
-- 총 클라이언트 수
-- 활성 토큰 수
-- 계정 생성일
-    `,
-  })
-  @ApiResponse({
-    status: 200,
-    description: '대시보드 통계',
-    schema: {
-      type: 'object',
-      properties: {
-        totalClients: {
-          type: 'number',
-          description: '등록된 클라이언트 수',
-          example: 3,
-        },
-        activeTokens: {
-          type: 'number',
-          description: '활성 토큰 수',
-          example: 5,
-        },
-        lastLoginDate: {
-          type: 'string',
-          format: 'date-time',
-          description: '마지막 로그인 날짜',
-          nullable: true,
-          example: null,
-        },
-        accountCreated: {
-          type: 'string',
-          format: 'date-time',
-          description: '계정 생성일',
-          nullable: true,
-          example: '2023-01-15T10:30:00Z',
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 401,
-    description: '인증 필요',
-  })
-  async getDashboardStats(
-    @Request() req: AuthenticatedRequest,
-  ): Promise<DashboardStatsResponseDto> {
-    const user = req.user;
-
-    // Get total clients count for this user
-    const totalClients = await this.oauth2Service.getTotalClientsCount(user.id);
-
-    // Get active tokens count for this user
-    const activeTokens = await this.oauth2Service.getActiveTokensCount(user.id);
-
-    return {
-      totalClients,
-      activeTokens,
-      lastLoginDate: null, // TODO: Add lastLoginAt field to User entity
-      accountCreated: user.createdAt || null,
-    };
   }
 
   @Get('consent')

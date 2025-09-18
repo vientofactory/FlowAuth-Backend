@@ -34,6 +34,7 @@ export class AuthorizationCodeService {
     codeChallengeMethod?: string,
   ): Promise<AuthorizationCode> {
     const code = this.generateCode();
+
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + this.getCodeExpiryMinutes());
 
@@ -49,7 +50,8 @@ export class AuthorizationCodeService {
       client,
     });
 
-    return this.authCodeRepository.save(authCode);
+    const savedAuthCode = await this.authCodeRepository.save(authCode);
+    return savedAuthCode;
   }
 
   async validateAndConsumeCode(
@@ -57,22 +59,40 @@ export class AuthorizationCodeService {
     clientId: string,
     redirectUri?: string,
     codeVerifier?: string,
-  ): Promise<AuthorizationCode | null> {
+  ): Promise<AuthorizationCode> {
     const authCode = await this.findValidAuthorizationCode(code);
 
     if (!authCode) {
-      return null;
+      throw new BadRequestException('Invalid authorization code');
     }
 
-    this.validateAuthorizationCode(authCode, clientId, redirectUri);
-    this.validateAndProcessPKCE(authCode, codeVerifier);
+    if (authCode.client.clientId !== clientId) {
+      throw new BadRequestException('Invalid client');
+    }
 
-    // Mark as used and delete immediately to prevent reuse
+    if (redirectUri && authCode.redirectUri !== redirectUri) {
+      throw new BadRequestException('Invalid redirect URI');
+    }
+
+    // Validate PKCE if present
+    if (authCode.codeChallenge) {
+      if (!codeVerifier) {
+        throw new BadRequestException('Code verifier required');
+      }
+
+      const isValidPKCE = this.verifyCodeChallenge(
+        codeVerifier,
+        authCode.codeChallenge,
+        authCode.codeChallengeMethod,
+      );
+
+      if (!isValidPKCE) {
+        throw new BadRequestException('Invalid code verifier');
+      }
+    }
+
     authCode.isUsed = true;
     await this.authCodeRepository.save(authCode);
-
-    // Immediately delete the authorization code to prevent any reuse attempts
-    await this.authCodeRepository.remove(authCode);
 
     return authCode;
   }
