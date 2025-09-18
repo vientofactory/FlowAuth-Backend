@@ -13,11 +13,11 @@ export class AddUserIdToClient1758117590059 implements MigrationInterface {
     }
 
     // Check if foreign key constraint already exists
-    const foreignKeys = await queryRunner.query(`
+    const foreignKeys = (await queryRunner.query(`
       SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'client' 
       AND CONSTRAINT_NAME = 'FK_client_user'
-    `);
+    `)) as Array<{ CONSTRAINT_NAME: string }>;
 
     if (foreignKeys.length === 0) {
       // 외래 키 제약조건 추가
@@ -31,11 +31,11 @@ export class AddUserIdToClient1758117590059 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Check if foreign key constraint exists before dropping
-    const foreignKeys = await queryRunner.query(`
+    const foreignKeys = (await queryRunner.query(`
       SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'client' 
       AND CONSTRAINT_NAME = 'FK_client_user'
-    `);
+    `)) as Array<{ CONSTRAINT_NAME: string }>;
 
     if (foreignKeys && foreignKeys.length > 0) {
       // 외래 키 제약조건 제거

@@ -26,11 +26,12 @@ import { CreateClientDto } from './dto/create-client.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard, RequirePermissions } from './permissions.guard';
 import { User } from '../user/user.entity';
-import type { LoginResponse, AuthenticatedRequest } from '../types/auth.types';
+import type { AuthenticatedRequest } from '../types/auth.types';
 import { PERMISSIONS } from '../constants/auth.constants';
+import { LoginResponseDto, ClientCreateResponseDto } from './dto/response.dto';
 
 @Controller('auth')
-@ApiTags('auth')
+@ApiTags('Authentication')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -55,22 +56,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: '로그인 성공',
-    schema: {
-      type: 'object',
-      properties: {
-        user: {
-          type: 'object',
-          properties: {
-            id: { type: 'number' },
-            username: { type: 'string' },
-            email: { type: 'string' },
-            firstName: { type: 'string' },
-            lastName: { type: 'string' },
-          },
-        },
-        accessToken: { type: 'string' },
-      },
-    },
+    type: LoginResponseDto,
   })
   @ApiResponse({
     status: 401,
@@ -80,7 +66,7 @@ export class AuthController {
   async login(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<LoginResponse> {
+  ): Promise<LoginResponseDto> {
     const result = await this.authService.login(loginDto);
 
     // OAuth2 플로우를 위해 쿠키에 토큰 설정
@@ -148,10 +134,19 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'OAuth2 클라이언트 생성' })
+  @ApiTags('Client Management')
+  @ApiOperation({
+    summary: 'OAuth2 클라이언트 생성',
+    description: `
+새로운 OAuth2 클라이언트 애플리케이션을 등록합니다.
+
+**필요 권한:** write:client
+    `,
+  })
   @ApiResponse({
     status: 201,
     description: '클라이언트가 성공적으로 생성됨',
+    type: ClientCreateResponseDto,
   })
   @ApiResponse({
     status: 400,
@@ -165,7 +160,7 @@ export class AuthController {
   async createClient(
     @Body() createClientDto: CreateClientDto,
     @Request() req: AuthenticatedRequest,
-  ) {
+  ): Promise<ClientCreateResponseDto> {
     const client = await this.authService.createClient(
       createClientDto,
       req.user.id,
@@ -173,18 +168,10 @@ export class AuthController {
     return {
       id: client.id,
       clientId: client.clientId,
-      clientSecret: client.clientSecret,
+      clientSecret: client.clientSecret || undefined,
       name: client.name,
       description: client.description,
-      redirectUris: client.redirectUris,
-      grants: client.grants,
-      scopes: client.scopes,
-      logoUri: client.logoUri,
-      termsOfServiceUri: client.termsOfServiceUri,
-      policyUri: client.policyUri,
-      isActive: client.isActive,
       createdAt: client.createdAt,
-      updatedAt: client.updatedAt,
     };
   }
 
@@ -192,7 +179,15 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.READ_CLIENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '모든 OAuth2 클라이언트 조회' })
+  @ApiTags('Client Management')
+  @ApiOperation({
+    summary: '사용자의 OAuth2 클라이언트 목록 조회',
+    description: `
+현재 사용자가 소유한 모든 OAuth2 클라이언트를 조회합니다.
+
+**필요 권한:** read:client
+    `,
+  })
   @ApiResponse({
     status: 200,
     description: '클라이언트 목록 반환',

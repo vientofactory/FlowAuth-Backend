@@ -6,7 +6,6 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { Reflector } from '@nestjs/core';
 import helmet from 'helmet';
@@ -15,6 +14,7 @@ import { SeedService } from './database/seed.service';
 import { join } from 'path';
 import { Request, Response, NextFunction } from 'express';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { setupSwagger } from './config/swagger.setup';
 
 /**
  * FlowAuth Application Bootstrap
@@ -61,7 +61,7 @@ async function configureApp(
   await seedDatabase(app, logger);
 
   // API documentation
-  configureSwagger(app);
+  setupSwagger(app);
 }
 
 /**
@@ -178,25 +178,6 @@ function configureValidation(app: NestExpressApplication): void {
 
   // Global serialization interceptor
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
-}
-
-/**
- * Configure Swagger API documentation
- */
-function configureSwagger(app: NestExpressApplication): void {
-  const config = new DocumentBuilder()
-    .setTitle('FlowAuth API')
-    .setDescription('FlowAuth OAuth2 시스템 API 문서')
-    .setVersion('1.0')
-    .addTag('auth', '인증 관련 API')
-    .addTag('users', '사용자 관리 API')
-    .addTag('clients', 'OAuth2 클라이언트 관리 API')
-    .addTag('oauth2', 'OAuth2 인증 플로우 API')
-    .addBearerAuth()
-    .build();
-
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
 }
 
 /**

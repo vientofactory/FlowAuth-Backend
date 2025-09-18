@@ -7,10 +7,10 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
-import type { JwtPayload } from '../types/auth.types';
+import type { OAuth2JwtPayload } from '../types/oauth2.types';
 
 interface AuthenticatedRequest extends Request {
-  user: JwtPayload;
+  user: OAuth2JwtPayload;
 }
 
 @Injectable()
@@ -31,16 +31,40 @@ export class OAuth2BearerGuard implements CanActivate {
     const token = authHeader.substring(7);
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const payload = this.jwtService.verify(token, {
+      // OAuth2 토큰 검증
+      const payload: unknown = this.jwtService.verify(token, {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
 
+      // OAuth2 토큰 구조 검증
+      if (!this.isValidOAuth2Payload(payload)) {
+        throw new UnauthorizedException('Invalid OAuth2 token structure');
+      }
+
       // Add user payload to request
-      request.user = payload as JwtPayload;
+      request.user = payload;
       return true;
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException('Invalid token');
     }
+  }
+
+  private isValidOAuth2Payload(payload: unknown): payload is OAuth2JwtPayload {
+    if (!payload || typeof payload !== 'object') {
+      return false;
+    }
+
+    const p = payload as Record<string, unknown>;
+
+    return (
+      typeof p.client_id === 'string' &&
+      Array.isArray(p.scopes) &&
+      p.scopes.every((scope: unknown) => typeof scope === 'string') &&
+      p.token_type === 'Bearer' &&
+      (p.sub === null || typeof p.sub === 'number')
+    );
   }
 }

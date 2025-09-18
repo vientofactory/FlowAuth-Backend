@@ -20,7 +20,7 @@ import { SeedService } from './seed.service';
         password: configService.get<string>('DB_PASSWORD', ''),
         database: configService.get<string>('DB_NAME', 'flowauth'),
         entities: [User, Client, Token, AuthorizationCode, Scope],
-        synchronize: configService.get<string>('NODE_ENV') !== 'production',
+        synchronize: false,
         logging: configService.get<string>('NODE_ENV') === 'development',
       }),
       inject: [ConfigService],

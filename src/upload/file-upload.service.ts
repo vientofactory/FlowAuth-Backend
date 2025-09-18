@@ -18,12 +18,6 @@ import { UPLOAD_CONFIG, getUploadPath } from './config';
 @Injectable()
 export class FileUploadService {
   private readonly logger = new Logger(FileUploadService.name);
-  private uploadStats = {
-    totalUploads: 0,
-    successfulUploads: 0,
-    failedUploads: 0,
-    totalSizeUploaded: 0,
-  };
 
   constructor() {
     this.ensureDirectoriesExist();
@@ -130,7 +124,6 @@ export class FileUploadService {
           return;
         }
 
-        this.logger.log(`File validation passed: ${file.originalname}`);
         cb(null, true);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
@@ -239,62 +232,6 @@ export class FileUploadService {
   }
 
   /**
-   * Record successful upload
-   */
-  recordSuccessfulUpload(file: MulterFile): void {
-    this.uploadStats.totalUploads++;
-    this.uploadStats.successfulUploads++;
-    this.uploadStats.totalSizeUploaded += file.size;
-
-    this.logger.log(
-      `File uploaded successfully: ${file.originalname} (${file.size} bytes)`,
-    );
-  }
-
-  /**
-   * Record failed upload
-   */
-  recordFailedUpload(filename: string, error: string): void {
-    this.uploadStats.totalUploads++;
-    this.uploadStats.failedUploads++;
-
-    this.logger.error(`File upload failed: ${filename} - ${error}`);
-  }
-
-  /**
-   * Get upload statistics
-   */
-  getUploadStats() {
-    return {
-      ...this.uploadStats,
-      successRate:
-        this.uploadStats.totalUploads > 0
-          ? (this.uploadStats.successfulUploads /
-              this.uploadStats.totalUploads) *
-            100
-          : 0,
-      averageFileSize:
-        this.uploadStats.successfulUploads > 0
-          ? this.uploadStats.totalSizeUploaded /
-            this.uploadStats.successfulUploads
-          : 0,
-    };
-  }
-
-  /**
-   * Reset upload statistics
-   */
-  resetUploadStats(): void {
-    this.uploadStats = {
-      totalUploads: 0,
-      successfulUploads: 0,
-      failedUploads: 0,
-      totalSizeUploaded: 0,
-    };
-    this.logger.log('Upload statistics reset');
-  }
-
-  /**
    * Delete a file from the filesystem
    * @param logoUri - The URI of the file to delete (e.g., '/uploads/logos/filename.png')
    * @returns Promise<boolean> - true if deleted successfully, false otherwise
@@ -320,8 +257,6 @@ export class FileUploadService {
       // Build absolute file path
       const filePath = join(process.cwd(), relativePath);
 
-      this.logger.log(`Attempting to delete file: ${filePath}`);
-
       // Check if file exists
       if (!existsSync(filePath)) {
         this.logger.warn(`File does not exist: ${filePath}`);
@@ -330,7 +265,6 @@ export class FileUploadService {
 
       // Delete the file
       unlinkSync(filePath);
-      this.logger.log(`Successfully deleted file: ${filePath}`);
       return true;
     } catch (error) {
       this.logger.error(

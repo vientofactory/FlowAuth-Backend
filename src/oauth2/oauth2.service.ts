@@ -133,6 +133,13 @@ export class OAuth2Service {
       throw new BadRequestException(OAUTH2_ERROR_MESSAGES.INVALID_SCOPE);
     }
 
+    // Validate client-specific scopes
+    if (!this.validateClientScopes(client, requestedScopes)) {
+      throw new BadRequestException(
+        'Client is not authorized for requested scopes',
+      );
+    }
+
     return {
       client,
       requestedScopes,
@@ -441,6 +448,13 @@ export class OAuth2Service {
       throw new BadRequestException('Invalid scope parameter');
     }
 
+    // Validate client-specific scopes
+    if (!this.validateClientScopes(client, requestedScopes)) {
+      throw new BadRequestException(
+        'Client is not authorized for requested scopes',
+      );
+    }
+
     // Create token for client credentials
     const tokenResponse = await this.tokenService.createToken(
       null,
@@ -655,5 +669,18 @@ export class OAuth2Service {
 
   async getActiveTokensCount(userId: number): Promise<number> {
     return await this.tokenService.getActiveTokensCountForUser(userId);
+  }
+
+  private validateClientScopes(
+    client: Client,
+    requestedScopes: string[],
+  ): boolean {
+    // If client has no scope restrictions, allow all valid scopes
+    if (!client.scopes || client.scopes.length === 0) {
+      return true;
+    }
+
+    // Check if all requested scopes are allowed for this client
+    return requestedScopes.every((scope) => client.scopes?.includes(scope));
   }
 }

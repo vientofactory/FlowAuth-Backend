@@ -11,7 +11,7 @@ import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
-import { UploadModule } from '../upload/upload.module';
+import { FileUploadService } from '../upload/file-upload.service';
 
 @Module({
   imports: [
@@ -24,10 +24,9 @@ import { UploadModule } from '../upload/upload.module';
       }),
       inject: [ConfigService],
     }),
-    UploadModule,
   ],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard],
+  providers: [AuthService, JwtStrategy, JwtAuthGuard, FileUploadService],
   controllers: [AuthController],
-  exports: [JwtAuthGuard],
+  exports: [JwtAuthGuard, FileUploadService],
 })
 export class AuthModule {}

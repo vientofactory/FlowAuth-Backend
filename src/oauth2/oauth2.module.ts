@@ -9,6 +9,8 @@ import { AuthorizationCodeService } from './authorization-code.service';
 import { TokenService } from './token.service';
 import { ScopeService } from './scope.service';
 import { CleanupSchedulerService } from './cleanup-scheduler.service';
+import { OAuth2BearerGuard } from './oauth2-bearer.guard';
+import { OAuth2ScopeGuard } from './guards/oauth2-scope.guard';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
@@ -35,8 +37,10 @@ import { AppConfigService } from '../config/app-config.service';
     TokenService,
     ScopeService,
     CleanupSchedulerService,
+    OAuth2BearerGuard,
+    OAuth2ScopeGuard,
     AppConfigService,
   ],
-  exports: [OAuth2Service, TokenService],
+  exports: [OAuth2Service, TokenService, OAuth2BearerGuard, OAuth2ScopeGuard],
 })
 export class OAuth2Module {}

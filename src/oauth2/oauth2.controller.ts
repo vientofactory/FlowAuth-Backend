@@ -9,22 +9,45 @@ import {
   BadRequestException,
   Res,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import {
+  UserinfoResponseDto,
+  AuthorizeInfoResponseDto,
+  DashboardStatsResponseDto,
+  ClientInfoDto,
+} from './dto/response.dto';
+import { AuthorizeConsentDto } from './dto/request.dto';
+import {
+  RedirectUrlResponseDto,
+  ErrorResponseDto,
+} from '../common/dto/response.dto';
 import type { Request as ExpressRequest, Response } from 'express';
 import { OAuth2Service } from './oauth2.service';
 import { OAuth2BearerGuard } from './oauth2-bearer.guard';
+import { OAuth2ScopeGuard } from './guards/oauth2-scope.guard';
+import { RequireScopes } from './decorators/require-scopes.decorator';
 import { TokenService } from './token.service';
 import { AuthorizationCodeService } from './authorization-code.service';
+import { ScopeService } from './scope.service';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { User } from '../user/user.entity';
+import type { OAuth2JwtPayload } from '../types/oauth2.types';
 import type { JwtPayload } from '../types/auth.types';
 import { PermissionUtils } from '../utils/permission.util';
+import { OAUTH2_SCOPES } from '../constants/oauth2.constants';
 import {
   AuthorizeRequestDto,
   TokenRequestDto,
   TokenResponseDto,
-  ErrorResponseDto,
 } from './dto/oauth2.dto';
 
 interface AuthenticatedRequest extends ExpressRequest {
@@ -32,10 +55,11 @@ interface AuthenticatedRequest extends ExpressRequest {
 }
 
 interface OAuth2AuthenticatedRequest extends ExpressRequest {
-  user: JwtPayload;
+  user: OAuth2JwtPayload;
 }
 
 @Controller('oauth2')
+@ApiTags('OAuth2 Flow')
 export class OAuth2Controller {
   constructor(
     private readonly oauth2Service: OAuth2Service,
@@ -43,6 +67,7 @@ export class OAuth2Controller {
     private readonly configService: ConfigService,
     private readonly tokenService: TokenService,
     private readonly authorizationCodeService: AuthorizationCodeService,
+    private readonly scopeService: ScopeService,
   ) {}
 
   private async getAuthenticatedUserFromCookie(
@@ -190,6 +215,69 @@ export class OAuth2Controller {
   }
 
   @Get('authorize')
+  @ApiOperation({
+    summary: 'OAuth2 인증 시작',
+    description: `
+OAuth2 Authorization Code Flow의 시작점입니다.
+클라이언트 애플리케이션이 사용자를 이 엔드포인트로 리다이렉트하여 인증을 요청합니다.
+
+**플로우:**
+1. 사용자가 로그인되어 있지 않으면 로그인 페이지로 리다이렉트
+2. 사용자가 로그인되어 있으면 동의 페이지로 리다이렉트
+3. 사용자가 동의하면 authorization code를 발급하여 redirect_uri로 리다이렉트
+    `,
+  })
+  @ApiQuery({
+    name: 'response_type',
+    description: '응답 타입 (현재 "code"만 지원)',
+    example: 'code',
+    required: true,
+  })
+  @ApiQuery({
+    name: 'client_id',
+    description: '클라이언트 식별자',
+    example: 'your-client-id',
+    required: true,
+  })
+  @ApiQuery({
+    name: 'redirect_uri',
+    description: '인증 완료 후 리다이렉트될 URI',
+    example: 'https://your-app.com/callback',
+    required: true,
+  })
+  @ApiQuery({
+    name: 'scope',
+    description: '요청할 권한 스코프 (공백으로 구분)',
+    example: 'openid profile email',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'state',
+    description: 'CSRF 방지를 위한 상태값',
+    example: 'random-state-string',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'code_challenge',
+    description: 'PKCE 코드 챌린지',
+    example: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'code_challenge_method',
+    description: 'PKCE 코드 챌린지 메서드',
+    example: 'S256',
+    required: false,
+  })
+  @ApiResponse({
+    status: 302,
+    description:
+      '로그인 페이지, 동의 페이지, 또는 클라이언트 redirect_uri로 리다이렉트',
+  })
+  @ApiResponse({
+    status: 400,
+    description: '잘못된 요청 파라미터',
+  })
   async authorize(
     @Query() authorizeDto: AuthorizeRequestDto,
     @Request() req: ExpressRequest,
@@ -335,6 +423,36 @@ export class OAuth2Controller {
   }
 
   @Post('token')
+  @ApiOperation({
+    summary: 'OAuth2 토큰 발급',
+    description: `
+Authorization Code를 사용하여 Access Token을 발급받습니다.
+
+**요구사항:**
+- Authorization Code (authorize 엔드포인트에서 발급받은 코드)
+- Client 인증 정보
+- PKCE를 사용한 경우 code_verifier
+
+**반환되는 토큰:**
+- access_token: API 접근용 JWT 토큰
+- refresh_token: 토큰 갱신용 토큰
+- expires_in: 토큰 만료 시간 (초)
+    `,
+  })
+  @ApiBody({
+    type: TokenRequestDto,
+    description: '토큰 요청 데이터',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '토큰 발급 성공',
+    type: TokenResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: '잘못된 요청 또는 유효하지 않은 authorization code',
+    type: ErrorResponseDto,
+  })
   async token(
     @Body() tokenDto: TokenRequestDto,
   ): Promise<TokenResponseDto | ErrorResponseDto> {
@@ -349,32 +467,80 @@ export class OAuth2Controller {
   }
 
   @Get('userinfo')
-  @UseGuards(OAuth2BearerGuard)
-  async userinfo(@Request() req: OAuth2AuthenticatedRequest): Promise<{
-    sub: string;
-    email: string;
-    username: string;
-    roles: string[];
-  }> {
-    const user = await this.oauth2Service.getUserInfo(req.user.sub);
+  @UseGuards(OAuth2BearerGuard, OAuth2ScopeGuard)
+  @RequireScopes(OAUTH2_SCOPES.READ_USER)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '사용자 정보 조회',
+    description: `
+OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
+
+**스코프별 반환 정보:**
+- 기본: sub (사용자 식별자)
+- email 스코프: 이메일 주소
+- profile 스코프: 사용자명, 역할 정보
+
+**필요한 스코프:** read:user
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '사용자 정보',
+    type: UserinfoResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: '유효하지 않은 토큰',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '권한 부족 (스코프 부족)',
+  })
+  async userinfo(
+    @Request() req: OAuth2AuthenticatedRequest,
+  ): Promise<UserinfoResponseDto> {
+    if (req.user.sub === null) {
+      throw new BadRequestException('User ID not available for this token');
+    }
+
+    const user = await this.oauth2Service.getUserInfo(req.user.sub.toString());
 
     if (!user) {
       throw new BadRequestException('User not found');
     }
 
-    return {
-      sub: user.id.toString(),
-      email: user.email,
-      username: user.username,
-      roles: [PermissionUtils.getRoleName(user.permissions)],
+    // 토큰의 스코프에 따라 반환할 정보를 결정
+    // OAuth2JwtPayload의 scopes 속성은 string[] 타입
+    const userScopes: string[] = req.user.scopes || [];
+
+    const response: {
+      sub: string;
+      email?: string;
+      username?: string;
+      roles?: string[];
+    } = {
+      sub: user.id.toString(), // 기본적으로 항상 포함 (OpenID Connect 표준)
     };
+
+    // email 스코프가 있을 때만 이메일 반환
+    if (userScopes.includes('email')) {
+      response.email = user.email;
+    }
+
+    // profile 스코프가 있을 때만 프로필 정보 반환
+    if (userScopes.includes('profile')) {
+      response.username = user.username;
+      response.roles = [PermissionUtils.getRoleName(user.permissions)];
+    }
+
+    return response;
   }
 
   @Get('authorize/info')
   async getAuthorizeInfo(
     @Query() authorizeDto: AuthorizeRequestDto,
     @Request() req: ExpressRequest,
-  ): Promise<{ client: any; scopes: string[] }> {
+  ): Promise<AuthorizeInfoResponseDto> {
     const user = await this.getAuthenticatedUser(req);
 
     if (!user) {
@@ -384,41 +550,90 @@ export class OAuth2Controller {
     const { client, scopes } =
       await this.oauth2Service.getConsentInfo(authorizeDto);
 
+    const clientInfo: ClientInfoDto = {
+      id: client.clientId,
+      name: client.name,
+      description: client.description,
+      logoUri: client.logoUri,
+      termsOfServiceUri: client.termsOfServiceUri,
+      policyUri: client.policyUri,
+    };
+
     return {
-      client: {
-        id: client.clientId,
-        name: client.name,
-        description: client.description,
-        logoUri: client.logoUri,
-        termsOfServiceUri: client.termsOfServiceUri,
-        policyUri: client.policyUri,
-      },
+      client: clientInfo,
       scopes,
     };
   }
 
   @Post('authorize/consent')
+  @ApiOperation({
+    summary: 'OAuth2 인증 동의 처리',
+    description: `
+사용자의 OAuth2 인증 동의를 처리합니다.
+
+**요구사항:**
+- 사용자가 로그인되어 있어야 함
+- 유효한 OAuth2 매개변수들과 동의 여부가 body에 포함되어야 함
+    `,
+  })
+  @ApiBody({
+    type: AuthorizeConsentDto,
+    description: '사용자 동의 정보 및 OAuth2 매개변수',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '동의 처리 완료 - 리다이렉트 URL 반환',
+    type: RedirectUrlResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: '잘못된 요청 - 필수 매개변수 누락 또는 잘못된 값',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
   async authorizeConsent(
-    @Body() consentDto: AuthorizeRequestDto & { approved: boolean },
+    @Body() consentDto: AuthorizeConsentDto,
     @Request() req: ExpressRequest,
-  ): Promise<{ redirect_url: string }> {
+  ): Promise<RedirectUrlResponseDto> {
     const user = await this.getAuthenticatedUser(req);
 
     if (!user) {
       throw new BadRequestException('Authentication required');
     }
 
+    // Convert consent data to AuthorizeRequestDto for processing
+    const authorizeDto: AuthorizeRequestDto = {
+      client_id: consentDto.client_id!,
+      redirect_uri: consentDto.redirect_uri!,
+      response_type: consentDto.response_type!,
+      scope: consentDto.scope,
+      state: consentDto.state!,
+      code_challenge: consentDto.code_challenge,
+      code_challenge_method: consentDto.code_challenge_method,
+    };
+
+    // Validate required fields
+    if (
+      !authorizeDto.client_id ||
+      !authorizeDto.redirect_uri ||
+      !authorizeDto.response_type
+    ) {
+      throw new BadRequestException('Missing required OAuth2 parameters');
+    }
+
     if (!consentDto.approved) {
       // User denied consent
-      const redirectUrl = new URL(consentDto.redirect_uri);
+      const redirectUrl = new URL(authorizeDto.redirect_uri);
       redirectUrl.searchParams.set('error', 'access_denied');
       redirectUrl.searchParams.set(
         'error_description',
         'User denied the request',
       );
 
-      if (consentDto.state) {
-        redirectUrl.searchParams.set('state', consentDto.state);
+      if (authorizeDto.state) {
+        redirectUrl.searchParams.set('state', authorizeDto.state);
       }
 
       return { redirect_url: redirectUrl.toString() };
@@ -426,26 +641,26 @@ export class OAuth2Controller {
 
     // User approved consent, handle the OAuth2 flow
     try {
-      const result = await this.oauth2Service.authorize(consentDto, user);
+      const result = await this.oauth2Service.authorize(authorizeDto, user);
 
-      const redirectUrl = new URL(consentDto.redirect_uri);
+      const redirectUrl = new URL(authorizeDto.redirect_uri);
       redirectUrl.searchParams.set('code', result.code);
 
-      if (consentDto.state) {
-        redirectUrl.searchParams.set('state', consentDto.state);
+      if (authorizeDto.state) {
+        redirectUrl.searchParams.set('state', authorizeDto.state);
       }
 
       return { redirect_url: redirectUrl.toString() };
     } catch {
-      const redirectUrl = new URL(consentDto.redirect_uri);
+      const redirectUrl = new URL(authorizeDto.redirect_uri);
       redirectUrl.searchParams.set('error', 'server_error');
       redirectUrl.searchParams.set(
         'error_description',
         'Internal server error',
       );
 
-      if (consentDto.state) {
-        redirectUrl.searchParams.set('state', consentDto.state);
+      if (authorizeDto.state) {
+        redirectUrl.searchParams.set('state', authorizeDto.state);
       }
 
       return { redirect_url: redirectUrl.toString() };
@@ -454,12 +669,59 @@ export class OAuth2Controller {
 
   @Get('dashboard/stats')
   @UseGuards(JwtAuthGuard)
-  async getDashboardStats(@Request() req: AuthenticatedRequest): Promise<{
-    totalClients: number;
-    activeTokens: number;
-    lastLoginDate: Date | null;
-    accountCreated: Date | null;
-  }> {
+  @ApiBearerAuth('JWT-auth')
+  @ApiTags('Dashboard')
+  @ApiOperation({
+    summary: '대시보드 통계 정보',
+    description: `
+사용자의 OAuth2 관련 통계 정보를 조회합니다.
+
+**포함 정보:**
+- 총 클라이언트 수
+- 활성 토큰 수
+- 계정 생성일
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '대시보드 통계',
+    schema: {
+      type: 'object',
+      properties: {
+        totalClients: {
+          type: 'number',
+          description: '등록된 클라이언트 수',
+          example: 3,
+        },
+        activeTokens: {
+          type: 'number',
+          description: '활성 토큰 수',
+          example: 5,
+        },
+        lastLoginDate: {
+          type: 'string',
+          format: 'date-time',
+          description: '마지막 로그인 날짜',
+          nullable: true,
+          example: null,
+        },
+        accountCreated: {
+          type: 'string',
+          format: 'date-time',
+          description: '계정 생성일',
+          nullable: true,
+          example: '2023-01-15T10:30:00Z',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
+  async getDashboardStats(
+    @Request() req: AuthenticatedRequest,
+  ): Promise<DashboardStatsResponseDto> {
     const user = req.user;
 
     // Get total clients count for this user
@@ -504,5 +766,107 @@ export class OAuth2Controller {
       deletedTokens,
       deletedCodes,
     };
+  }
+
+  @Get('scopes')
+  @ApiTags('OAuth2 Flow')
+  @ApiOperation({
+    summary: '사용 가능한 스코프 목록 조회',
+    description: `
+시스템에 정의된 모든 OAuth2 스코프의 목록을 조회합니다.
+
+**용도:**
+- 클라이언트 개발자가 사용 가능한 스코프 확인
+- OAuth2 테스터에서 동적 스코프 선택
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '스코프 목록과 메타 정보',
+    schema: {
+      type: 'object',
+      properties: {
+        scopes: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: {
+                type: 'string',
+                description: '스코프 이름',
+                example: 'read:user',
+              },
+              description: {
+                type: 'string',
+                description: '스코프 설명',
+                example: '사용자 기본 정보 읽기',
+              },
+              isDefault: {
+                type: 'boolean',
+                description: '기본 스코프 여부',
+                example: false,
+              },
+            },
+          },
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            total: {
+              type: 'number',
+              description: '전체 스코프 수',
+              example: 19,
+            },
+            cached: {
+              type: 'boolean',
+              description: '캐시 사용 여부',
+              example: true,
+            },
+            cacheSize: {
+              type: 'number',
+              description: '캐시에 저장된 스코프 수',
+              example: 19,
+            },
+          },
+        },
+      },
+    },
+  })
+  async getAvailableScopes() {
+    const scopes = await this.scopeService.findAll();
+    const cacheInfo = this.scopeService.getCacheInfo();
+
+    return {
+      scopes: scopes.map((scope) => ({
+        name: scope.name,
+        description: scope.description,
+        isDefault: scope.isDefault,
+      })),
+      meta: {
+        total: scopes.length,
+        cached: cacheInfo.initialized,
+        cacheSize: cacheInfo.cacheSize,
+      },
+    };
+  }
+
+  @Post('scopes/refresh')
+  @UseGuards(JwtAuthGuard, OAuth2ScopeGuard)
+  @RequireScopes(OAUTH2_SCOPES.ADMIN)
+  async refreshScopesCache() {
+    await this.scopeService.refreshCache();
+    const cacheInfo = this.scopeService.getCacheInfo();
+
+    return {
+      message: 'Scopes cache refreshed successfully',
+      cacheInfo,
+    };
+  }
+
+  @Get('scopes/cache-info')
+  @UseGuards(JwtAuthGuard, OAuth2ScopeGuard)
+  @RequireScopes(OAUTH2_SCOPES.ADMIN)
+  getScopesCacheInfo() {
+    return this.scopeService.getCacheInfo();
   }
 }

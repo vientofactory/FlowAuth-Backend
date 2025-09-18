@@ -13,6 +13,8 @@ export default new DataSource({
   entities: ['src/**/*.entity{.ts,.js}'],
   migrations: ['src/migrations/*{.ts,.js}'],
   synchronize: false, // 프로덕션에서는 false
+  dropSchema: false, // 스키마 드롭 비활성화
+  migrationsRun: false, // 자동 마이그레이션 실행 비활성화
   logging: process.env.NODE_ENV === 'development',
   extra: {
     connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT || '10', 10),

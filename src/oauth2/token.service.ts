@@ -10,16 +10,8 @@ import { AppConfigService } from '../config/app-config.service';
 import { Token } from '../token/token.entity';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
+import { OAuth2JwtPayload } from '../types/oauth2.types';
 import * as crypto from 'crypto';
-
-interface JwtPayload {
-  sub: number | null;
-  client_id: string;
-  scopes: string[];
-  token_type: string;
-  iat?: number;
-  exp?: number;
-}
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -176,17 +168,18 @@ export class TokenService {
     });
   }
 
-  async validateToken(accessToken: string): Promise<JwtPayload | null> {
+  async validateToken(accessToken: string): Promise<OAuth2JwtPayload | null> {
     try {
-      // 캐시에서 먼저 확인
-      const cachedToken = await this.cacheManager.get<JwtPayload>(
+      // Check cache first for performance
+      const cachedToken = await this.cacheManager.get<OAuth2JwtPayload>(
         `token:${accessToken}`,
       );
       if (cachedToken) {
         return cachedToken;
       }
 
-      const decoded = this.jwtService.verify<JwtPayload>(accessToken);
+      // Verify JWT token
+      const decoded = this.jwtService.verify<OAuth2JwtPayload>(accessToken);
 
       // Check if token exists in database and is not revoked
       const token = await this.tokenRepository.findOne({
@@ -259,7 +252,7 @@ export class TokenService {
     client: Client,
     scopes: string[],
   ): string {
-    const payload: JwtPayload = {
+    const payload: OAuth2JwtPayload = {
       sub: user?.id || null,
       client_id: client.clientId,
       scopes,
