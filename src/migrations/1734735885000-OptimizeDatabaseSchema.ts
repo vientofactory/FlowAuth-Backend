@@ -41,22 +41,46 @@ export class OptimizeDatabaseSchema1734735885000 implements MigrationInterface {
 
     // Add performance indexes
     await queryRunner.query(`
-      CREATE INDEX \`IDX_token_expires_at\` ON \`token\` (\`expiresAt\`);
-      CREATE INDEX \`IDX_token_refresh_expires_at\` ON \`token\` (\`refreshExpiresAt\`);
-      CREATE INDEX \`IDX_authorization_code_expires_at\` ON \`authorization_code\` (\`expiresAt\`);
-      CREATE INDEX \`IDX_user_created_at\` ON \`user\` (\`createdAt\`);
-      CREATE INDEX \`IDX_token_created_at\` ON \`token\` (\`createdAt\`);
+      CREATE INDEX \`IDX_token_expires_at\` ON \`token\` (\`expiresAt\`)
+    `);
+
+    await queryRunner.query(`
+      CREATE INDEX \`IDX_token_refresh_expires_at\` ON \`token\` (\`refreshExpiresAt\`)
+    `);
+
+    await queryRunner.query(`
+      CREATE INDEX \`IDX_authorization_code_expires_at\` ON \`authorization_code\` (\`expiresAt\`)
+    `);
+
+    await queryRunner.query(`
+      CREATE INDEX \`IDX_user_created_at\` ON \`user\` (\`createdAt\`)
+    `);
+
+    await queryRunner.query(`
+      CREATE INDEX \`IDX_token_created_at\` ON \`token\` (\`createdAt\`)
     `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Revert indexes
     await queryRunner.query(`
-      DROP INDEX \`IDX_token_expires_at\` ON \`token\`;
-      DROP INDEX \`IDX_token_refresh_expires_at\` ON \`token\`;
-      DROP INDEX \`IDX_authorization_code_expires_at\` ON \`authorization_code\`;
-      DROP INDEX \`IDX_user_created_at\` ON \`user\`;
-      DROP INDEX \`IDX_token_created_at\` ON \`token\`;
+      DROP INDEX \`IDX_token_expires_at\` ON \`token\`
+    `);
+
+    await queryRunner.query(`
+      DROP INDEX \`IDX_token_refresh_expires_at\` ON \`token\`
+    `);
+
+    await queryRunner.query(`
+      DROP INDEX \`IDX_authorization_code_expires_at\` ON \`authorization_code\`
+    `);
+
+    await queryRunner.query(`
+      DROP INDEX \`IDX_user_created_at\` ON \`user\`
+    `);
+
+    await queryRunner.query(`
+      DROP INDEX \`IDX_token_created_at\` ON \`token\`
     `);
 
     // Revert column optimizations

@@ -1,40 +1,30 @@
 import { DataSource } from 'typeorm';
-import { ConfigService } from '@nestjs/config';
-import { config } from 'dotenv';
-import { AppConfigService } from './config/app-config.service';
+import * as dotenv from 'dotenv';
 
-config();
-
-const configService = new ConfigService();
-const appConfig = new AppConfigService(configService);
-
-// Validate configuration on startup
-appConfig.validateConfiguration();
+dotenv.config();
 
 export default new DataSource({
   type: 'mysql',
-  host: appConfig.dbHost,
-  port: appConfig.dbPort,
-  username: appConfig.dbUsername,
-  password: appConfig.dbPassword,
-  database: appConfig.dbName,
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '3306', 10),
+  username: process.env.DB_USERNAME || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'flowauth',
   entities: ['src/**/*.entity{.ts,.js}'],
   migrations: ['src/migrations/*{.ts,.js}'],
   synchronize: false, // 프로덕션에서는 false
-  logging: configService.get<string>('NODE_ENV') === 'development',
+  logging: process.env.NODE_ENV === 'development',
   extra: {
-    connectionLimit: appConfig.dbConnectionLimit,
-    acquireTimeout: appConfig.dbAcquireTimeout,
-    timeout: appConfig.dbTimeout,
+    connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT || '10', 10),
   },
   cache: {
     type: 'redis',
     options: {
-      host: appConfig.redisHost,
-      port: appConfig.redisPort,
-      password: appConfig.redisPassword,
-      db: appConfig.redisDb,
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379', 10),
+      password: process.env.REDIS_PASSWORD,
+      db: process.env.REDIS_DB ? parseInt(process.env.REDIS_DB, 10) : undefined,
     },
-    duration: appConfig.cacheTtl,
+    duration: parseInt(process.env.CACHE_TTL || '300000', 10),
   },
 });
