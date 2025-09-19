@@ -105,6 +105,10 @@ export const AUTH_ERROR_MESSAGES = {
   AUTHENTICATION_FAILED: 'Authentication failed',
   USER_ALREADY_EXISTS: 'User already exists',
   LOGIN_FAILED: 'Login failed',
+  TWO_FACTOR_NOT_ENABLED:
+    'Two-factor authentication is not enabled for this user',
+  INVALID_TWO_FACTOR_TOKEN: 'Invalid two-factor authentication token',
+  INVALID_BACKUP_CODE: 'Invalid backup code',
 } as const;
 
 // 로그 메시지들

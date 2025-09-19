@@ -10,6 +10,7 @@ import {
   Delete,
   UseGuards,
   Res,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,7 +19,7 @@ import {
   ApiBody,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Response, Request as ExpressRequest } from 'express';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
@@ -68,6 +69,116 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponseDto> {
     const result = await this.authService.login(loginDto);
+
+    // OAuth2 플로우를 위해 쿠키에 토큰 설정
+    res.cookie('token', result.accessToken, {
+      httpOnly: false, // JavaScript에서 접근 가능하도록 설정
+      secure: false, // 개발 환경에서는 false, 프로덕션에서는 true
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000, // 24시간
+    });
+
+    return result;
+  }
+
+  @Post('verify-2fa')
+  @ApiOperation({ summary: '2FA 토큰 검증 및 로그인 완료' })
+  @ApiResponse({
+    status: 200,
+    description: '2FA 검증 성공 및 로그인 완료',
+    type: LoginResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: '잘못된 2FA 토큰',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email' },
+        token: { type: 'string', minLength: 6, maxLength: 6 },
+      },
+      required: ['email', 'token'],
+    },
+  })
+  async verifyTwoFactorLogin(
+    @Body() body: { email: string; token: string },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LoginResponseDto> {
+    const { email, token } = body;
+
+    if (!email || !token) {
+      throw new BadRequestException('이메일과 2FA 토큰이 필요합니다.');
+    }
+
+    const result = await this.authService.verifyTwoFactorToken(email, token);
+
+    // OAuth2 플로우를 위해 쿠키에 토큰 설정
+    res.cookie('token', result.accessToken, {
+      httpOnly: false, // JavaScript에서 접근 가능하도록 설정
+      secure: false, // 개발 환경에서는 false, 프로덕션에서는 true
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000, // 24시간
+    });
+
+    return result;
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '사용자 로그아웃' })
+  @ApiResponse({
+    status: 200,
+    description: '로그아웃 성공',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증되지 않은 요청',
+  })
+  logout(@Request() req: ExpressRequest) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new BadRequestException('토큰이 필요합니다.');
+    }
+
+    const token = authHeader.substring(7);
+    return this.authService.logout(token);
+  }
+
+  @Post('verify-backup-code')
+  @ApiOperation({ summary: '백업 코드 검증 및 로그인 완료' })
+  @ApiResponse({
+    status: 200,
+    description: '백업 코드 검증 성공 및 로그인 완료',
+    type: LoginResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: '잘못된 백업 코드',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email' },
+        backupCode: { type: 'string', minLength: 8, maxLength: 14 },
+      },
+      required: ['email', 'backupCode'],
+    },
+  })
+  async verifyBackupCodeLogin(
+    @Body() body: { email: string; backupCode: string },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LoginResponseDto> {
+    const { email, backupCode } = body;
+
+    if (!email || !backupCode) {
+      throw new BadRequestException('이메일과 백업 코드가 필요합니다.');
+    }
+
+    const result = await this.authService.verifyBackupCode(email, backupCode);
 
     // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {

@@ -37,6 +37,18 @@ export class User {
   @Column({ type: 'datetime', nullable: true })
   lastLoginAt?: Date;
 
+  // 2FA 관련 필드들
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Exclude()
+  twoFactorSecret?: string;
+
+  @Column({ type: 'tinyint', default: 0 })
+  isTwoFactorEnabled: boolean;
+
+  @Column({ type: 'json', nullable: true })
+  @Exclude()
+  backupCodes?: string[];
+
   @CreateDateColumn()
   createdAt: Date;
 
