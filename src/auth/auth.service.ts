@@ -20,6 +20,8 @@ import {
   AUTH_CONSTANTS,
   AUTH_ERROR_MESSAGES,
   ROLES,
+  USER_TYPES,
+  USER_TYPE_PERMISSIONS,
 } from '../constants/auth.constants';
 import { JwtPayload, LoginResponse } from '../types/auth.types';
 import { snowflakeGenerator } from '../utils/snowflake-id.util';
@@ -48,7 +50,8 @@ export class AuthService {
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
-    const { username, email, password, firstName, lastName } = createUserDto;
+    const { username, email, password, firstName, lastName, userType } =
+      createUserDto;
 
     // Check if user already exists
     const existingUser = await this.userRepository.findOne({
@@ -69,6 +72,18 @@ export class AuthService {
     const userCount = await this.userRepository.count();
     const isFirstUser = userCount === 0;
 
+    // Determine user type and permissions
+    const finalUserType = userType || USER_TYPES.REGULAR;
+    let permissions: number;
+
+    if (isFirstUser) {
+      // First user is always admin
+      permissions = ROLES.ADMIN;
+    } else {
+      // Set permissions based on user type
+      permissions = USER_TYPE_PERMISSIONS[finalUserType];
+    }
+
     // Create user
     const user = this.userRepository.create({
       username,
@@ -76,9 +91,8 @@ export class AuthService {
       password: hashedPassword,
       firstName,
       lastName,
-      permissions: isFirstUser
-        ? ROLES.ADMIN
-        : AUTH_CONSTANTS.DEFAULT_USER_PERMISSIONS,
+      userType: finalUserType,
+      permissions,
     });
 
     return this.userRepository.save(user);
@@ -102,6 +116,7 @@ export class AuthService {
           'firstName',
           'lastName',
           'permissions',
+          'userType',
           'isTwoFactorEnabled',
           'twoFactorSecret',
         ],
@@ -175,6 +190,7 @@ export class AuthService {
           'firstName',
           'lastName',
           'permissions',
+          'userType',
           'isTwoFactorEnabled',
           'twoFactorSecret',
         ],
