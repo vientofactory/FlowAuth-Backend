@@ -199,6 +199,7 @@ async function seedDatabase(
 
 // Start the application
 void bootstrap().catch((error) => {
-  console.error('Failed to start FlowAuth server:', error);
+  const logger = new Logger('Bootstrap');
+  logger.error('Failed to start FlowAuth server:', error);
   process.exit(1);
 });

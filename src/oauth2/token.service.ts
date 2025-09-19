@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -23,6 +23,8 @@ interface TokenCreateResponse {
 
 @Injectable()
 export class TokenService {
+  private readonly logger = new Logger(TokenService.name);
+
   constructor(
     @InjectRepository(Token)
     private readonly tokenRepository: Repository<Token>,
@@ -49,20 +51,9 @@ export class TokenService {
     client: Client,
     scopes: string[] = [],
   ): Promise<TokenCreateResponse> {
-    console.log(
-      '[TokenService] Creating token for user:',
-      user?.id,
-      'client:',
-      client.id,
-      'scopes:',
-      scopes,
-    );
-
     const accessToken = this.generateAccessToken(user, client, scopes);
-    console.log('[TokenService] Generated access token');
 
     const refreshToken = this.generateRefreshToken();
-    console.log('[TokenService] Generated refresh token');
 
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + this.getAccessTokenExpiryHours());
@@ -72,7 +63,6 @@ export class TokenService {
       refreshExpiresAt.getDate() + this.getRefreshTokenExpiryDays(),
     );
 
-    console.log('[TokenService] Creating token entity');
     const token = this.tokenRepository.create({
       accessToken,
       refreshToken,
@@ -83,12 +73,10 @@ export class TokenService {
       client,
     });
 
-    console.log('[TokenService] Saving token to database');
     try {
       await this.tokenRepository.save(token);
-      console.log('[TokenService] Token saved successfully with ID:', token.id);
     } catch (error) {
-      console.error('[TokenService] Error saving token:', error);
+      this.logger.error('Error saving token to database', error);
       throw error;
     }
 

@@ -184,7 +184,7 @@ export class OAuth2Service {
         ? code_challenge_method
         : undefined,
     );
-    console.log('[OAuth2Service] Authorization code created:', authCode.code);
+    this.logger.log(`Authorization code created: ${authCode.code}`);
 
     return {
       code: authCode.code,

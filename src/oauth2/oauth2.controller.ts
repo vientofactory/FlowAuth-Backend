@@ -8,6 +8,7 @@ import {
   Request,
   BadRequestException,
   Res,
+  Logger,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -56,6 +57,8 @@ interface OAuth2AuthenticatedRequest extends ExpressRequest {
 @Controller('oauth2')
 @ApiTags('OAuth2 Flow')
 export class OAuth2Controller {
+  private readonly logger = new Logger(OAuth2Controller.name);
+
   constructor(
     private readonly oauth2Service: OAuth2Service,
     private readonly jwtService: JwtService,
@@ -660,11 +663,9 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
     @Body() consentDto: AuthorizeConsentDto,
     @Request() req: ExpressRequest,
   ): Promise<RedirectUrlResponseDto> {
-    console.log('[OAuth2] Consent request received:', {
-      client_id: consentDto.client_id,
-      approved: consentDto.approved,
-      scope: consentDto.scope,
-    });
+    this.logger.log(
+      `Consent request received: client_id=${consentDto.client_id}, approved=${consentDto.approved}, scope=${consentDto.scope}`,
+    );
 
     const user = await this.getAuthenticatedUser(req);
 
@@ -721,11 +722,9 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
 
       return { redirect_url: redirectUrl.toString() };
     } catch (error) {
-      console.error('[OAuth2] Error in authorizeConsent:', error);
-      console.error('[OAuth2] Error details:', {
-        message: error instanceof Error ? error.message : String(error),
+      this.logger.error('Error in authorizeConsent', {
+        error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        name: error instanceof Error ? error.name : 'Unknown',
       });
       const redirectUrl = new URL(authorizeDto.redirect_uri);
       redirectUrl.searchParams.set('error', 'server_error');
