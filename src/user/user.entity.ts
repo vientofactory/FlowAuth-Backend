@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
+import { USER_TYPES } from '../constants/auth.constants';
 
 @Entity()
 export class User {
@@ -28,11 +29,29 @@ export class User {
   @Column({ type: 'varchar', length: 100, nullable: true })
   lastName?: string;
 
+  @Column({ type: 'varchar', length: 20, default: USER_TYPES.REGULAR })
+  userType: USER_TYPES;
+
   @Column({ type: 'tinyint', default: 0 })
   isEmailVerified: boolean;
 
   @Column({ type: 'bigint', default: 1 }) // 기본적으로 READ_USER 권한
   permissions: number;
+
+  @Column({ type: 'datetime', nullable: true })
+  lastLoginAt?: Date;
+
+  // 2FA 관련 필드들
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Exclude()
+  twoFactorSecret?: string;
+
+  @Column({ type: 'tinyint', default: 0 })
+  isTwoFactorEnabled: boolean;
+
+  @Column({ type: 'json', nullable: true })
+  @Exclude()
+  backupCodes?: string[];
 
   @CreateDateColumn()
   createdAt: Date;

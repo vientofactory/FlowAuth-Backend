@@ -1,16 +1,18 @@
 import { NestFactory } from '@nestjs/core';
+import { Logger } from '@nestjs/common';
 import { AppModule } from '../app.module';
 import { SeedService } from '../database/seed.service';
 
 async function bootstrap(): Promise<void> {
+  const logger = new Logger('SeedScript');
   const app = await NestFactory.createApplicationContext(AppModule);
   const seedService = app.get(SeedService);
 
   try {
     await seedService.seedDatabase();
-    console.log('Seeding completed successfully!');
+    logger.log('Seeding completed successfully!');
   } catch (error: unknown) {
-    console.error('Seeding failed:', error);
+    logger.error('Seeding failed:', error);
     process.exit(1);
   } finally {
     await app.close();

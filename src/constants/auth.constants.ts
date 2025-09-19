@@ -105,6 +105,10 @@ export const AUTH_ERROR_MESSAGES = {
   AUTHENTICATION_FAILED: 'Authentication failed',
   USER_ALREADY_EXISTS: 'User already exists',
   LOGIN_FAILED: 'Login failed',
+  TWO_FACTOR_NOT_ENABLED:
+    'Two-factor authentication is not enabled for this user',
+  INVALID_TWO_FACTOR_TOKEN: 'Invalid two-factor authentication token',
+  INVALID_BACKUP_CODE: 'Invalid backup code',
 } as const;
 
 // 로그 메시지들
@@ -127,4 +131,23 @@ export const AUTH_LOG_MESSAGES = {
   INVALID_TOKEN_TYPE: 'Invalid token type:',
   USER_NOT_FOUND_BY_ID: 'User not found for ID:',
   EMAIL_MISMATCH: 'Email mismatch for user ID:',
+} as const;
+
+// 사용자 유형 정의
+export enum USER_TYPES {
+  REGULAR = 'regular', // 일반 사용자 - OAuth2 로그인만 사용
+  DEVELOPER = 'developer', // 개발자 - 클라이언트 관리 가능
+}
+
+// 사용자 유형별 기본 권한
+export const USER_TYPE_PERMISSIONS = {
+  [USER_TYPES.REGULAR]: PERMISSIONS.READ_USER,
+  [USER_TYPES.DEVELOPER]:
+    PERMISSIONS.READ_USER |
+    PERMISSIONS.READ_CLIENT |
+    PERMISSIONS.WRITE_CLIENT |
+    PERMISSIONS.DELETE_CLIENT |
+    PERMISSIONS.READ_TOKEN |
+    PERMISSIONS.WRITE_TOKEN |
+    PERMISSIONS.DELETE_TOKEN,
 } as const;

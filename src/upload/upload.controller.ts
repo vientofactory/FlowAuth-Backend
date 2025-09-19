@@ -6,13 +6,25 @@ import {
   Res,
   UseInterceptors,
   UploadedFile,
+  UseGuards,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiConsumes,
+  ApiBody,
+  ApiBearerAuth,
+  ApiParam,
+} from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { FileUploadService } from './file-upload.service';
-import type { MulterFile, UploadResponse } from './types';
+import type { MulterFile } from './types';
 import { UPLOAD_CONFIG } from './config';
 import { UPLOAD_ERRORS } from './types';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { FileUploadResponseDto } from './dto/response.dto';
 
 // Factory function to create multer options using the service
 function createMulterOptions(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
@@ -25,12 +37,58 @@ function createMulterOptions(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
 }
 
 @Controller('uploads')
+@ApiTags('File Upload')
 export class UploadController {
   constructor(private readonly fileUploadService: FileUploadService) {}
 
   @Post('logo')
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(FileInterceptor('logo', createMulterOptions('logo')))
-  uploadLogo(@UploadedFile() file: MulterFile): UploadResponse {
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '로고 파일 업로드',
+    description: `
+클라이언트 애플리케이션의 로고 파일을 업로드합니다.
+
+**지원 파일 형식:**
+- PNG, JPG, JPEG, WebP
+- 최대 크기: 5MB
+
+**업로드된 파일:**
+- 자동으로 WebP 형식으로 변환
+- 고유한 파일명으로 저장
+- 공개 URL 제공
+    `,
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: '업로드할 로고 파일',
+    schema: {
+      type: 'object',
+      properties: {
+        logo: {
+          type: 'string',
+          format: 'binary',
+          description: '로고 이미지 파일',
+        },
+      },
+      required: ['logo'],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: '파일 업로드 성공',
+    type: FileUploadResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: '잘못된 파일 또는 파일 없음',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
+  uploadLogo(@UploadedFile() file: MulterFile): FileUploadResponseDto {
     if (!file) {
       throw UPLOAD_ERRORS.NO_FILE_UPLOADED;
     }
@@ -39,9 +97,6 @@ export class UploadController {
     if (!this.fileUploadService.validateFile(file, 'logo')) {
       throw UPLOAD_ERRORS.INVALID_FILE_TYPE;
     }
-
-    // Record successful upload
-    this.fileUploadService.recordSuccessfulUpload(file);
 
     const logoUrl = this.fileUploadService.getFileUrl('logo', file.filename);
 
@@ -59,6 +114,37 @@ export class UploadController {
   }
 
   @Get('logos/:filename')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '로고 파일 조회',
+    description: '업로드된 로고 파일을 조회합니다.',
+  })
+  @ApiParam({
+    name: 'filename',
+    description: '조회할 파일명',
+    example: '550e8400-e29b-41d4-a716-446655440000.webp',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '파일 반환',
+    content: {
+      'image/*': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '파일을 찾을 수 없음',
+  })
   getLogo(@Param('filename') filename: string, @Res() res: Response) {
     // Validate filename to prevent directory traversal
     if (!filename || filename.includes('..') || filename.includes('/')) {
@@ -85,6 +171,56 @@ export class UploadController {
   }
 
   @Get('config/:type')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '업로드 설정 조회',
+    description: '파일 타입별 업로드 설정 정보를 조회합니다.',
+  })
+  @ApiParam({
+    name: 'type',
+    description: '파일 타입',
+    example: 'logo',
+    enum: ['logo'],
+  })
+  @ApiResponse({
+    status: 200,
+    description: '업로드 설정 정보',
+    schema: {
+      type: 'object',
+      properties: {
+        allowedMimes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '허용된 MIME 타입',
+          example: ['image/jpeg', 'image/png', 'image/webp'],
+        },
+        maxSize: {
+          type: 'number',
+          description: '최대 파일 크기 (bytes)',
+          example: 5242880,
+        },
+        maxSizeMB: {
+          type: 'number',
+          description: '최대 파일 크기 (MB)',
+          example: 5,
+        },
+        destination: {
+          type: 'string',
+          description: '저장 경로',
+          example: 'uploads/logos',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '지원하지 않는 파일 타입',
+  })
   getUploadConfig(@Param('type') type: string) {
     const config =
       UPLOAD_CONFIG.fileTypes[type as keyof typeof UPLOAD_CONFIG.fileTypes];

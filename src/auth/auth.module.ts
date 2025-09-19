@@ -5,13 +5,16 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { TwoFactorService } from './two-factor.service';
+import { TwoFactorController } from './two-factor.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard } from './permissions.guard';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
-import { UploadModule } from '../upload/upload.module';
+import { FileUploadService } from '../upload/file-upload.service';
 
 @Module({
   imports: [
@@ -24,10 +27,16 @@ import { UploadModule } from '../upload/upload.module';
       }),
       inject: [ConfigService],
     }),
-    UploadModule,
   ],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard],
-  controllers: [AuthController],
-  exports: [JwtAuthGuard],
+  providers: [
+    AuthService,
+    TwoFactorService,
+    JwtStrategy,
+    JwtAuthGuard,
+    PermissionsGuard,
+    FileUploadService,
+  ],
+  controllers: [AuthController, TwoFactorController],
+  exports: [JwtAuthGuard, FileUploadService],
 })
 export class AuthModule {}

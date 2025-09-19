@@ -75,3 +75,54 @@ export const OAUTH2_LOG_MESSAGES = {
   REFRESH_TOKEN_SUCCESS: 'Refresh token successfully renewed for client',
   INVALID_REFRESH_TOKEN: 'Invalid refresh token attempt from client',
 } as const;
+
+// OAuth2 스코프 상수들
+export const OAUTH2_SCOPES = {
+  // 사용자 정보 관련
+  READ_USER: 'read:user',
+  WRITE_USER: 'write:user',
+  DELETE_USER: 'delete:user',
+
+  // 프로필 관련
+  READ_PROFILE: 'read:profile',
+  WRITE_PROFILE: 'write:profile',
+
+  // 파일 업로드 관련
+  UPLOAD_FILE: 'upload:file',
+  READ_FILE: 'read:file',
+  DELETE_FILE: 'delete:file',
+
+  // 클라이언트 관리 관련
+  READ_CLIENT: 'read:client',
+  WRITE_CLIENT: 'write:client',
+  DELETE_CLIENT: 'delete:client',
+
+  // 관리자 관련
+  ADMIN: 'admin',
+
+  // 기본 스코프
+  BASIC: 'basic',
+} as const;
+
+// 스코프 설명
+export const SCOPE_DESCRIPTIONS = {
+  [OAUTH2_SCOPES.READ_USER]: '사용자 기본 정보 읽기',
+  [OAUTH2_SCOPES.WRITE_USER]: '사용자 정보 수정',
+  [OAUTH2_SCOPES.DELETE_USER]: '사용자 삭제',
+  [OAUTH2_SCOPES.READ_PROFILE]: '사용자 프로필 읽기',
+  [OAUTH2_SCOPES.WRITE_PROFILE]: '사용자 프로필 수정',
+  [OAUTH2_SCOPES.UPLOAD_FILE]: '파일 업로드',
+  [OAUTH2_SCOPES.READ_FILE]: '파일 읽기',
+  [OAUTH2_SCOPES.DELETE_FILE]: '파일 삭제',
+  [OAUTH2_SCOPES.READ_CLIENT]: '클라이언트 정보 읽기',
+  [OAUTH2_SCOPES.WRITE_CLIENT]: '클라이언트 정보 수정',
+  [OAUTH2_SCOPES.DELETE_CLIENT]: '클라이언트 삭제',
+  [OAUTH2_SCOPES.ADMIN]: '관리자 권한',
+  [OAUTH2_SCOPES.BASIC]: '기본 접근 권한',
+} as const;
+
+// 기본 스코프 목록
+export const DEFAULT_SCOPES = [
+  OAUTH2_SCOPES.BASIC,
+  OAUTH2_SCOPES.READ_USER,
+] as const;

@@ -13,18 +13,21 @@ import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
 import * as bcrypt from 'bcrypt';
+import * as speakeasy from 'speakeasy';
 import { CreateUserDto } from './dto/create-user.dto';
-import { LoginDto } from './dto/login.dto';
 import { CreateClientDto } from './dto/create-client.dto';
 import {
   AUTH_CONSTANTS,
   AUTH_ERROR_MESSAGES,
   ROLES,
+  USER_TYPES,
+  USER_TYPE_PERMISSIONS,
 } from '../constants/auth.constants';
 import { JwtPayload, LoginResponse } from '../types/auth.types';
 import { snowflakeGenerator } from '../utils/snowflake-id.util';
 import { CryptoUtils } from '../utils/crypto.util';
 import { PermissionUtils } from '../utils/permission.util';
+import { TwoFactorService } from './two-factor.service';
 import { FileUploadService } from '../upload/file-upload.service';
 
 @Injectable()
@@ -43,10 +46,12 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private fileUploadService: FileUploadService,
+    private twoFactorService: TwoFactorService,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
-    const { username, email, password, firstName, lastName } = createUserDto;
+    const { username, email, password, firstName, lastName, userType } =
+      createUserDto;
 
     // Check if user already exists
     const existingUser = await this.userRepository.findOne({
@@ -67,6 +72,18 @@ export class AuthService {
     const userCount = await this.userRepository.count();
     const isFirstUser = userCount === 0;
 
+    // Determine user type and permissions
+    const finalUserType = userType || USER_TYPES.REGULAR;
+    let permissions: number;
+
+    if (isFirstUser) {
+      // First user is always admin
+      permissions = ROLES.ADMIN;
+    } else {
+      // Set permissions based on user type
+      permissions = USER_TYPE_PERMISSIONS[finalUserType];
+    }
+
     // Create user
     const user = this.userRepository.create({
       username,
@@ -74,19 +91,21 @@ export class AuthService {
       password: hashedPassword,
       firstName,
       lastName,
-      permissions: isFirstUser
-        ? ROLES.ADMIN
-        : AUTH_CONSTANTS.DEFAULT_USER_PERMISSIONS,
+      userType: finalUserType,
+      permissions,
     });
 
     return this.userRepository.save(user);
   }
 
-  async login(loginDto: LoginDto): Promise<LoginResponse> {
+  async login(loginDto: {
+    email: string;
+    password: string;
+  }): Promise<LoginResponse> {
     const { email, password } = loginDto;
 
     try {
-      // Find user
+      // Find user with 2FA fields
       const user = await this.userRepository.findOne({
         where: { email },
         select: [
@@ -97,6 +116,9 @@ export class AuthService {
           'firstName',
           'lastName',
           'permissions',
+          'userType',
+          'isTwoFactorEnabled',
+          'twoFactorSecret',
         ],
       });
 
@@ -114,6 +136,17 @@ export class AuthService {
           AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
         );
       }
+
+      // Check if 2FA is enabled
+      if (user.isTwoFactorEnabled) {
+        // Return special response indicating 2FA is required
+        throw new UnauthorizedException('2FA_REQUIRED');
+      }
+
+      // Update last login time
+      await this.userRepository.update(user.id, {
+        lastLoginAt: new Date(),
+      });
 
       // Generate JWT token with enhanced payload
       const payload: JwtPayload = {
@@ -141,14 +174,183 @@ export class AuthService {
     }
   }
 
-  async findById(id: number): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id } });
+  async verifyTwoFactorToken(
+    email: string,
+    token: string,
+  ): Promise<LoginResponse> {
+    try {
+      // Find user with 2FA fields
+      const user = await this.userRepository.findOne({
+        where: { email },
+        select: [
+          'id',
+          'email',
+          'username',
+          'password',
+          'firstName',
+          'lastName',
+          'permissions',
+          'userType',
+          'isTwoFactorEnabled',
+          'twoFactorSecret',
+        ],
+      });
 
-    if (!user) {
-      throw new UnauthorizedException('User not found');
+      if (!user) {
+        throw new UnauthorizedException(
+          AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
+        );
+      }
+
+      if (!user.isTwoFactorEnabled || !user.twoFactorSecret) {
+        throw new UnauthorizedException(
+          AUTH_ERROR_MESSAGES.TWO_FACTOR_NOT_ENABLED,
+        );
+      }
+
+      // Verify 2FA token
+      const isValidToken: boolean = (speakeasy as any).totp.verify({
+        secret: user.twoFactorSecret,
+        encoding: 'base32',
+        token: token,
+        window: 2, // Allow 2 time windows (30 seconds each)
+      });
+
+      if (!isValidToken) {
+        throw new UnauthorizedException(
+          AUTH_ERROR_MESSAGES.INVALID_TWO_FACTOR_TOKEN,
+        );
+      }
+
+      // Update last login time
+      await this.userRepository.update(user.id, {
+        lastLoginAt: new Date(),
+      });
+
+      // Generate JWT token with enhanced payload
+      const payload: JwtPayload = {
+        sub: user.id.toString(),
+        email: user.email,
+        username: user.username,
+        roles: [PermissionUtils.getRoleName(user.permissions)],
+        permissions: user.permissions,
+        type: AUTH_CONSTANTS.TOKEN_TYPE,
+      };
+      // Generate JWT token (uses global expiration settings)
+      const accessToken = this.jwtService.sign(payload);
+
+      return {
+        user,
+        accessToken,
+        expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.LOGIN_FAILED);
     }
+  }
 
-    return user;
+  async verifyBackupCode(
+    email: string,
+    backupCode: string,
+  ): Promise<LoginResponse> {
+    try {
+      // Find user with 2FA fields
+      const user = await this.userRepository.findOne({
+        where: { email },
+        select: [
+          'id',
+          'email',
+          'username',
+          'password',
+          'firstName',
+          'lastName',
+          'permissions',
+          'isTwoFactorEnabled',
+          'twoFactorSecret',
+          'backupCodes',
+        ],
+      });
+
+      if (!user) {
+        throw new UnauthorizedException(
+          AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
+        );
+      }
+
+      if (!user.isTwoFactorEnabled || !user.backupCodes) {
+        throw new UnauthorizedException(
+          AUTH_ERROR_MESSAGES.TWO_FACTOR_NOT_ENABLED,
+        );
+      }
+
+      // 백업 코드 검증 (two-factor.service 사용)
+      const isValidBackupCode = await this.twoFactorService.verifyBackupCode(
+        user.id,
+        backupCode,
+      );
+
+      if (!isValidBackupCode) {
+        throw new UnauthorizedException(
+          AUTH_ERROR_MESSAGES.INVALID_BACKUP_CODE,
+        );
+      }
+
+      // 백업 코드 검증 성공 - 사용자 정보 다시 가져오기
+      const updatedUser = await this.userRepository.findOne({
+        where: { id: user.id },
+        select: [
+          'id',
+          'email',
+          'username',
+          'password',
+          'firstName',
+          'lastName',
+          'permissions',
+          'isTwoFactorEnabled',
+          'twoFactorSecret',
+          'backupCodes',
+        ],
+      });
+
+      if (!updatedUser) {
+        throw new UnauthorizedException(
+          AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
+        );
+      }
+
+      // 사용자 정보 업데이트 (마지막 로그인 시간)
+      await this.userRepository.update(user.id, {
+        lastLoginAt: new Date(),
+      });
+
+      // Generate JWT token with enhanced payload
+      const payload: JwtPayload = {
+        sub: updatedUser.id.toString(),
+        email: updatedUser.email,
+        username: updatedUser.username,
+        roles: [PermissionUtils.getRoleName(updatedUser.permissions)],
+        permissions: updatedUser.permissions,
+        type: AUTH_CONSTANTS.TOKEN_TYPE,
+      };
+      // Generate JWT token (uses global expiration settings)
+      const accessToken = this.jwtService.sign(payload);
+
+      return {
+        user: updatedUser,
+        accessToken,
+        expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.LOGIN_FAILED);
+    }
   }
 
   async createClient(
@@ -205,38 +407,6 @@ export class AuthService {
     }
 
     return client;
-  }
-
-  async updateProfile(
-    userId: number,
-    updateData: Partial<User>,
-  ): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    // 업데이트 가능한 필드만 허용
-    const allowedFields = ['firstName', 'lastName'] as const;
-    const filteredData: Partial<Pick<User, 'firstName' | 'lastName'>> = {};
-
-    for (const field of allowedFields) {
-      if (updateData[field] !== undefined) {
-        filteredData[field] = updateData[field];
-      }
-    }
-
-    await this.userRepository.update(userId, filteredData);
-
-    const updatedUser = await this.userRepository.findOne({
-      where: { id: userId },
-    });
-    if (!updatedUser) {
-      throw new UnauthorizedException('User not found after update');
-    }
-
-    return updatedUser;
   }
 
   async updateClientStatus(
@@ -433,5 +603,18 @@ export class AuthService {
       { user: { id: userId } },
       { isRevoked: true },
     );
+  }
+
+  // 로그아웃
+  logout(token: string): { message: string } {
+    try {
+      // 토큰 검증 (옵션: 블랙리스트에 추가하거나 다른 정리 작업 수행)
+      this.jwtService.verify(token);
+
+      return { message: 'Logged out successfully' };
+    } catch (error) {
+      this.logger.error('Logout error:', error);
+      throw new UnauthorizedException('Invalid token');
+    }
   }
 }

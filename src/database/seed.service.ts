@@ -5,6 +5,10 @@ import { Scope } from '../scope/scope.entity';
 import { Client } from '../client/client.entity';
 import { User } from '../user/user.entity';
 import { snowflakeGenerator } from '../utils/snowflake-id.util';
+import {
+  OAUTH2_SCOPES,
+  SCOPE_DESCRIPTIONS,
+} from '../constants/oauth2.constants';
 
 interface ScopeData {
   readonly name: string;
@@ -17,6 +21,7 @@ export class SeedService {
   private readonly logger = new Logger(SeedService.name);
 
   private static readonly DEFAULT_SCOPES: readonly ScopeData[] = [
+    // 기존 스코프들 (하위 호환성)
     {
       name: 'read',
       description: 'Read access to user data',
@@ -46,6 +51,72 @@ export class SeedService {
       name: 'offline_access',
       description: 'Offline access (refresh tokens)',
       isDefault: false,
+    },
+    // 새로운 OAuth2 스코프들
+    {
+      name: OAUTH2_SCOPES.READ_USER,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.READ_USER],
+      isDefault: true,
+    },
+    {
+      name: OAUTH2_SCOPES.WRITE_USER,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.WRITE_USER],
+      isDefault: false,
+    },
+    {
+      name: OAUTH2_SCOPES.DELETE_USER,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.DELETE_USER],
+      isDefault: false,
+    },
+    {
+      name: OAUTH2_SCOPES.READ_PROFILE,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.READ_PROFILE],
+      isDefault: true,
+    },
+    {
+      name: OAUTH2_SCOPES.WRITE_PROFILE,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.WRITE_PROFILE],
+      isDefault: false,
+    },
+    {
+      name: OAUTH2_SCOPES.UPLOAD_FILE,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.UPLOAD_FILE],
+      isDefault: false,
+    },
+    {
+      name: OAUTH2_SCOPES.READ_FILE,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.READ_FILE],
+      isDefault: false,
+    },
+    {
+      name: OAUTH2_SCOPES.DELETE_FILE,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.DELETE_FILE],
+      isDefault: false,
+    },
+    {
+      name: OAUTH2_SCOPES.READ_CLIENT,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.READ_CLIENT],
+      isDefault: false,
+    },
+    {
+      name: OAUTH2_SCOPES.WRITE_CLIENT,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.WRITE_CLIENT],
+      isDefault: false,
+    },
+    {
+      name: OAUTH2_SCOPES.DELETE_CLIENT,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.DELETE_CLIENT],
+      isDefault: false,
+    },
+    {
+      name: OAUTH2_SCOPES.ADMIN,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.ADMIN],
+      isDefault: false,
+    },
+    {
+      name: OAUTH2_SCOPES.BASIC,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.BASIC],
+      isDefault: true,
     },
   ] as const;
 

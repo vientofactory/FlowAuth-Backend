@@ -1,5 +1,13 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsEnum,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { USER_TYPES } from '../../constants/auth.constants';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -41,4 +49,14 @@ export class CreateUserDto {
   @IsString()
   @IsNotEmpty()
   lastName: string;
+
+  @ApiProperty({
+    description: '사용자 유형',
+    example: USER_TYPES.REGULAR,
+    enum: USER_TYPES,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(USER_TYPES)
+  userType?: USER_TYPES;
 }
