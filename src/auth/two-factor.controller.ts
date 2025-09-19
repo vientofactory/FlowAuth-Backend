@@ -17,6 +17,7 @@ import {
 import { TwoFactorService } from './two-factor.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard, RequirePermissions } from './permissions.guard';
+import { PERMISSIONS } from '../constants/auth.constants';
 import {
   VerifyTwoFactorDto,
   DisableTwoFactorDto,
@@ -39,7 +40,7 @@ export class TwoFactorController {
   constructor(private readonly twoFactorService: TwoFactorService) {}
 
   @Post('setup')
-  @RequirePermissions(1) // 기본 사용자 권한
+  @RequirePermissions(PERMISSIONS.READ_USER) // 기본 사용자 권한
   @ApiOperation({ summary: '2FA 설정을 위한 시크릿 생성' })
   @ApiResponse({
     status: 200,
@@ -54,7 +55,7 @@ export class TwoFactorController {
   }
 
   @Post('enable')
-  @RequirePermissions(1)
+  @RequirePermissions(PERMISSIONS.READ_USER)
   @ApiOperation({ summary: '2FA 활성화' })
   @ApiResponse({ status: 200, description: '2FA가 성공적으로 활성화됨' })
   @ApiResponse({ status: 400, description: '잘못된 토큰 또는 이미 활성화됨' })
@@ -81,7 +82,7 @@ export class TwoFactorController {
   }
 
   @Post('verify')
-  @RequirePermissions(1)
+  @RequirePermissions(PERMISSIONS.READ_USER)
   @ApiOperation({ summary: '2FA 토큰 검증' })
   @ApiResponse({ status: 200, description: '토큰 검증 성공' })
   @ApiResponse({ status: 400, description: '잘못된 토큰' })
@@ -102,7 +103,7 @@ export class TwoFactorController {
   }
 
   @Post('verify-backup')
-  @RequirePermissions(1)
+  @RequirePermissions(PERMISSIONS.READ_USER)
   @ApiOperation({ summary: '백업 코드 검증' })
   @ApiResponse({ status: 200, description: '백업 코드 검증 성공' })
   @ApiResponse({ status: 400, description: '잘못된 백업 코드' })
@@ -123,7 +124,7 @@ export class TwoFactorController {
   }
 
   @Delete('disable')
-  @RequirePermissions(1)
+  @RequirePermissions(PERMISSIONS.READ_USER)
   @ApiOperation({ summary: '2FA 비활성화' })
   @ApiResponse({ status: 200, description: '2FA가 성공적으로 비활성화됨' })
   @ApiResponse({
@@ -143,7 +144,7 @@ export class TwoFactorController {
   }
 
   @Get('status')
-  @RequirePermissions(1)
+  @RequirePermissions(PERMISSIONS.READ_USER)
   @ApiOperation({ summary: '2FA 상태 확인' })
   @ApiResponse({
     status: 200,
