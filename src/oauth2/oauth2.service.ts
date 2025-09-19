@@ -299,6 +299,41 @@ export class OAuth2Service {
     const { code, client_id, client_secret, redirect_uri, code_verifier } =
       tokenDto;
 
+    // Type and length validation for parameters
+    if (typeof code !== 'string') {
+      throw new BadRequestException('Invalid code parameter');
+    }
+    if (code.length > OAUTH2_CONSTANTS.AUTHORIZATION_CODE_MAX_LENGTH) {
+      throw new BadRequestException('code parameter is too long');
+    }
+    if (typeof client_id !== 'string') {
+      throw new BadRequestException('Invalid client_id parameter');
+    }
+    if (client_id.length > OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH) {
+      throw new BadRequestException('client_id parameter is too long');
+    }
+    if (client_secret && typeof client_secret !== 'string') {
+      throw new BadRequestException('Invalid client_secret parameter');
+    }
+    if (redirect_uri && typeof redirect_uri !== 'string') {
+      throw new BadRequestException('Invalid redirect_uri parameter');
+    }
+    if (
+      redirect_uri &&
+      redirect_uri.length > OAUTH2_CONSTANTS.REDIRECT_URI_MAX_LENGTH
+    ) {
+      throw new BadRequestException('redirect_uri parameter is too long');
+    }
+    if (code_verifier && typeof code_verifier !== 'string') {
+      throw new BadRequestException('Invalid code_verifier parameter');
+    }
+    if (
+      code_verifier &&
+      code_verifier.length > OAUTH2_CONSTANTS.CODE_VERIFIER_MAX_LENGTH
+    ) {
+      throw new BadRequestException('code_verifier parameter is too long');
+    }
+
     // Validate required parameters
     if (!code || !client_id) {
       throw new BadRequestException('Missing required parameters');
