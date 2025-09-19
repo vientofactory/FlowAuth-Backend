@@ -34,6 +34,9 @@ export class User {
   @Column({ type: 'bigint', default: 1 }) // 기본적으로 READ_USER 권한
   permissions: number;
 
+  @Column({ type: 'datetime', nullable: true })
+  lastLoginAt?: Date;
+
   @CreateDateColumn()
   createdAt: Date;
 

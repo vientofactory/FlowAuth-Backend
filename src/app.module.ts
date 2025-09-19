@@ -11,6 +11,7 @@ import { AppConfigService } from './config/app-config.service';
 import { UploadModule } from './upload/upload.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ProfileModule } from './profile/profile.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ProfileModule } from './profile/profile.module';
     UploadModule,
     DashboardModule,
     ProfileModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppConfigService],

@@ -115,6 +115,11 @@ export class AuthService {
         );
       }
 
+      // Update last login time
+      await this.userRepository.update(user.id, {
+        lastLoginAt: new Date(),
+      });
+
       // Generate JWT token with enhanced payload
       const payload: JwtPayload = {
         sub: user.id.toString(),

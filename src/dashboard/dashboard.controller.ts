@@ -1,12 +1,14 @@
-import { Controller, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, UseGuards, Request, Query } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { DashboardStatsResponseDto } from './dto/dashboard-stats.dto';
+import { RecentActivityDto } from './dto/recent-activity.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../types/auth.types';
 
@@ -42,5 +44,31 @@ export class DashboardController {
     @Request() req: AuthenticatedRequest,
   ): Promise<DashboardStatsResponseDto> {
     return this.dashboardService.getDashboardStats(req.user.id);
+  }
+
+  @Get('activities')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '최근 활동 조회',
+    description: '사용자의 최근 활동 내역을 조회합니다.',
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: '조회할 활동 수',
+    example: 10,
+    required: false,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '최근 활동 목록',
+    type: [RecentActivityDto],
+  })
+  async getRecentActivities(
+    @Request() req: AuthenticatedRequest,
+    @Query('limit') limit?: string,
+  ): Promise<RecentActivityDto[]> {
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.dashboardService.getRecentActivities(req.user.id, limitNum);
   }
 }
