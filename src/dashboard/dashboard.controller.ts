@@ -1,4 +1,13 @@
-import { Controller, Get, UseGuards, Request, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  UseGuards,
+  Request,
+  Query,
+  Delete,
+  Param,
+  Body,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -9,6 +18,10 @@ import {
 import { DashboardService } from './dashboard.service';
 import { DashboardStatsResponseDto } from './dto/dashboard-stats.dto';
 import { RecentActivityDto } from './dto/recent-activity.dto';
+import {
+  ConnectedAppsResponseDto,
+  RevokeConnectionResponseDto,
+} from './dto/connected-apps.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../types/auth.types';
 
@@ -70,5 +83,65 @@ export class DashboardController {
   ): Promise<RecentActivityDto[]> {
     const limitNum = limit ? parseInt(limit, 10) : 10;
     return this.dashboardService.getRecentActivities(req.user.id, limitNum);
+  }
+
+  @Get('connected-apps')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '연결된 앱 목록 조회',
+    description: `
+사용자가 연결한 OAuth2 애플리케이션 목록을 조회합니다.
+
+**포함 정보:**
+- 앱 이름 및 설명
+- 연결된 권한 범위
+- 연결 일시 및 만료 일시
+- 토큰 상태 (활성/만료/취소)
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '연결된 앱 목록',
+    type: ConnectedAppsResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
+  async getConnectedApps(
+    @Request() req: AuthenticatedRequest,
+  ): Promise<ConnectedAppsResponseDto> {
+    return this.dashboardService.getConnectedApps(req.user.id);
+  }
+
+  @Delete('connected-apps/:clientId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '앱 연결 해제',
+    description: '특정 클라이언트와의 연결을 해제하고 관련 토큰을 취소합니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '연결 해제 성공',
+    type: RevokeConnectionResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '클라이언트를 찾을 수 없음',
+  })
+  async revokeConnection(
+    @Request() req: AuthenticatedRequest,
+    @Param('clientId') clientId: string,
+  ): Promise<RevokeConnectionResponseDto> {
+    return this.dashboardService.revokeConnection(
+      req.user.id,
+      parseInt(clientId, 10),
+    );
   }
 }

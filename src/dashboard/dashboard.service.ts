@@ -7,6 +7,11 @@ import { Token } from '../token/token.entity';
 import { TokenService } from '../oauth2/token.service';
 import { DashboardStatsResponseDto } from './dto/dashboard-stats.dto';
 import { RecentActivityDto } from './dto/recent-activity.dto';
+import {
+  ConnectedAppDto,
+  ConnectedAppsResponseDto,
+  RevokeConnectionResponseDto,
+} from './dto/connected-apps.dto';
 
 @Injectable()
 export class DashboardService {
@@ -214,5 +219,78 @@ export class DashboardService {
 
     // 제한된 개수만큼 반환
     return activities.slice(0, limit);
+  }
+
+  async getConnectedApps(userId: number): Promise<ConnectedAppsResponseDto> {
+    // 사용자가 토큰을 발급받은 클라이언트들을 조회
+    const tokens = await this.tokenRepository.find({
+      where: {
+        user: { id: userId },
+        isRevoked: false,
+      },
+      relations: ['client'],
+      select: ['id', 'client', 'scopes', 'createdAt', 'expiresAt'],
+      order: { createdAt: 'DESC' },
+    });
+
+    // 클라이언트별로 최신 토큰 정보를 그룹화
+    const clientMap = new Map<number, ConnectedAppDto>();
+
+    tokens.forEach((token) => {
+      if (!token.client) return;
+
+      const clientId = token.client.id;
+      const existingApp = clientMap.get(clientId);
+
+      if (!existingApp || token.createdAt > existingApp.connectedAt) {
+        const status = token.isRevoked
+          ? 'revoked'
+          : new Date() > token.expiresAt
+            ? 'expired'
+            : 'active';
+
+        clientMap.set(clientId, {
+          id: clientId,
+          name: token.client.name,
+          description: token.client.description,
+          logoUrl: token.client.logoUri,
+          scopes: token.scopes || [],
+          connectedAt: token.createdAt,
+          lastUsedAt: undefined, // Token 엔티티에 lastUsedAt 필드가 없음
+          expiresAt: token.expiresAt,
+          status,
+        });
+      }
+    });
+
+    const apps = Array.from(clientMap.values());
+
+    return {
+      apps,
+      total: apps.length,
+    };
+  }
+
+  async revokeConnection(
+    userId: number,
+    clientId: number,
+  ): Promise<RevokeConnectionResponseDto> {
+    // 해당 사용자의 해당 클라이언트에 대한 모든 토큰을 취소
+    const result = await this.tokenRepository.update(
+      {
+        user: { id: userId },
+        client: { id: clientId },
+        isRevoked: false,
+      },
+      {
+        isRevoked: true,
+      },
+    );
+
+    return {
+      success: true,
+      revokedTokensCount: result.affected || 0,
+      message: '연결이 성공적으로 해제되었습니다.',
+    };
   }
 }
