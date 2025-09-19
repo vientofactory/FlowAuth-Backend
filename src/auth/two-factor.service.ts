@@ -12,6 +12,7 @@ import { User } from '../user/user.entity';
 import { TwoFactorResponseDto } from './dto/2fa/two-factor.dto';
 import { AUTH_ERROR_MESSAGES } from '../constants/auth.constants';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 
 // 타입 선언 추가
 interface SpeakeasySecret {
@@ -252,9 +253,10 @@ export class TwoFactorService {
   private generateBackupCodes(): string[] {
     const codes: string[] = [];
     for (let i = 0; i < 10; i++) {
-      // 8자리 영숫자 코드 생성 (XXXX-XXXX 형식)
-      const part1 = Math.random().toString(36).substring(2, 6).toUpperCase();
-      const part2 = Math.random().toString(36).substring(2, 6).toUpperCase();
+      // 8자리 16진수 코드 생성 (XXXX-XXXX 형식) - 암호학적으로 안전한 난수 사용
+      const randomHex = randomBytes(4).toString('hex').toUpperCase();
+      const part1 = randomHex.substring(0, 4);
+      const part2 = randomHex.substring(4, 8);
       const code = `${part1}-${part2}`;
       codes.push(code);
     }
