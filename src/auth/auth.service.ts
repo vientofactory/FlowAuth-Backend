@@ -29,6 +29,7 @@ import { CryptoUtils } from '../utils/crypto.util';
 import { PermissionUtils } from '../utils/permission.util';
 import { TwoFactorService } from './two-factor.service';
 import { FileUploadService } from '../upload/file-upload.service';
+import { RecaptchaService } from '../utils/recaptcha.util';
 
 @Injectable()
 export class AuthService {
@@ -47,11 +48,30 @@ export class AuthService {
     private configService: ConfigService,
     private fileUploadService: FileUploadService,
     private twoFactorService: TwoFactorService,
+    private recaptchaService: RecaptchaService,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
-    const { username, email, password, firstName, lastName, userType } =
-      createUserDto;
+    const {
+      username,
+      email,
+      password,
+      firstName,
+      lastName,
+      userType,
+      recaptchaToken,
+    } = createUserDto;
+
+    // Verify reCAPTCHA token if provided
+    if (recaptchaToken) {
+      const isValidRecaptcha = await this.recaptchaService.verifyToken(
+        recaptchaToken,
+        'register',
+      );
+      if (!isValidRecaptcha) {
+        throw new UnauthorizedException('reCAPTCHA verification failed');
+      }
+    }
 
     // Check if user already exists
     const existingUser = await this.userRepository.findOne({
@@ -101,8 +121,20 @@ export class AuthService {
   async login(loginDto: {
     email: string;
     password: string;
+    recaptchaToken?: string;
   }): Promise<LoginResponse> {
-    const { email, password } = loginDto;
+    const { email, password, recaptchaToken } = loginDto;
+
+    // Verify reCAPTCHA token if provided
+    if (recaptchaToken) {
+      const isValidRecaptcha = await this.recaptchaService.verifyToken(
+        recaptchaToken,
+        'login',
+      );
+      if (!isValidRecaptcha) {
+        throw new UnauthorizedException('reCAPTCHA verification failed');
+      }
+    }
 
     try {
       // Find user with 2FA fields

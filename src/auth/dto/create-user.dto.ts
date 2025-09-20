@@ -59,4 +59,13 @@ export class CreateUserDto {
   @IsOptional()
   @IsEnum(USER_TYPES)
   userType?: USER_TYPES;
+
+  @ApiProperty({
+    description: 'reCAPTCHA 토큰',
+    example: 'recaptcha_token_here',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  recaptchaToken?: string;
 }

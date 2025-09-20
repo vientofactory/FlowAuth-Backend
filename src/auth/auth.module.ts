@@ -15,6 +15,8 @@ import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
 import { FileUploadService } from '../upload/file-upload.service';
+import { RecaptchaService } from '../utils/recaptcha.util';
+import { AppConfigService } from '../config/app-config.service';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { FileUploadService } from '../upload/file-upload.service';
     JwtAuthGuard,
     PermissionsGuard,
     FileUploadService,
+    RecaptchaService,
+    AppConfigService,
   ],
   controllers: [AuthController, TwoFactorController],
   exports: [JwtAuthGuard, FileUploadService],

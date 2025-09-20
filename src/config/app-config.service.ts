@@ -34,6 +34,9 @@ export class AppConfigService {
   readonly jwtSecret: string;
   readonly jwtExpiry: string;
 
+  // reCAPTCHA Configuration
+  readonly recaptchaSecretKey: string;
+
   // Cleanup Configuration
   readonly cleanupCronExpression: string;
 
@@ -104,6 +107,10 @@ export class AppConfigService {
     this.jwtSecret =
       this.configService.get<string>('JWT_SECRET') || 'your-secret-key';
     this.jwtExpiry = this.configService.get<string>('JWT_EXPIRY') || '1h';
+
+    // reCAPTCHA Configuration
+    this.recaptchaSecretKey =
+      this.configService.get<string>('RECAPTCHA_SECRET_KEY') || '';
 
     // Cleanup Configuration
     this.cleanupCronExpression =
