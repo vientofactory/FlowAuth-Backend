@@ -73,7 +73,6 @@ export const FILE_TYPES = {
       'image/jpeg',
       'image/jpg',
       'image/png',
-      'image/gif',
       'image/webp',
       'image/svg+xml',
     ] as const,
