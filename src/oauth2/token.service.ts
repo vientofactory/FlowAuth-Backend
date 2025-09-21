@@ -1,9 +1,8 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { AppConfigService } from '../config/app-config.service';
@@ -11,6 +10,7 @@ import { Token } from '../token/token.entity';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { OAuth2JwtPayload } from '../types/oauth2.types';
+import { StructuredLogger } from '../logging/structured-logger.service';
 import * as crypto from 'crypto';
 
 interface TokenCreateResponse {
@@ -23,23 +23,23 @@ interface TokenCreateResponse {
 
 @Injectable()
 export class TokenService {
-  private readonly logger = new Logger(TokenService.name);
-
   constructor(
     @InjectRepository(Token)
     private readonly tokenRepository: Repository<Token>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    private readonly appConfig: AppConfigService,
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
+    private readonly appConfigService: AppConfigService,
+    private readonly structuredLogger: StructuredLogger,
   ) {}
 
   private getAccessTokenExpiryHours(): number {
-    return this.appConfig.accessTokenExpiryHours;
+    return this.appConfigService.accessTokenExpiryHours;
   }
 
   private getRefreshTokenExpiryDays(): number {
-    return this.appConfig.refreshTokenExpiryDays;
+    return this.appConfigService.refreshTokenExpiryDays;
   }
 
   private getAccessTokenExpirySeconds(): number {
@@ -76,7 +76,9 @@ export class TokenService {
     try {
       await this.tokenRepository.save(token);
     } catch (error) {
-      this.logger.error('Error saving token to database', error);
+      this.structuredLogger.logError(error as Error, 'TokenService', {
+        operation: 'saveToken',
+      });
       throw error;
     }
 
@@ -281,7 +283,7 @@ export class TokenService {
     scopes: string[],
   ): string {
     const payload: OAuth2JwtPayload = {
-      sub: user?.id || null,
+      sub: user?.id?.toString() || null,
       client_id: client.clientId,
       scopes,
       token_type: 'Bearer',

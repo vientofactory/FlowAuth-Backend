@@ -1,6 +1,5 @@
 import { NestFactory } from '@nestjs/core';
 import {
-  ValidationPipe,
   ClassSerializerInterceptor,
   INestApplication,
   Logger,
@@ -15,6 +14,7 @@ import { join } from 'path';
 import { Request, Response, NextFunction } from 'express';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { setupSwagger } from './config/swagger.setup';
+import { ValidationSanitizationPipe } from './common/validation-sanitization.pipe';
 
 /**
  * FlowAuth Application Bootstrap
@@ -167,14 +167,8 @@ function configureCORS(app: NestExpressApplication): void {
  * Configure validation and serialization
  */
 function configureValidation(app: NestExpressApplication): void {
-  // Global validation pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
+  // Global validation and sanitization pipe
+  app.useGlobalPipes(new ValidationSanitizationPipe());
 
   // Global serialization interceptor
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));

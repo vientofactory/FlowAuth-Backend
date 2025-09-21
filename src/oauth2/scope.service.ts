@@ -1,6 +1,13 @@
-import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnApplicationBootstrap,
+  Logger,
+  Inject,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { Scope } from '../scope/scope.entity';
 
 @Injectable()
@@ -14,6 +21,7 @@ export class ScopeService implements OnApplicationBootstrap {
   constructor(
     @InjectRepository(Scope)
     private readonly scopeRepository: Repository<Scope>,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
   async onApplicationBootstrap() {
@@ -22,7 +30,7 @@ export class ScopeService implements OnApplicationBootstrap {
 
   private async loadScopesToCache(): Promise<void> {
     try {
-      this.logger.log('Loading scopes to memory cache...');
+      this.logger.log('Loading scopes to memory and Redis cache...');
 
       const scopes = await this.scopeRepository.find({
         where: { isActive: true },
@@ -44,8 +52,27 @@ export class ScopeService implements OnApplicationBootstrap {
         }
       });
 
+      // Redis에 캐시 저장 (TTL: 1시간)
+      await this.cacheManager.set('scopes:all', this.allScopesCache, 3600000);
+      await this.cacheManager.set(
+        'scopes:default',
+        this.defaultScopesCache,
+        3600000,
+      );
+
+      // 개별 스코프도 캐시
+      for (const scope of scopes) {
+        await this.cacheManager.set(
+          `scopes:name:${scope.name}`,
+          scope,
+          3600000,
+        );
+      }
+
       this.cacheInitialized = true;
-      this.logger.log(`Loaded ${scopes.length} scopes to memory cache`);
+      this.logger.log(
+        `Loaded ${scopes.length} scopes to memory and Redis cache`,
+      );
     } catch (error) {
       this.logger.error('Failed to load scopes to cache:', error);
       throw error;
@@ -56,6 +83,13 @@ export class ScopeService implements OnApplicationBootstrap {
    * 캐시를 수동으로 갱신하는 메서드
    */
   async refreshCache(): Promise<void> {
+    // 기존 Redis 캐시 삭제
+    await this.cacheManager.del('scopes:all');
+    await this.cacheManager.del('scopes:default');
+
+    // 모든 개별 스코프 캐시 삭제 (와일드카드 삭제는 Redis에서 지원하지 않으므로 메모리에서 추적)
+    // 실제 운영에서는 Redis SCAN 명령이나 별도의 캐시 키 관리가 필요할 수 있음
+
     await this.loadScopesToCache();
   }
 
@@ -107,12 +141,29 @@ export class ScopeService implements OnApplicationBootstrap {
 
   async findAll(): Promise<Scope[]> {
     await this.ensureCacheInitialized();
-    return [...this.allScopesCache]; // 배열 복사본 반환
+
+    // Redis 캐시에서 먼저 확인
+    const cachedScopes = await this.cacheManager.get<Scope[]>('scopes:all');
+    if (cachedScopes) {
+      return cachedScopes;
+    }
+
+    // 캐시에 없으면 메모리 캐시에서 반환
+    return [...this.allScopesCache];
   }
 
   async findDefaultScopes(): Promise<Scope[]> {
     await this.ensureCacheInitialized();
-    return [...this.defaultScopesCache]; // 배열 복사본 반환
+
+    // Redis 캐시에서 먼저 확인
+    const cachedDefaultScopes =
+      await this.cacheManager.get<Scope[]>('scopes:default');
+    if (cachedDefaultScopes) {
+      return cachedDefaultScopes;
+    }
+
+    // 캐시에 없으면 메모리 캐시에서 반환
+    return [...this.defaultScopesCache];
   }
 
   async validateScopes(scopeNames: string[]): Promise<boolean> {
@@ -200,6 +251,16 @@ export class ScopeService implements OnApplicationBootstrap {
    */
   async findByName(name: string): Promise<Scope | null> {
     await this.ensureCacheInitialized();
+
+    // Redis 캐시에서 먼저 확인
+    const cachedScope = await this.cacheManager.get<Scope>(
+      `scopes:name:${name}`,
+    );
+    if (cachedScope) {
+      return cachedScope;
+    }
+
+    // 캐시에 없으면 메모리 캐시에서 반환
     return this.scopeCache.get(name) || null;
   }
 }

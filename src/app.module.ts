@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
-import { CacheModule } from '@nestjs/cache-manager';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { WinstonModule } from 'nest-winston';
+import { winstonConfig } from './logging/winston.config';
+import { LoggingModule } from './logging/logging.module';
+import { CacheConfigModule } from './cache/cache-config.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -19,11 +23,17 @@ import { SettingsModule } from './settings/settings.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    CacheModule.register({
-      ttl: 300, // 5분
-      max: 1000, // 최대 1000개 항목
-      isGlobal: true,
+    CacheConfigModule,
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60000, // 1분
+          limit: 10, // 1분에 10개 요청
+        },
+      ],
     }),
+    WinstonModule.forRoot(winstonConfig),
+    LoggingModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     DatabaseModule,
     AuthModule,

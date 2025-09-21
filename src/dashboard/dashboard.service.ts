@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { Client } from '../client/client.entity';
 import { User } from '../user/user.entity';
 import { Token } from '../token/token.entity';
@@ -23,27 +25,39 @@ export class DashboardService {
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
     private tokenService: TokenService,
+    @Inject(CACHE_MANAGER)
+    private cacheManager: Cache,
   ) {}
 
   async getDashboardStats(userId: number): Promise<DashboardStatsResponseDto> {
-    // Get total clients count for this user
-    const totalClients = await this.getTotalClientsCount(userId);
+    const cacheKey = `stats:${userId}`;
 
-    // Get active tokens count for this user
+    // 캐시에서 먼저 조회
+    const cached =
+      await this.cacheManager.get<DashboardStatsResponseDto>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // 캐시에 없으면 DB 조회
+    const totalClients = await this.getTotalClientsCount(userId);
     const activeTokens = await this.getActiveTokensCount(userId);
 
-    // Get user info for account creation date
     const user = await this.userRepository.findOne({
       where: { id: userId },
       select: ['createdAt', 'lastLoginAt'],
     });
 
-    return {
+    const result = {
       totalClients,
       activeTokens,
       lastLoginDate: user?.lastLoginAt || null,
       accountCreated: user?.createdAt || null,
     };
+
+    // 결과를 캐시에 저장 (2분 TTL)
+    await this.cacheManager.set(cacheKey, result, 120000);
+    return result;
   }
 
   private async getTotalClientsCount(userId: number): Promise<number> {
@@ -60,6 +74,14 @@ export class DashboardService {
     userId: number,
     limit: number = 10,
   ): Promise<RecentActivityDto[]> {
+    const cacheKey = `activities:${userId}:${limit}`;
+
+    // 캐시에서 먼저 조회
+    const cached = await this.cacheManager.get<RecentActivityDto[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const activities: RecentActivityDto[] = [];
     let activityCounter = 1;
 
@@ -226,7 +248,11 @@ export class DashboardService {
     activities.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     // 제한된 개수만큼 반환
-    return activities.slice(0, limit);
+    const result = activities.slice(0, limit);
+
+    // 결과를 캐시에 저장 (2분 TTL)
+    await this.cacheManager.set(cacheKey, result, 120000);
+    return result;
   }
 
   async getConnectedApps(userId: number): Promise<ConnectedAppsResponseDto> {

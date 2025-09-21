@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsEnum,
 } from 'class-validator';
+import { Trim, Escape } from 'class-sanitizer';
 import { ApiProperty } from '@nestjs/swagger';
 import { USER_TYPES } from '../../constants/auth.constants';
 
@@ -16,6 +17,8 @@ export class CreateUserDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Trim()
+  @Escape()
   username: string;
 
   @ApiProperty({
@@ -23,6 +26,8 @@ export class CreateUserDto {
     example: 'john@example.com',
   })
   @IsEmail()
+  @Trim()
+  @Escape()
   email: string;
 
   @ApiProperty({
@@ -32,6 +37,7 @@ export class CreateUserDto {
   })
   @IsString()
   @MinLength(6)
+  @Trim()
   password: string;
 
   @ApiProperty({

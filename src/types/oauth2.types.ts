@@ -1,6 +1,6 @@
 // OAuth2 전용 타입 정의들
 export interface OAuth2JwtPayload {
-  sub: number | null; // 사용자 ID (client credentials grant에서는 null)
+  sub: string | null; // 사용자 ID (client credentials grant에서는 null) - OpenID Connect 표준에 따라 문자열
   client_id: string; // 클라이언트 ID
   scopes: string[]; // 허용된 스코프 목록
   token_type: 'Bearer'; // 토큰 타입 (항상 Bearer)

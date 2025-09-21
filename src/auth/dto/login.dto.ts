@@ -1,4 +1,5 @@
 import { IsEmail, IsNotEmpty, IsString, IsOptional } from 'class-validator';
+import { Trim, Escape } from 'class-sanitizer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -7,6 +8,8 @@ export class LoginDto {
     example: 'john@example.com',
   })
   @IsEmail()
+  @Trim()
+  @Escape()
   email: string;
 
   @ApiProperty({
@@ -15,6 +18,7 @@ export class LoginDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Trim()
   password: string;
 
   @ApiProperty({
@@ -24,5 +28,7 @@ export class LoginDto {
   })
   @IsOptional()
   @IsString()
+  @Trim()
+  @Escape()
   recaptchaToken?: string;
 }

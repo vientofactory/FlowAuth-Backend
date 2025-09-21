@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { User } from '../user/user.entity';
 import { PermissionUtils } from '../utils/permission.util';
 import { ROLES } from '../constants/auth.constants';
@@ -10,12 +12,23 @@ export class PermissionsService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @Inject(CACHE_MANAGER)
+    private cacheManager: Cache,
   ) {}
 
   /**
-   * 사용자 권한 조회
+   * 사용자 권한 조회 (캐싱 적용)
    */
   async getUserPermissions(userId: number): Promise<number> {
+    const cacheKey = `permissions:${userId}`;
+
+    // 캐시에서 먼저 조회
+    const cached = await this.cacheManager.get<number>(cacheKey);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    // 캐시에 없으면 DB 조회
     const user = await this.userRepository.findOne({
       where: { id: userId },
       select: ['permissions'],
@@ -25,6 +38,8 @@ export class PermissionsService {
       throw new Error('사용자를 찾을 수 없습니다.');
     }
 
+    // 결과를 캐시에 저장 (5분 TTL)
+    await this.cacheManager.set(cacheKey, user.permissions, 300000);
     return user.permissions;
   }
 
@@ -33,6 +48,8 @@ export class PermissionsService {
    */
   async setUserPermissions(userId: number, permissions: number): Promise<void> {
     await this.userRepository.update(userId, { permissions });
+    // 권한 변경 시 캐시 무효화
+    await this.cacheManager.del(`permissions:${userId}`);
   }
 
   /**

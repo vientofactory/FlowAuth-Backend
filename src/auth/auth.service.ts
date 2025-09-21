@@ -3,10 +3,13 @@ import {
   ConflictException,
   UnauthorizedException,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
@@ -50,6 +53,8 @@ export class AuthService {
     private fileUploadService: FileUploadService,
     private twoFactorService: TwoFactorService,
     private recaptchaService: RecaptchaService,
+    @Inject(CACHE_MANAGER)
+    private cacheManager: Cache,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
@@ -180,6 +185,10 @@ export class AuthService {
       await this.userRepository.update(user.id, {
         lastLoginAt: new Date(),
       });
+
+      // 로그인 성공 시 대시보드 캐시 무효화 (lastLoginAt 변경으로 인한 통계 업데이트)
+      await this.cacheManager.del(`stats:${user.id}`);
+      await this.cacheManager.del(`activities:${user.id}:10`); // 기본 limit 10
 
       // Generate JWT token with enhanced payload
       const payload: JwtPayload = {

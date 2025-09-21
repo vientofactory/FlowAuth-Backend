@@ -518,7 +518,7 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
       throw new BadRequestException('User ID not available for this token');
     }
 
-    const user = await this.oauth2Service.getUserInfo(req.user.sub.toString());
+    const user = await this.oauth2Service.getUserInfo(req.user.sub);
 
     if (!user) {
       throw new BadRequestException('User not found');

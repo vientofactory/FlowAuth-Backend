@@ -17,11 +17,13 @@ import { AuthorizationCode } from '../authorization-code/authorization-code.enti
 import { FileUploadService } from '../upload/file-upload.service';
 import { RecaptchaService } from '../utils/recaptcha.util';
 import { AppConfigService } from '../config/app-config.service';
+import { LoggingModule } from '../logging/logging.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Client, Token, AuthorizationCode]),
     PassportModule,
+    LoggingModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET') || 'your-secret-key',
