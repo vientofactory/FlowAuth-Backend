@@ -36,6 +36,7 @@ RUN adduser --system --uid 1001 nestjs
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/.env ./
 
 # Create uploads directories and set permissions
 RUN mkdir -p uploads/avatars uploads/documents uploads/logos
