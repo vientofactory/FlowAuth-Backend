@@ -61,6 +61,7 @@ export class DashboardService {
     limit: number = 10,
   ): Promise<RecentActivityDto[]> {
     const activities: RecentActivityDto[] = [];
+    let activityCounter = 1;
 
     // 1. 사용자 로그인 활동
     const user = await this.userRepository.findOne({
@@ -70,7 +71,7 @@ export class DashboardService {
 
     if (user?.lastLoginAt) {
       activities.push({
-        id: 1,
+        id: activityCounter++,
         type: 'login',
         description: '사용자 로그인',
         createdAt: user.lastLoginAt,
@@ -90,7 +91,7 @@ export class DashboardService {
 
     if (accountUser?.createdAt) {
       activities.push({
-        id: 2,
+        id: activityCounter++,
         type: 'account_created',
         description: '계정 생성됨',
         createdAt: accountUser.createdAt,
@@ -123,7 +124,7 @@ export class DashboardService {
     recentClients.forEach((client) => {
       // 생성 활동
       activities.push({
-        id: activities.length + 1,
+        id: activityCounter++,
         type: 'client_created',
         description: `클라이언트 "${client.name}" 생성됨`,
         createdAt: client.createdAt,
@@ -144,7 +145,7 @@ export class DashboardService {
       // 수정 활동 (생성일과 수정일이 다른 경우)
       if (client.updatedAt.getTime() !== client.createdAt.getTime()) {
         activities.push({
-          id: activities.length + 1,
+          id: activityCounter++,
           type: 'client_updated',
           description: `클라이언트 "${client.name}" 정보 수정됨`,
           createdAt: client.updatedAt,
@@ -167,7 +168,14 @@ export class DashboardService {
     const recentTokens = await this.tokenRepository.find({
       where: { user: { id: userId } },
       relations: ['client'],
-      select: ['id', 'createdAt', 'isRevoked', 'scopes', 'expiresAt'],
+      select: [
+        'id',
+        'createdAt',
+        'isRevoked',
+        'revokedAt',
+        'scopes',
+        'expiresAt',
+      ],
       order: { createdAt: 'DESC' },
       take: 5,
     });
@@ -175,7 +183,7 @@ export class DashboardService {
     recentTokens.forEach((token) => {
       // 토큰 생성 활동
       activities.push({
-        id: activities.length + 1,
+        id: activityCounter++,
         type: 'token_created',
         description: `"${token.client?.name || '알 수 없는 클라이언트'}" 토큰 발급됨`,
         createdAt: token.createdAt,
@@ -195,10 +203,10 @@ export class DashboardService {
       // 토큰 취소 활동
       if (token.isRevoked) {
         activities.push({
-          id: activities.length + 1,
+          id: activityCounter++,
           type: 'token_revoked',
           description: `"${token.client?.name || '알 수 없는 클라이언트'}" 토큰 취소됨`,
-          createdAt: new Date(), // 취소 시간은 별도로 저장하지 않으므로 현재 시간 사용
+          createdAt: token.revokedAt || new Date(), // 취소 시간이 없으면 현재 시간 사용
           resourceId: token.id,
           metadata: {
             clientName: token.client?.name,

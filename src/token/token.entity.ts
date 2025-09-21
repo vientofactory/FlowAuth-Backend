@@ -42,6 +42,9 @@ export class Token {
   @Column({ type: 'tinyint', default: 0 })
   isRevoked: boolean;
 
+  @Column({ type: 'datetime', nullable: true })
+  revokedAt?: Date;
+
   @Column({ type: 'tinyint', default: 0 })
   isRefreshTokenUsed: boolean;
 

@@ -221,7 +221,9 @@ export class TokenService {
     });
 
     if (token) {
-      await this.tokenRepository.remove(token);
+      token.isRevoked = true;
+      token.revokedAt = new Date();
+      await this.tokenRepository.save(token);
     }
   }
 
@@ -231,20 +233,38 @@ export class TokenService {
     });
 
     if (token) {
-      await this.tokenRepository.remove(token);
+      token.isRevoked = true;
+      token.revokedAt = new Date();
+      await this.tokenRepository.save(token);
     }
   }
 
   async revokeAllUserTokens(userId: number): Promise<void> {
-    await this.tokenRepository.delete({
-      user: { id: userId },
+    const tokens = await this.tokenRepository.find({
+      where: { user: { id: userId }, isRevoked: false },
     });
+
+    const now = new Date();
+    for (const token of tokens) {
+      token.isRevoked = true;
+      token.revokedAt = now;
+    }
+
+    await this.tokenRepository.save(tokens);
   }
 
   async revokeAllClientTokens(clientId: string): Promise<void> {
-    await this.tokenRepository.delete({
-      client: { clientId },
+    const tokens = await this.tokenRepository.find({
+      where: { client: { clientId }, isRevoked: false },
     });
+
+    const now = new Date();
+    for (const token of tokens) {
+      token.isRevoked = true;
+      token.revokedAt = now;
+    }
+
+    await this.tokenRepository.save(tokens);
   }
 
   async cleanupExpiredTokens(): Promise<number> {
