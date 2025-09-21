@@ -22,6 +22,16 @@ import { SeedService } from './seed.service';
         entities: [User, Client, Token, AuthorizationCode, Scope],
         synchronize: configService.get<string>('NODE_ENV') !== 'production',
         logging: configService.get<string>('NODE_ENV') === 'development',
+        cache: {
+          type: 'redis',
+          options: {
+            host: configService.get<string>('REDIS_HOST', 'localhost'),
+            port: configService.get<number>('REDIS_PORT', 6379),
+            password: configService.get<string>('REDIS_PASSWORD'),
+            db: configService.get<string>('REDIS_DB'),
+          },
+          duration: configService.get<number>('CACHE_TTL', 300000),
+        },
       }),
       inject: [ConfigService],
     }),
