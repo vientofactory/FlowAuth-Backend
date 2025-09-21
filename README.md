@@ -328,12 +328,6 @@ npm run typeorm
 ### 추가 환경 변수 (선택사항)
 
 ```env
-# Redis Configuration (캐싱용)
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_PASSWORD=
-REDIS_DB=0
-
 # OAuth2 Configuration
 OAUTH2_ACCESS_TOKEN_EXPIRY_HOURS=1
 OAUTH2_REFRESH_TOKEN_EXPIRY_DAYS=30

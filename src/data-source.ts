@@ -23,14 +23,4 @@ export default new DataSource({
     acquireTimeout: 60000,
     timeout: 60000,
   },
-  cache: {
-    type: 'redis',
-    options: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-      password: process.env.REDIS_PASSWORD,
-      db: process.env.REDIS_DB ? parseInt(process.env.REDIS_DB, 10) : undefined,
-    },
-    duration: parseInt(process.env.CACHE_TTL || '300000', 10),
-  },
 });

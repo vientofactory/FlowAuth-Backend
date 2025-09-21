@@ -21,12 +21,6 @@ export class AppConfigService {
   readonly dbAcquireTimeout: number;
   readonly dbTimeout: number;
 
-  // Redis Configuration
-  readonly redisHost: string;
-  readonly redisPort: number;
-  readonly redisPassword?: string;
-  readonly redisDb?: number;
-
   // Cache Configuration
   readonly cacheTtl: number; // milliseconds
 
@@ -81,19 +75,6 @@ export class AppConfigService {
     );
     this.dbTimeout = parseInt(
       this.configService.get<string>('DB_TIMEOUT') || '60000',
-      10,
-    );
-
-    // Redis Configuration
-    this.redisHost =
-      this.configService.get<string>('REDIS_HOST') || 'localhost';
-    this.redisPort = parseInt(
-      this.configService.get<string>('REDIS_PORT') || '6379',
-      10,
-    );
-    this.redisPassword = this.configService.get<string>('REDIS_PASSWORD');
-    this.redisDb = parseInt(
-      this.configService.get<string>('REDIS_DB') || '0',
       10,
     );
 
