@@ -23,6 +23,7 @@ import {
   USER_TYPES,
   USER_TYPE_PERMISSIONS,
 } from '../constants/auth.constants';
+import { OAUTH2_SCOPES } from '../constants/oauth2.constants';
 import { JwtPayload, LoginResponse } from '../types/auth.types';
 import { snowflakeGenerator } from '../utils/snowflake-id.util';
 import { CryptoUtils } from '../utils/crypto.util';
@@ -404,6 +405,17 @@ export class AuthService {
     const clientId = snowflakeGenerator.generate();
     const clientSecret = CryptoUtils.generateRandomString(64);
 
+    // Set default scopes if not provided
+    const clientScopes =
+      scopes && scopes.length > 0
+        ? scopes
+        : [
+            OAUTH2_SCOPES.READ_USER,
+            OAUTH2_SCOPES.READ_PROFILE,
+            OAUTH2_SCOPES.EMAIL,
+            OAUTH2_SCOPES.BASIC,
+          ];
+
     const client = this.clientRepository.create({
       clientId,
       clientSecret,
@@ -411,7 +423,7 @@ export class AuthService {
       description,
       redirectUris,
       grants,
-      scopes,
+      scopes: clientScopes,
       logoUri,
       termsOfServiceUri,
       policyUri,

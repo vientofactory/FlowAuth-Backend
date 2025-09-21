@@ -186,7 +186,14 @@ export class SeedService {
           'http://localhost:3000/callback',
         ],
         grants: ['authorization_code', 'refresh_token'],
-        scopes: ['read', 'write', 'profile', 'email'],
+        scopes: [
+          OAUTH2_SCOPES.READ_USER,
+          OAUTH2_SCOPES.WRITE_USER,
+          OAUTH2_SCOPES.READ_PROFILE,
+          OAUTH2_SCOPES.WRITE_PROFILE,
+          OAUTH2_SCOPES.BASIC,
+          OAUTH2_SCOPES.EMAIL,
+        ],
         isActive: true,
         userId: firstUser.id, // Assign to the first user
       });

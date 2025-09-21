@@ -102,6 +102,15 @@ export const OAUTH2_SCOPES = {
 
   // 기본 스코프
   BASIC: 'basic',
+
+  // OpenID Connect 표준 스코프 (레거시 호환성)
+  OPENID: 'openid',
+  PROFILE: 'profile',
+  EMAIL: 'email',
+
+  // 레거시 스코프
+  READ: 'read',
+  WRITE: 'write',
 } as const;
 
 // 스코프 설명
@@ -119,6 +128,11 @@ export const SCOPE_DESCRIPTIONS = {
   [OAUTH2_SCOPES.DELETE_CLIENT]: '클라이언트 삭제',
   [OAUTH2_SCOPES.ADMIN]: '관리자 권한',
   [OAUTH2_SCOPES.BASIC]: '기본 접근 권한',
+  [OAUTH2_SCOPES.OPENID]: 'OpenID Connect 식별',
+  [OAUTH2_SCOPES.PROFILE]: '사용자 프로필 정보',
+  [OAUTH2_SCOPES.EMAIL]: '사용자 이메일 정보',
+  [OAUTH2_SCOPES.READ]: '읽기 권한 (레거시)',
+  [OAUTH2_SCOPES.WRITE]: '쓰기 권한 (레거시)',
 } as const;
 
 // 기본 스코프 목록
