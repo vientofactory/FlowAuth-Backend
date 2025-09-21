@@ -37,6 +37,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 
+# Create uploads directories and set permissions
+RUN mkdir -p uploads/avatars uploads/documents uploads/logos
+
 # Change ownership of the app directory
 RUN chown -R nestjs:nodejs /app
 USER nestjs
