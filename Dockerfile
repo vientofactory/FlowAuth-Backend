@@ -16,6 +16,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Install all dependencies including dev dependencies
+RUN npm ci
+
 # Build the application
 RUN npm run build
 
