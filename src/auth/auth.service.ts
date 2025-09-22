@@ -234,6 +234,14 @@ export class AuthService {
         throw error;
       }
 
+      // 프로덕션에서는 실제 에러를 로그에 기록하되 사용자에게는 일반적인 메시지 반환
+      this.logger.error('Login failed with unexpected error:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        email: loginDto.email,
+        timestamp: new Date().toISOString(),
+      });
+
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.LOGIN_FAILED);
     }
   }
@@ -333,6 +341,17 @@ export class AuthService {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
+
+      // 프로덕션에서는 실제 에러를 로그에 기록하되 사용자에게는 일반적인 메시지 반환
+      this.logger.error(
+        'Two-factor token verification failed with unexpected error:',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          email,
+          timestamp: new Date().toISOString(),
+        },
+      );
 
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.LOGIN_FAILED);
     }
@@ -454,6 +473,17 @@ export class AuthService {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
+
+      // 프로덕션에서는 실제 에러를 로그에 기록하되 사용자에게는 일반적인 메시지 반환
+      this.logger.error(
+        'Backup code verification failed with unexpected error:',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          email,
+          timestamp: new Date().toISOString(),
+        },
+      );
 
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.LOGIN_FAILED);
     }
