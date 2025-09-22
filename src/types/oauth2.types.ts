@@ -4,6 +4,7 @@ export interface OAuth2JwtPayload {
   client_id: string | null; // 클라이언트 ID (일반 로그인에서는 null)
   scopes: string[]; // 허용된 스코프 목록
   token_type: 'Bearer'; // 토큰 타입 (항상 Bearer)
+  jti?: string; // JWT ID for token revocation
   iat?: number; // 발급 시간
   exp?: number; // 만료 시간
 }

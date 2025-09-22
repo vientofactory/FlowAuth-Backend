@@ -1,4 +1,5 @@
 import { User } from '../user/user.entity';
+import { TokenType } from '../constants/auth.constants';
 
 // 인증 관련 타입 정의들
 export interface JwtPayload {
@@ -7,7 +8,8 @@ export interface JwtPayload {
   username: string;
   roles: string[];
   permissions: number;
-  type: 'access';
+  type: TokenType;
+  jti?: string; // JWT ID for token revocation
   iat?: number;
   exp?: number;
 }

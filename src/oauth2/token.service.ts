@@ -11,6 +11,7 @@ import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { OAuth2JwtPayload } from '../types/oauth2.types';
 import { StructuredLogger } from '../logging/structured-logger.service';
+import { TOKEN_TYPES } from '../constants/auth.constants';
 import * as crypto from 'crypto';
 
 interface TokenCreateResponse {
@@ -51,6 +52,7 @@ export class TokenService {
     client: Client,
     scopes: string[] = [],
   ): Promise<TokenCreateResponse> {
+    // Generate initial access token (will be replaced with jti)
     const accessToken = this.generateAccessToken(user, client, scopes);
 
     const refreshToken = this.generateRefreshToken();
@@ -71,24 +73,37 @@ export class TokenService {
       scopes,
       user: user || undefined,
       client,
+      tokenType: TOKEN_TYPES.OAUTH2,
     });
 
     try {
       await this.tokenRepository.save(token);
+
+      // Regenerate access token with jti for revocation capability
+      const finalAccessToken = this.generateAccessTokenWithJti(
+        user,
+        client,
+        scopes,
+        token.id,
+      );
+
+      // Update token with final access token
+      token.accessToken = finalAccessToken;
+      await this.tokenRepository.save(token);
+
+      return {
+        accessToken: finalAccessToken,
+        refreshToken,
+        expiresIn: this.getAccessTokenExpirySeconds(),
+        scopes: scopes || [],
+        tokenType: 'Bearer',
+      };
     } catch (error) {
       this.structuredLogger.logError(error as Error, 'TokenService', {
         operation: 'saveToken',
       });
       throw error;
     }
-
-    return {
-      accessToken,
-      refreshToken,
-      expiresIn: this.getAccessTokenExpirySeconds(),
-      scopes: scopes || [],
-      tokenType: 'Bearer',
-    };
   }
 
   async refreshToken(
@@ -166,11 +181,23 @@ export class TokenService {
 
       await manager.save(Token, newToken);
 
+      // Regenerate access token with jti for the new token
+      const finalAccessToken = this.generateAccessTokenWithJti(
+        token.user || null,
+        token.client || null,
+        token.scopes || [],
+        newToken.id,
+      );
+
+      // Update token with final access token
+      newToken.accessToken = finalAccessToken;
+      await manager.save(Token, newToken);
+
       // Remove old token after creating new one
       await manager.remove(Token, token);
 
       return {
-        accessToken: newAccessToken,
+        accessToken: finalAccessToken,
         refreshToken: newRefreshToken,
         expiresIn: this.getAccessTokenExpirySeconds(),
         scopes: token.scopes || [],
@@ -288,6 +315,25 @@ export class TokenService {
       client_id: client?.clientId || null,
       scopes,
       token_type: 'Bearer',
+    };
+
+    return this.jwtService.sign(payload, {
+      expiresIn: `${this.getAccessTokenExpiryHours()}h`,
+    });
+  }
+
+  private generateAccessTokenWithJti(
+    user: User | null,
+    client: Client | null,
+    scopes: string[],
+    tokenId: number,
+  ): string {
+    const payload: OAuth2JwtPayload = {
+      sub: user?.id?.toString() || null,
+      client_id: client?.clientId || null,
+      scopes,
+      token_type: 'Bearer',
+      jti: tokenId.toString(),
     };
 
     return this.jwtService.sign(payload, {

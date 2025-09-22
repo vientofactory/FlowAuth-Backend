@@ -26,6 +26,8 @@ import {
   ROLES,
   USER_TYPES,
   USER_TYPE_PERMISSIONS,
+  TOKEN_TYPES,
+  type TokenType,
 } from '../constants/auth.constants';
 import { OAUTH2_SCOPES } from '../constants/oauth2.constants';
 import { JwtPayload, LoginResponse } from '../types/auth.types';
@@ -198,7 +200,7 @@ export class AuthService {
         username: user.username,
         roles: [PermissionUtils.getRoleName(user.permissions)],
         permissions: user.permissions,
-        type: AUTH_CONSTANTS.TOKEN_TYPE,
+        type: TOKEN_TYPES.LOGIN,
       };
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
@@ -208,7 +210,7 @@ export class AuthService {
       const refreshExpiresAt = new Date();
       refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
 
-      // Store refresh token in database
+      // Store refresh token in database first
       const tokenEntity = this.tokenRepository.create({
         accessToken,
         refreshToken,
@@ -218,14 +220,26 @@ export class AuthService {
         refreshExpiresAt,
         scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
         user,
+        tokenType: TOKEN_TYPES.LOGIN,
         // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
         isRefreshTokenUsed: false,
       });
       await this.tokenRepository.save(tokenEntity);
 
+      // Regenerate JWT with tokenId for immediate revocation capability
+      const finalPayload: JwtPayload = {
+        ...payload,
+        jti: tokenEntity.id.toString(), // Include token ID for revocation
+      };
+      const finalAccessToken = this.jwtService.sign(finalPayload);
+
+      // Update token with final access token
+      tokenEntity.accessToken = finalAccessToken;
+      await this.tokenRepository.save(tokenEntity);
+
       return {
         user,
-        accessToken,
+        accessToken: finalAccessToken,
         refreshToken,
         expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
       };
@@ -306,7 +320,7 @@ export class AuthService {
         username: user.username,
         roles: [PermissionUtils.getRoleName(user.permissions)],
         permissions: user.permissions,
-        type: AUTH_CONSTANTS.TOKEN_TYPE,
+        type: TOKEN_TYPES.LOGIN,
       };
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
@@ -437,7 +451,7 @@ export class AuthService {
         username: updatedUser.username,
         roles: [PermissionUtils.getRoleName(updatedUser.permissions)],
         permissions: updatedUser.permissions,
-        type: AUTH_CONSTANTS.TOKEN_TYPE,
+        type: TOKEN_TYPES.LOGIN,
       };
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
@@ -740,15 +754,19 @@ export class AuthService {
       throw new UnauthorizedException('Token not found');
     }
 
-    token.isRevoked = true;
-    await this.tokenRepository.save(token);
+    // 토큰을 완전히 삭제하여 세션 만료 보장
+    await this.tokenRepository.delete({ id: tokenId });
   }
 
   async revokeAllUserTokens(userId: number): Promise<void> {
-    await this.tokenRepository.update(
-      { user: { id: userId } },
-      { isRevoked: true },
-    );
+    await this.tokenRepository.delete({ user: { id: userId } });
+  }
+
+  async revokeAllTokensForType(
+    userId: number,
+    tokenType: TokenType,
+  ): Promise<void> {
+    await this.tokenRepository.delete({ user: { id: userId }, tokenType });
   }
 
   // JWT 토큰 리프래시 (일반 로그인용)
@@ -782,7 +800,7 @@ export class AuthService {
         username: user.username,
         roles: [PermissionUtils.getRoleName(user.permissions)],
         permissions: user.permissions,
-        type: AUTH_CONSTANTS.TOKEN_TYPE,
+        type: TOKEN_TYPES.LOGIN,
       };
 
       const accessToken = this.jwtService.sign(newPayload);

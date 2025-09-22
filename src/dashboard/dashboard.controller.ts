@@ -22,7 +22,7 @@ import {
   ConnectedAppsResponseDto,
   RevokeConnectionResponseDto,
 } from './dto/connected-apps.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { LoginTokenGuard } from '../auth/guards/login-token.guard';
 import type { AuthenticatedRequest } from '../types/auth.types';
 
 @Controller('dashboard')
@@ -31,7 +31,7 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('stats')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(LoginTokenGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '대시보드 통계 정보',
@@ -60,7 +60,7 @@ export class DashboardController {
   }
 
   @Get('activities')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(LoginTokenGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '최근 활동 조회',
@@ -86,7 +86,7 @@ export class DashboardController {
   }
 
   @Get('connected-apps')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(LoginTokenGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '연결된 앱 목록 조회',
@@ -116,7 +116,7 @@ export class DashboardController {
   }
 
   @Delete('connected-apps/:clientId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(LoginTokenGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '앱 연결 해제',

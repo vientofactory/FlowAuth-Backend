@@ -10,6 +10,7 @@ import {
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { Exclude } from 'class-transformer';
+import { TOKEN_TYPES, type TokenType } from '../constants/auth.constants';
 
 @Entity()
 @Index(['accessToken'], { unique: true })
@@ -36,8 +37,8 @@ export class Token {
   @Column({ type: 'json', nullable: true })
   scopes?: string[];
 
-  @Column({ type: 'varchar', length: 20, default: 'bearer' })
-  tokenType: string;
+  @Column({ type: 'varchar', length: 20, default: TOKEN_TYPES.LOGIN })
+  tokenType: TokenType;
 
   @Column({ type: 'tinyint', default: 0 })
   isRevoked: boolean;

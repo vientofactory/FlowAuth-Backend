@@ -29,7 +29,11 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard, RequirePermissions } from './permissions.guard';
 import { User } from '../user/user.entity';
 import type { AuthenticatedRequest } from '../types/auth.types';
-import { PERMISSIONS } from '../constants/auth.constants';
+import {
+  PERMISSIONS,
+  TOKEN_TYPES,
+  type TokenType,
+} from '../constants/auth.constants';
 import { LoginResponseDto, ClientCreateResponseDto } from './dto/response.dto';
 
 @Controller('auth')
@@ -601,5 +605,38 @@ export class AuthController {
   async revokeAllUserTokens(@Request() req: AuthenticatedRequest) {
     await this.authService.revokeAllUserTokens(req.user.id);
     return { message: 'All user tokens revoked successfully' };
+  }
+
+  @Delete('tokens/type/:tokenType')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.DELETE_TOKEN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '특정 타입의 모든 토큰 취소' })
+  @ApiResponse({
+    status: 200,
+    description: '토큰 타입별 토큰들이 성공적으로 취소됨',
+  })
+  @ApiResponse({
+    status: 400,
+    description: '잘못된 토큰 타입',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
+  })
+  async revokeAllTokensForType(
+    @Request() req: AuthenticatedRequest,
+    @Param('tokenType') tokenType: string,
+  ) {
+    // 토큰 타입 검증
+    if (!Object.values(TOKEN_TYPES).includes(tokenType as any)) {
+      throw new BadRequestException('Invalid token type');
+    }
+
+    await this.authService.revokeAllTokensForType(
+      req.user.id,
+      tokenType as TokenType,
+    );
+    return { message: `${tokenType} tokens revoked successfully` };
   }
 }

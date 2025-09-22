@@ -5,10 +5,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Strategy, ExtractJwt, StrategyOptions } from 'passport-jwt';
 import { User } from '../user/user.entity';
-import {
-  JWT_CONSTANTS,
-  AUTH_ERROR_MESSAGES,
-} from '../constants/auth.constants';
+import { Token } from '../token/token.entity';
+import { AUTH_ERROR_MESSAGES, TOKEN_TYPES } from '../constants/auth.constants';
 import { JwtPayload } from '../types/auth.types';
 
 @Injectable()
@@ -16,6 +14,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Token)
+    private tokenRepository: Repository<Token>,
     private configService: ConfigService,
   ) {
     const jwtSecret =
@@ -41,9 +41,41 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
       }
 
-      // Check token type if specified
-      if (payload.type !== JWT_CONSTANTS.TOKEN_TYPE) {
+      // Check token type - only login tokens are allowed here
+      if (payload.type !== TOKEN_TYPES.LOGIN) {
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN_TYPE);
+      }
+
+      // If jti is present, verify token exists in database (for revocation check)
+      if (payload.jti) {
+        // Validate that jti is a valid numeric string
+        if (typeof payload.jti !== 'string' || isNaN(Number(payload.jti))) {
+          throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
+        }
+
+        const tokenId = parseInt(payload.jti, 10);
+        const token = await this.tokenRepository.findOne({
+          where: { id: tokenId },
+          relations: ['user'],
+        });
+
+        if (!token) {
+          throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
+        }
+
+        if (!token.user) {
+          throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
+        }
+
+        // Verify token belongs to the user
+        if (token.user.id !== parseInt(payload.sub, 10)) {
+          throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
+        }
+
+        // Verify token is not revoked and not expired
+        if (token.isRevoked || token.expiresAt < new Date()) {
+          throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
+        }
       }
 
       // Find user in database

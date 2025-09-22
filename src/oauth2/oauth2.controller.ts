@@ -31,7 +31,7 @@ import {
 } from '../common/dto/response.dto';
 import type { Request as ExpressRequest, Response } from 'express';
 import { OAuth2Service } from './oauth2.service';
-import { OAuth2BearerGuard } from './oauth2-bearer.guard';
+import { OAuth2BearerGuard } from './guards/oauth2-bearer.guard';
 import { OAuth2ScopeGuard } from './guards/oauth2-scope.guard';
 import { RequireScopes } from './decorators/require-scopes.decorator';
 import { TokenService } from './token.service';
