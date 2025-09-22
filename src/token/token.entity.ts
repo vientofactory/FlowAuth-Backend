@@ -52,9 +52,9 @@ export class Token {
   @JoinColumn()
   user?: User;
 
-  @ManyToOne(() => Client)
+  @ManyToOne(() => Client, { nullable: true })
   @JoinColumn()
-  client: Client;
+  client?: Client;
 
   @CreateDateColumn()
   createdAt: Date;

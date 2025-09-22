@@ -207,7 +207,7 @@ export class DashboardService {
       activities.push({
         id: activityCounter++,
         type: 'token_created',
-        description: `"${token.client?.name || '알 수 없는 클라이언트'}" 토큰 발급됨`,
+        description: `"${token.client?.name || '웹 애플리케이션'}" 토큰 발급됨`,
         createdAt: token.createdAt,
         resourceId: token.id,
         metadata: {
@@ -227,7 +227,7 @@ export class DashboardService {
         activities.push({
           id: activityCounter++,
           type: 'token_revoked',
-          description: `"${token.client?.name || '알 수 없는 클라이언트'}" 토큰 취소됨`,
+          description: `"${token.client?.name || '웹 애플리케이션'}" 토큰 취소됨`,
           createdAt: token.revokedAt || new Date(), // 취소 시간이 없으면 현재 시간 사용
           resourceId: token.id,
           metadata: {

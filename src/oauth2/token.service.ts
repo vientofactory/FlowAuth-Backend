@@ -109,7 +109,8 @@ export class TokenService {
       }
 
       // Verify that the refresh token belongs to the requesting client
-      if (token.client.clientId !== clientId) {
+      // Only check client for OAuth2 tokens (tokens with client)
+      if (token.client && token.client.clientId !== clientId) {
         throw new UnauthorizedException(
           'Refresh token does not belong to this client',
         );
@@ -136,7 +137,7 @@ export class TokenService {
       // Generate new access token
       const newAccessToken = this.generateAccessToken(
         token.user || null,
-        token.client,
+        token.client || null,
         token.scopes || [],
       );
       const newRefreshToken = this.generateRefreshToken();
@@ -279,12 +280,12 @@ export class TokenService {
 
   private generateAccessToken(
     user: User | null,
-    client: Client,
+    client: Client | null,
     scopes: string[],
   ): string {
     const payload: OAuth2JwtPayload = {
       sub: user?.id?.toString() || null,
-      client_id: client.clientId,
+      client_id: client?.clientId || null,
       scopes,
       token_type: 'Bearer',
     };

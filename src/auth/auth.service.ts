@@ -17,6 +17,7 @@ import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
 import * as bcrypt from 'bcrypt';
 import * as speakeasy from 'speakeasy';
+import * as crypto from 'crypto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateClientDto } from './dto/create-client.dto';
 import {
@@ -202,9 +203,30 @@ export class AuthService {
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
 
+      // Generate refresh token for general login
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const refreshExpiresAt = new Date();
+      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
+
+      // Store refresh token in database
+      const tokenEntity = this.tokenRepository.create({
+        accessToken,
+        refreshToken,
+        expiresAt: new Date(
+          Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
+        ),
+        refreshExpiresAt,
+        scopes: ['read:user', 'write:user'], // Default scopes for general login
+        user,
+        client: undefined, // No client for general login
+        isRefreshTokenUsed: false,
+      });
+      await this.tokenRepository.save(tokenEntity);
+
       return {
         user,
         accessToken,
+        refreshToken,
         expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
       };
     } catch (error) {
@@ -281,9 +303,30 @@ export class AuthService {
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
 
+      // Generate refresh token for 2FA login
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const refreshExpiresAt = new Date();
+      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
+
+      // Store refresh token in database
+      const tokenEntity = this.tokenRepository.create({
+        accessToken,
+        refreshToken,
+        expiresAt: new Date(
+          Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
+        ),
+        refreshExpiresAt,
+        scopes: ['read:user', 'write:user'], // Default scopes for general login
+        user,
+        client: undefined, // No client for general login
+        isRefreshTokenUsed: false,
+      });
+      await this.tokenRepository.save(tokenEntity);
+
       return {
         user,
         accessToken,
+        refreshToken,
         expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
       };
     } catch (error) {
@@ -381,9 +424,30 @@ export class AuthService {
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
 
+      // Generate refresh token for backup code login
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const refreshExpiresAt = new Date();
+      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
+
+      // Store refresh token in database
+      const tokenEntity = this.tokenRepository.create({
+        accessToken,
+        refreshToken,
+        expiresAt: new Date(
+          Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
+        ),
+        refreshExpiresAt,
+        scopes: ['read:user', 'write:user'], // Default scopes for general login
+        user: updatedUser,
+        client: undefined, // No client for general login
+        isRefreshTokenUsed: false,
+      });
+      await this.tokenRepository.save(tokenEntity);
+
       return {
         user: updatedUser,
         accessToken,
+        refreshToken,
         expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
       };
     } catch (error) {
@@ -656,6 +720,53 @@ export class AuthService {
       { user: { id: userId } },
       { isRevoked: true },
     );
+  }
+
+  // JWT 토큰 리프래시 (일반 로그인용)
+  async refreshToken(token: string): Promise<LoginResponse> {
+    try {
+      // 토큰 검증
+      const payload = this.jwtService.verify<JwtPayload>(token);
+
+      // 사용자 조회
+      const user = await this.userRepository.findOne({
+        where: { id: parseInt(payload.sub, 10) },
+        select: [
+          'id',
+          'email',
+          'username',
+          'firstName',
+          'lastName',
+          'permissions',
+          'userType',
+        ],
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      // 새로운 토큰 생성 (기존과 동일한 방식)
+      const newPayload: JwtPayload = {
+        sub: user.id.toString(),
+        email: user.email,
+        username: user.username,
+        roles: [PermissionUtils.getRoleName(user.permissions)],
+        permissions: user.permissions,
+        type: AUTH_CONSTANTS.TOKEN_TYPE,
+      };
+
+      const accessToken = this.jwtService.sign(newPayload);
+
+      return {
+        user,
+        accessToken,
+        expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
+      };
+    } catch (error) {
+      this.logger.error('Token refresh error:', error);
+      throw new UnauthorizedException('Invalid or expired token');
+    }
   }
 
   // 로그아웃

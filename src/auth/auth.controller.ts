@@ -150,6 +150,29 @@ export class AuthController {
     return this.authService.logout(token);
   }
 
+  @Post('refresh')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'JWT 토큰 리프래시' })
+  @ApiResponse({
+    status: 200,
+    description: '토큰 리프래시 성공',
+    type: LoginResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: '유효하지 않은 토큰',
+  })
+  refresh(@Request() req: ExpressRequest) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new BadRequestException('토큰이 필요합니다.');
+    }
+
+    const token = authHeader.substring(7);
+    return this.authService.refreshToken(token);
+  }
+
   @Post('verify-backup-code')
   @ApiOperation({ summary: '백업 코드 검증 및 로그인 완료' })
   @ApiResponse({
