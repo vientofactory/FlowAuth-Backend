@@ -7,6 +7,7 @@ import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
 import { Scope } from '../scope/scope.entity';
 import { SeedService } from './seed.service';
+import { DatabaseInitializationService } from './database-initialization.service';
 
 @Module({
   imports: [
@@ -27,7 +28,7 @@ import { SeedService } from './seed.service';
     }),
     TypeOrmModule.forFeature([Scope, Client, User]),
   ],
-  providers: [SeedService],
-  exports: [SeedService],
+  providers: [SeedService, DatabaseInitializationService],
+  exports: [SeedService, DatabaseInitializationService],
 })
 export class DatabaseModule {}

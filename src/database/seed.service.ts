@@ -138,7 +138,7 @@ export class SeedService {
     this.logger.log('Database seeding completed!');
   }
 
-  private async seedScopes(): Promise<void> {
+  async seedScopes(): Promise<void> {
     this.logger.log('Seeding scopes...');
 
     for (const scopeData of SeedService.DEFAULT_SCOPES) {
