@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,6 +10,7 @@ import { OAuth2JwtPayload } from '../../types/oauth2.types';
 
 @Injectable()
 export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
+  private readonly logger = new Logger(OAuth2Strategy.name);
   constructor(
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
@@ -29,7 +30,7 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
 
   async validate(payload: OAuth2JwtPayload): Promise<OAuth2JwtPayload> {
     try {
-      console.log('OAuth2Strategy: Validating OAuth2 token payload:', {
+      this.logger.debug('Validating OAuth2 token payload', {
         sub: payload.sub,
         client_id: payload.client_id,
         scopes: payload.scopes,
@@ -39,18 +40,29 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
 
       // Validate OAuth2 payload structure
       if (payload.token_type !== 'Bearer') {
-        console.log('OAuth2Strategy: Invalid token_type:', payload.token_type);
+        this.logger.warn('Invalid token_type in OAuth2 payload', {
+          token_type: payload.token_type,
+        });
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
       }
 
       if (!Array.isArray(payload.scopes)) {
-        console.log('OAuth2Strategy: Invalid scopes format');
+        this.logger.warn('Invalid scopes format in OAuth2 payload');
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
       }
 
       // If jti is present, verify token exists in database (for revocation check)
       if (payload.jti) {
-        console.log('OAuth2Strategy: Checking jti:', payload.jti);
+        this.logger.debug('Checking jti in database', { jti: payload.jti });
+
+        // Validate that jti is a valid numeric string
+        if (typeof payload.jti !== 'string' || isNaN(Number(payload.jti))) {
+          this.logger.warn('Invalid jti format in OAuth2 payload', {
+            jti: payload.jti,
+          });
+          throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
+        }
+
         const tokenId = parseInt(payload.jti, 10);
         const token = await this.tokenRepository.findOne({
           where: { id: tokenId },
@@ -58,38 +70,52 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
         });
 
         if (!token) {
-          console.log('OAuth2Strategy: Token not found in database');
+          this.logger.warn('OAuth2 token not found in database', {
+            jti: payload.jti,
+          });
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
         if (!token.client) {
-          console.log('OAuth2Strategy: Token has no associated client');
+          this.logger.warn('OAuth2 token has no associated client', {
+            jti: payload.jti,
+          });
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
         // Verify token belongs to the client
         if (payload.client_id && token.client.clientId !== payload.client_id) {
-          console.log('OAuth2Strategy: Token client mismatch');
+          this.logger.warn('OAuth2 token client mismatch', {
+            jti: payload.jti,
+            payloadClientId: payload.client_id,
+            tokenClientId: token.client.clientId,
+          });
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
         // Verify token is not revoked and not expired
         if (token.isRevoked || token.expiresAt < new Date()) {
-          console.log('OAuth2Strategy: Token is revoked or expired');
+          this.logger.warn('OAuth2 token is revoked or expired', {
+            jti: payload.jti,
+            isRevoked: token.isRevoked,
+            expiresAt: token.expiresAt,
+          });
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
-        console.log('OAuth2Strategy: JTI validation passed');
+        this.logger.debug('JTI validation passed', { jti: payload.jti });
       }
 
-      console.log('OAuth2Strategy: OAuth2 token validation passed');
+      this.logger.debug('OAuth2 token validation passed');
       return payload;
     } catch (error: unknown) {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
 
-      console.log('OAuth2Strategy: Unexpected error during validation:', error);
+      this.logger.error('Unexpected error during OAuth2 token validation', {
+        error,
+      });
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
     }
   }

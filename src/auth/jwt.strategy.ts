@@ -48,6 +48,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
       // If jti is present, verify token exists in database (for revocation check)
       if (payload.jti) {
+        // Validate that jti is a valid numeric string
+        if (typeof payload.jti !== 'string' || isNaN(Number(payload.jti))) {
+          throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
+        }
+
         const tokenId = parseInt(payload.jti, 10);
         const token = await this.tokenRepository.findOne({
           where: { id: tokenId },
