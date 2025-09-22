@@ -5,7 +5,7 @@ FlowAuth의 백엔드 API 서버입니다. NestJS와 TypeORM을 기반으로 OAu
 ## 🚀 기술 스택
 
 - **Framework**: [NestJS](https://nestjs.com/)
-- **Database**: MySQL + [TypeORM](https://typeorm.io/)
+- **Database**: MariaDB + [TypeORM](https://typeorm.io/)
 - **Authentication**: Passport.js + JWT
 - **Validation**: class-validator + class-transformer
 - **Security**: Helmet, CORS, Rate Limiting
@@ -16,7 +16,7 @@ FlowAuth의 백엔드 API 서버입니다. NestJS와 TypeORM을 기반으로 OAu
 ## 📋 사전 요구사항
 
 - Node.js (v18 이상)
-- MySQL (또는 호환되는 데이터베이스)
+- MariaDB (또는 MySQL 호환 데이터베이스)
 - npm 또는 yarn
 
 ## 🛠️ 빠른 시작
@@ -55,7 +55,7 @@ NODE_ENV=development
 ### 3. 데이터베이스 설정
 
 ```bash
-# 데이터베이스 생성
+# 데이터베이스 생성 (MariaDB)
 mysql -u root -p -e "CREATE DATABASE flowauth;"
 
 # 마이그레이션 실행
@@ -64,6 +64,133 @@ npm run migration:run
 # 초기 데이터 시딩 (OAuth2 기본 데이터)
 npm run seed
 ```
+
+### 수동 테이블 생성 (선택사항)
+
+TypeORM 마이그레이션을 사용하지 않고 수동으로 테이블을 생성하려면 다음 SQL 쿼리문을 사용하세요:
+
+#### 1. 사용자 테이블 (User)
+
+```sql
+CREATE TABLE `user` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `username` varchar(100) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `firstName` varchar(100) DEFAULT NULL,
+  `lastName` varchar(100) DEFAULT NULL,
+  `userType` varchar(20) NOT NULL DEFAULT 'regular',
+  `isEmailVerified` tinyint NOT NULL DEFAULT 0,
+  `permissions` bigint NOT NULL DEFAULT 1,
+  `lastLoginAt` datetime DEFAULT NULL,
+  `twoFactorSecret` varchar(255) DEFAULT NULL,
+  `isTwoFactorEnabled` tinyint NOT NULL DEFAULT 0,
+  `backupCodes` json DEFAULT NULL,
+  `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updatedAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `IDX_78a916df40e02a9deb1c4b75ed` (`username`),
+  UNIQUE KEY `IDX_e12875dfb3b1d92d7d7c5377e2` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+#### 2. 클라이언트 테이블 (Client)
+
+```sql
+CREATE TABLE `client` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `clientId` varchar(255) NOT NULL,
+  `clientSecret` varchar(255) DEFAULT NULL,
+  `redirectUris` json NOT NULL,
+  `grants` json NOT NULL,
+  `scopes` json DEFAULT NULL,
+  `name` varchar(255) NOT NULL,
+  `description` varchar(500) DEFAULT NULL,
+  `isActive` tinyint NOT NULL DEFAULT 1,
+  `isConfidential` tinyint NOT NULL DEFAULT 0,
+  `logoUri` varchar(500) DEFAULT NULL,
+  `termsOfServiceUri` varchar(500) DEFAULT NULL,
+  `policyUri` varchar(500) DEFAULT NULL,
+  `userId` int NOT NULL,
+  `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updatedAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `IDX_368e4240b4c7f4a6e6e1b7c6b8` (`clientId`),
+  KEY `FK_368e4240b4c7f4a6e6e1b7c6b8a` (`userId`),
+  CONSTRAINT `FK_368e4240b4c7f4a6e6e1b7c6b8a` FOREIGN KEY (`userId`) REFERENCES `user` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+#### 3. 토큰 테이블 (Token)
+
+```sql
+CREATE TABLE `token` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `accessToken` varchar(2048) NOT NULL,
+  `refreshToken` varchar(2048) DEFAULT NULL,
+  `expiresAt` datetime NOT NULL,
+  `refreshExpiresAt` datetime DEFAULT NULL,
+  `scopes` json DEFAULT NULL,
+  `tokenType` varchar(20) NOT NULL DEFAULT 'bearer',
+  `isRevoked` tinyint NOT NULL DEFAULT 0,
+  `isRefreshTokenUsed` tinyint NOT NULL DEFAULT 0,
+  `userId` int DEFAULT NULL,
+  `clientId` int NOT NULL,
+  `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `IDX_1e4a750a92c4a87a9e89c8d9e9` (`accessToken`),
+  UNIQUE KEY `IDX_1e4a750a92c4a87a9e89c8d9e8` (`refreshToken`),
+  KEY `IDX_1e4a750a92c4a87a9e89c8d9e7` (`clientId`,`userId`),
+  KEY `FK_1e4a750a92c4a87a9e89c8d9e6` (`userId`),
+  KEY `FK_1e4a750a92c4a87a9e89c8d9e5` (`clientId`),
+  CONSTRAINT `FK_1e4a750a92c4a87a9e89c8d9e5` FOREIGN KEY (`clientId`) REFERENCES `client` (`id`),
+  CONSTRAINT `FK_1e4a750a92c4a87a9e89c8d9e6` FOREIGN KEY (`userId`) REFERENCES `user` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+#### 4. 인가 코드 테이블 (AuthorizationCode)
+
+```sql
+CREATE TABLE `authorization_code` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `code` varchar(128) NOT NULL,
+  `expiresAt` datetime NOT NULL,
+  `redirectUri` varchar(500) DEFAULT NULL,
+  `scopes` json DEFAULT NULL,
+  `state` varchar(256) DEFAULT NULL,
+  `codeChallenge` varchar(128) DEFAULT NULL,
+  `codeChallengeMethod` varchar(10) DEFAULT NULL,
+  `isUsed` tinyint NOT NULL DEFAULT 0,
+  `userId` int NOT NULL,
+  `clientId` int NOT NULL,
+  `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `IDX_1e4a750a92c4a87a9e89c8d9e4` (`code`),
+  KEY `IDX_1e4a750a92c4a87a9e89c8d9e3` (`clientId`,`userId`),
+  KEY `FK_1e4a750a92c4a87a9e89c8d9e2` (`userId`),
+  KEY `FK_1e4a750a92c4a87a9e89c8d9e1` (`clientId`),
+  CONSTRAINT `FK_1e4a750a92c4a87a9e89c8d9e1` FOREIGN KEY (`clientId`) REFERENCES `client` (`id`),
+  CONSTRAINT `FK_1e4a750a92c4a87a9e89c8d9e2` FOREIGN KEY (`userId`) REFERENCES `user` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+#### 5. 스코프 테이블 (Scope)
+
+```sql
+CREATE TABLE `scope` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `description` varchar(255) NOT NULL,
+  `isDefault` tinyint NOT NULL DEFAULT 1,
+  `isActive` tinyint NOT NULL DEFAULT 1,
+  `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updatedAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `IDX_1e4a750a92c4a87a9e89c8d9e0` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+> **참고**: 위 SQL 쿼리문들은 TypeORM 마이그레이션에서 자동으로 생성되는 것과 동일합니다. 수동으로 테이블을 생성할 때만 사용하세요.
 
 ### 4. 개발 서버 실행
 
@@ -201,12 +328,6 @@ npm run typeorm
 ### 추가 환경 변수 (선택사항)
 
 ```env
-# Redis Configuration (캐싱용)
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_PASSWORD=
-REDIS_DB=0
-
 # OAuth2 Configuration
 OAUTH2_ACCESS_TOKEN_EXPIRY_HOURS=1
 OAUTH2_REFRESH_TOKEN_EXPIRY_DAYS=30
@@ -263,7 +384,7 @@ FRONTEND_URL=http://localhost:5173
 **해결 방법**:
 
 1. `.env` 파일의 데이터베이스 설정 확인
-2. MySQL 서비스가 실행 중인지 확인
+2. MariaDB 서비스가 실행 중인지 확인
 3. 데이터베이스 권한 확인
 
 ### 마이그레이션 오류

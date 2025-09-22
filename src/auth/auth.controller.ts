@@ -19,6 +19,7 @@ import {
   ApiBody,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import type { Response, Request as ExpressRequest } from 'express';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -32,6 +33,7 @@ import { PERMISSIONS } from '../constants/auth.constants';
 import { LoginResponseDto, ClientCreateResponseDto } from './dto/response.dto';
 
 @Controller('auth')
+@UseGuards(ThrottlerGuard)
 @ApiTags('Authentication')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -53,6 +55,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 1분에 5번 로그인 시도 제한
   @ApiOperation({ summary: '사용자 로그인' })
   @ApiResponse({
     status: 200,
@@ -145,6 +148,29 @@ export class AuthController {
 
     const token = authHeader.substring(7);
     return this.authService.logout(token);
+  }
+
+  @Post('refresh')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'JWT 토큰 리프래시' })
+  @ApiResponse({
+    status: 200,
+    description: '토큰 리프래시 성공',
+    type: LoginResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: '유효하지 않은 토큰',
+  })
+  refresh(@Request() req: ExpressRequest) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new BadRequestException('토큰이 필요합니다.');
+    }
+
+    const token = authHeader.substring(7);
+    return this.authService.refreshToken(token);
   }
 
   @Post('verify-backup-code')

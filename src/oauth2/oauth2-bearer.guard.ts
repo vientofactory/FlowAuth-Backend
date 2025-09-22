@@ -64,7 +64,7 @@ export class OAuth2BearerGuard implements CanActivate {
       Array.isArray(p.scopes) &&
       p.scopes.every((scope: unknown) => typeof scope === 'string') &&
       p.token_type === 'Bearer' &&
-      (p.sub === null || typeof p.sub === 'number')
+      (p.sub === null || typeof p.sub === 'string')
     );
   }
 }

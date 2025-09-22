@@ -21,18 +21,16 @@ export class AppConfigService {
   readonly dbAcquireTimeout: number;
   readonly dbTimeout: number;
 
-  // Redis Configuration
-  readonly redisHost: string;
-  readonly redisPort: number;
-  readonly redisPassword?: string;
-  readonly redisDb?: number;
-
   // Cache Configuration
   readonly cacheTtl: number; // milliseconds
 
   // JWT Configuration
   readonly jwtSecret: string;
   readonly jwtExpiry: string;
+
+  // reCAPTCHA Configuration
+  readonly recaptchaSecretKey: string;
+  readonly recaptchaScoreThreshold: number;
 
   // Cleanup Configuration
   readonly cleanupCronExpression: string;
@@ -81,19 +79,6 @@ export class AppConfigService {
       10,
     );
 
-    // Redis Configuration
-    this.redisHost =
-      this.configService.get<string>('REDIS_HOST') || 'localhost';
-    this.redisPort = parseInt(
-      this.configService.get<string>('REDIS_PORT') || '6379',
-      10,
-    );
-    this.redisPassword = this.configService.get<string>('REDIS_PASSWORD');
-    this.redisDb = parseInt(
-      this.configService.get<string>('REDIS_DB') || '0',
-      10,
-    );
-
     // Cache Configuration
     this.cacheTtl = parseInt(
       this.configService.get<string>('CACHE_TTL') || '300000', // 5 minutes
@@ -104,6 +89,13 @@ export class AppConfigService {
     this.jwtSecret =
       this.configService.get<string>('JWT_SECRET') || 'your-secret-key';
     this.jwtExpiry = this.configService.get<string>('JWT_EXPIRY') || '1h';
+
+    // reCAPTCHA Configuration
+    this.recaptchaSecretKey =
+      this.configService.get<string>('RECAPTCHA_SECRET_KEY') || '';
+    this.recaptchaScoreThreshold = parseFloat(
+      this.configService.get<string>('RECAPTCHA_SCORE_THRESHOLD') || '0.5',
+    );
 
     // Cleanup Configuration
     this.cleanupCronExpression =

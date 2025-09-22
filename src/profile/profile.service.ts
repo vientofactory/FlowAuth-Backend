@@ -2,9 +2,12 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
 import { User } from '../user/user.entity';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
@@ -14,15 +17,28 @@ export class ProfileService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @Inject(CACHE_MANAGER)
+    private cacheManager: Cache,
   ) {}
 
   async findById(id: number): Promise<User> {
+    const cacheKey = `user:${id}`;
+
+    // 캐시에서 먼저 조회
+    const cached = await this.cacheManager.get<User>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // 캐시에 없으면 DB 조회
     const user = await this.userRepository.findOne({ where: { id } });
 
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
 
+    // 결과를 캐시에 저장 (10분 TTL)
+    await this.cacheManager.set(cacheKey, user, 600000);
     return user;
   }
 
@@ -103,6 +119,9 @@ export class ProfileService {
     // 데이터베이스 업데이트
     await this.userRepository.update(userId, filteredData);
 
+    // 캐시 무효화
+    await this.cacheManager.del(`user:${userId}`);
+
     // 업데이트된 사용자 정보 조회
     const updatedUser = await this.userRepository.findOne({
       where: { id: userId },
@@ -148,6 +167,9 @@ export class ProfileService {
 
     // 비밀번호 업데이트
     await this.userRepository.update(userId, { password: hashedNewPassword });
+
+    // 캐시 무효화 (비밀번호 변경 시 사용자 정보 캐시도 무효화)
+    await this.cacheManager.del(`user:${userId}`);
   }
 
   async checkUsernameAvailability(

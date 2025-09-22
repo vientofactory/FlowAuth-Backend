@@ -1,6 +1,5 @@
 import { NestFactory } from '@nestjs/core';
 import {
-  ValidationPipe,
   ClassSerializerInterceptor,
   INestApplication,
   Logger,
@@ -15,6 +14,7 @@ import { join } from 'path';
 import { Request, Response, NextFunction } from 'express';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { setupSwagger } from './config/swagger.setup';
+import { ValidationSanitizationPipe } from './common/validation-sanitization.pipe';
 
 /**
  * FlowAuth Application Bootstrap
@@ -32,6 +32,20 @@ async function bootstrap(): Promise<void> {
   const port = configService.get<number>('PORT') ?? 3000;
   await app.listen(port);
   logger.log(`FlowAuth server running on port ${port}`);
+
+  // Enable graceful shutdown hooks
+  app.enableShutdownHooks();
+
+  // Handle termination signals for graceful shutdown
+  process.on('SIGTERM', () => {
+    logger.log('Received SIGTERM signal, starting graceful shutdown...');
+    void gracefulShutdown(app, logger);
+  });
+
+  process.on('SIGINT', () => {
+    logger.log('Received SIGINT signal, starting graceful shutdown...');
+    void gracefulShutdown(app, logger);
+  });
 }
 
 /**
@@ -167,14 +181,8 @@ function configureCORS(app: NestExpressApplication): void {
  * Configure validation and serialization
  */
 function configureValidation(app: NestExpressApplication): void {
-  // Global validation pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
+  // Global validation and sanitization pipe
+  app.useGlobalPipes(new ValidationSanitizationPipe());
 
   // Global serialization interceptor
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
@@ -203,3 +211,21 @@ void bootstrap().catch((error) => {
   logger.error('Failed to start FlowAuth server:', error);
   process.exit(1);
 });
+
+/**
+ * Graceful shutdown handler
+ */
+async function gracefulShutdown(
+  app: INestApplication,
+  logger: Logger,
+): Promise<void> {
+  try {
+    logger.log('Closing application...');
+    await app.close();
+    logger.log('Application closed successfully');
+    process.exit(0);
+  } catch (error: unknown) {
+    logger.error('Error during graceful shutdown:', error);
+    process.exit(1);
+  }
+}

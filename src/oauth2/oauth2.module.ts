@@ -17,11 +17,15 @@ import { AuthorizationCode } from '../authorization-code/authorization-code.enti
 import { Token } from '../token/token.entity';
 import { Scope } from '../scope/scope.entity';
 import { AppConfigService } from '../config/app-config.service';
+import { LoggingModule } from '../logging/logging.module';
+import { CacheConfigModule } from '../cache/cache-config.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Client, AuthorizationCode, Token, Scope]),
     ScheduleModule.forRoot(),
+    LoggingModule,
+    CacheConfigModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET') || 'your-secret-key',

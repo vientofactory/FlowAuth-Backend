@@ -3,10 +3,13 @@ import {
   ConflictException,
   UnauthorizedException,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
@@ -14,6 +17,7 @@ import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
 import * as bcrypt from 'bcrypt';
 import * as speakeasy from 'speakeasy';
+import * as crypto from 'crypto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateClientDto } from './dto/create-client.dto';
 import {
@@ -23,12 +27,14 @@ import {
   USER_TYPES,
   USER_TYPE_PERMISSIONS,
 } from '../constants/auth.constants';
+import { OAUTH2_SCOPES } from '../constants/oauth2.constants';
 import { JwtPayload, LoginResponse } from '../types/auth.types';
 import { snowflakeGenerator } from '../utils/snowflake-id.util';
 import { CryptoUtils } from '../utils/crypto.util';
 import { PermissionUtils } from '../utils/permission.util';
 import { TwoFactorService } from './two-factor.service';
 import { FileUploadService } from '../upload/file-upload.service';
+import { RecaptchaService } from '../utils/recaptcha.util';
 
 @Injectable()
 export class AuthService {
@@ -47,11 +53,32 @@ export class AuthService {
     private configService: ConfigService,
     private fileUploadService: FileUploadService,
     private twoFactorService: TwoFactorService,
+    private recaptchaService: RecaptchaService,
+    @Inject(CACHE_MANAGER)
+    private cacheManager: Cache,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
-    const { username, email, password, firstName, lastName, userType } =
-      createUserDto;
+    const {
+      username,
+      email,
+      password,
+      firstName,
+      lastName,
+      userType,
+      recaptchaToken,
+    } = createUserDto;
+
+    // Verify reCAPTCHA token if provided
+    if (recaptchaToken) {
+      const isValidRecaptcha = await this.recaptchaService.verifyToken(
+        recaptchaToken,
+        'register',
+      );
+      if (!isValidRecaptcha) {
+        throw new UnauthorizedException('reCAPTCHA verification failed');
+      }
+    }
 
     // Check if user already exists
     const existingUser = await this.userRepository.findOne({
@@ -101,8 +128,20 @@ export class AuthService {
   async login(loginDto: {
     email: string;
     password: string;
+    recaptchaToken?: string;
   }): Promise<LoginResponse> {
-    const { email, password } = loginDto;
+    const { email, password, recaptchaToken } = loginDto;
+
+    // Verify reCAPTCHA token if provided
+    if (recaptchaToken) {
+      const isValidRecaptcha = await this.recaptchaService.verifyToken(
+        recaptchaToken,
+        'login',
+      );
+      if (!isValidRecaptcha) {
+        throw new UnauthorizedException('reCAPTCHA verification failed');
+      }
+    }
 
     try {
       // Find user with 2FA fields
@@ -148,6 +187,10 @@ export class AuthService {
         lastLoginAt: new Date(),
       });
 
+      // 로그인 성공 시 대시보드 캐시 무효화 (lastLoginAt 변경으로 인한 통계 업데이트)
+      await this.cacheManager.del(`stats:${user.id}`);
+      await this.cacheManager.del(`activities:${user.id}:10`); // 기본 limit 10
+
       // Generate JWT token with enhanced payload
       const payload: JwtPayload = {
         sub: user.id.toString(),
@@ -160,15 +203,44 @@ export class AuthService {
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
 
+      // Generate refresh token for general login
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const refreshExpiresAt = new Date();
+      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
+
+      // Store refresh token in database
+      const tokenEntity = this.tokenRepository.create({
+        accessToken,
+        refreshToken,
+        expiresAt: new Date(
+          Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
+        ),
+        refreshExpiresAt,
+        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
+        user,
+        // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
+        isRefreshTokenUsed: false,
+      });
+      await this.tokenRepository.save(tokenEntity);
+
       return {
         user,
         accessToken,
+        refreshToken,
         expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
+
+      // 프로덕션에서는 실제 에러를 로그에 기록하되 사용자에게는 일반적인 메시지 반환
+      this.logger.error('Login failed with unexpected error:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        email: loginDto.email,
+        timestamp: new Date().toISOString(),
+      });
 
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.LOGIN_FAILED);
     }
@@ -239,15 +311,46 @@ export class AuthService {
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
 
+      // Generate refresh token for 2FA login
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const refreshExpiresAt = new Date();
+      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
+
+      // Store refresh token in database
+      const tokenEntity = this.tokenRepository.create({
+        accessToken,
+        refreshToken,
+        expiresAt: new Date(
+          Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
+        ),
+        refreshExpiresAt,
+        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
+        user,
+        isRefreshTokenUsed: false,
+      });
+      await this.tokenRepository.save(tokenEntity);
+
       return {
         user,
         accessToken,
+        refreshToken,
         expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
+
+      // 프로덕션에서는 실제 에러를 로그에 기록하되 사용자에게는 일반적인 메시지 반환
+      this.logger.error(
+        'Two-factor token verification failed with unexpected error:',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          email,
+          timestamp: new Date().toISOString(),
+        },
+      );
 
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.LOGIN_FAILED);
     }
@@ -339,15 +442,47 @@ export class AuthService {
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
 
+      // Generate refresh token for backup code login
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const refreshExpiresAt = new Date();
+      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
+
+      // Store refresh token in database
+      const tokenEntity = this.tokenRepository.create({
+        accessToken,
+        refreshToken,
+        expiresAt: new Date(
+          Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
+        ),
+        refreshExpiresAt,
+        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
+        user: updatedUser,
+        // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
+        isRefreshTokenUsed: false,
+      });
+      await this.tokenRepository.save(tokenEntity);
+
       return {
         user: updatedUser,
         accessToken,
+        refreshToken,
         expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
+
+      // 프로덕션에서는 실제 에러를 로그에 기록하되 사용자에게는 일반적인 메시지 반환
+      this.logger.error(
+        'Backup code verification failed with unexpected error:',
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          email,
+          timestamp: new Date().toISOString(),
+        },
+      );
 
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.LOGIN_FAILED);
     }
@@ -372,6 +507,17 @@ export class AuthService {
     const clientId = snowflakeGenerator.generate();
     const clientSecret = CryptoUtils.generateRandomString(64);
 
+    // Set default scopes if not provided
+    const clientScopes =
+      scopes && scopes.length > 0
+        ? scopes
+        : [
+            OAUTH2_SCOPES.READ_USER,
+            OAUTH2_SCOPES.READ_PROFILE,
+            OAUTH2_SCOPES.EMAIL,
+            OAUTH2_SCOPES.BASIC,
+          ];
+
     const client = this.clientRepository.create({
       clientId,
       clientSecret,
@@ -379,7 +525,7 @@ export class AuthService {
       description,
       redirectUris,
       grants,
-      scopes,
+      scopes: clientScopes,
       logoUri,
       termsOfServiceUri,
       policyUri,
@@ -603,6 +749,53 @@ export class AuthService {
       { user: { id: userId } },
       { isRevoked: true },
     );
+  }
+
+  // JWT 토큰 리프래시 (일반 로그인용)
+  async refreshToken(token: string): Promise<LoginResponse> {
+    try {
+      // 토큰 검증
+      const payload = this.jwtService.verify<JwtPayload>(token);
+
+      // 사용자 조회
+      const user = await this.userRepository.findOne({
+        where: { id: parseInt(payload.sub, 10) },
+        select: [
+          'id',
+          'email',
+          'username',
+          'firstName',
+          'lastName',
+          'permissions',
+          'userType',
+        ],
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      // 새로운 토큰 생성 (기존과 동일한 방식)
+      const newPayload: JwtPayload = {
+        sub: user.id.toString(),
+        email: user.email,
+        username: user.username,
+        roles: [PermissionUtils.getRoleName(user.permissions)],
+        permissions: user.permissions,
+        type: AUTH_CONSTANTS.TOKEN_TYPE,
+      };
+
+      const accessToken = this.jwtService.sign(newPayload);
+
+      return {
+        user,
+        accessToken,
+        expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
+      };
+    } catch (error) {
+      this.logger.error('Token refresh error:', error);
+      throw new UnauthorizedException('Invalid or expired token');
+    }
   }
 
   // 로그아웃
