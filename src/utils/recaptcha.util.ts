@@ -32,13 +32,19 @@ export class RecaptchaService {
     }
 
     try {
-      const url = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${token}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+      const response = await fetch(
+        'https://www.google.com/recaptcha/api/siteverify',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            secret: secretKey,
+            response: token,
+          }),
         },
-      });
+      );
 
       if (!response.ok) {
         this.logger.error(
@@ -110,8 +116,19 @@ export class RecaptchaService {
     }
 
     try {
-      const url = `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${token}`;
-      const response = await fetch(url, { method: 'POST' });
+      const response = await fetch(
+        'https://www.google.com/recaptcha/api/siteverify',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            secret: secretKey,
+            response: token,
+          }),
+        },
+      );
 
       if (!response.ok) {
         return null;
