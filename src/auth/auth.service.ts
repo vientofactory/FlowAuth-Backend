@@ -218,7 +218,7 @@ export class AuthService {
         refreshExpiresAt,
         scopes: ['read:user', 'write:user'], // Default scopes for general login
         user,
-        client: undefined, // No client for general login
+        // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
         isRefreshTokenUsed: false,
       });
       await this.tokenRepository.save(tokenEntity);
@@ -326,7 +326,6 @@ export class AuthService {
         refreshExpiresAt,
         scopes: ['read:user', 'write:user'], // Default scopes for general login
         user,
-        client: undefined, // No client for general login
         isRefreshTokenUsed: false,
       });
       await this.tokenRepository.save(tokenEntity);
@@ -458,7 +457,7 @@ export class AuthService {
         refreshExpiresAt,
         scopes: ['read:user', 'write:user'], // Default scopes for general login
         user: updatedUser,
-        client: undefined, // No client for general login
+        // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
         isRefreshTokenUsed: false,
       });
       await this.tokenRepository.save(tokenEntity);
