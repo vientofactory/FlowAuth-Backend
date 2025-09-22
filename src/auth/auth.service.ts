@@ -216,7 +216,7 @@ export class AuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: ['read:user', 'write:user'], // Default scopes for general login
+        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
         user,
         // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
         isRefreshTokenUsed: false,
@@ -324,7 +324,7 @@ export class AuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: ['read:user', 'write:user'], // Default scopes for general login
+        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
         user,
         isRefreshTokenUsed: false,
       });
@@ -455,7 +455,7 @@ export class AuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: ['read:user', 'write:user'], // Default scopes for general login
+        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
         user: updatedUser,
         // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
         isRefreshTokenUsed: false,
