@@ -1,10 +1,17 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { SeedService } from './seed.service';
 
 @Injectable()
-export class DatabaseInitializationService implements OnModuleInit {
+export class DatabaseInitializationService
+  implements OnModuleInit, OnModuleDestroy
+{
   private readonly logger = new Logger(DatabaseInitializationService.name);
 
   constructor(
@@ -271,5 +278,10 @@ export class DatabaseInitializationService implements OnModuleInit {
       this.logger.error('Error during initial data seeding:', error);
       // 시드 실패는 치명적이지 않으므로 예외를 던지지 않음
     }
+  }
+
+  onModuleDestroy(): void {
+    this.logger.log('DatabaseInitializationService is shutting down...');
+    // DataSource will be automatically closed by TypeORM
   }
 }
