@@ -30,6 +30,7 @@ export class AppConfigService {
 
   // reCAPTCHA Configuration
   readonly recaptchaSecretKey: string;
+  readonly recaptchaScoreThreshold: number;
 
   // Cleanup Configuration
   readonly cleanupCronExpression: string;
@@ -92,6 +93,9 @@ export class AppConfigService {
     // reCAPTCHA Configuration
     this.recaptchaSecretKey =
       this.configService.get<string>('RECAPTCHA_SECRET_KEY') || '';
+    this.recaptchaScoreThreshold = parseFloat(
+      this.configService.get<string>('RECAPTCHA_SCORE_THRESHOLD') || '0.5',
+    );
 
     // Cleanup Configuration
     this.cleanupCronExpression =

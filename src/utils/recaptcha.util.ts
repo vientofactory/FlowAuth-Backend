@@ -13,7 +13,6 @@ interface RecaptchaResponse {
 @Injectable()
 export class RecaptchaService {
   private readonly logger = new Logger(RecaptchaService.name);
-  private readonly scoreThreshold: number = 0.5; // 기본 점수 임계값
 
   constructor(private appConfigService: AppConfigService) {}
 
@@ -77,9 +76,9 @@ export class RecaptchaService {
         );
 
         // 점수 임계값 검증
-        if (data.score < this.scoreThreshold) {
+        if (data.score < this.appConfigService.recaptchaScoreThreshold) {
           this.logger.warn(
-            `reCAPTCHA score too low: ${data.score} < ${this.scoreThreshold}`,
+            `reCAPTCHA score too low: ${data.score} < ${this.appConfigService.recaptchaScoreThreshold}`,
           );
           return false;
         }
