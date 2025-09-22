@@ -6,7 +6,7 @@ export class InitialTables1758513256230 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Create user table
     await queryRunner.query(`
-      CREATE TABLE \`user\` (
+      CREATE TABLE IF NOT EXISTS \`user\` (
         \`id\` int NOT NULL AUTO_INCREMENT,
         \`username\` varchar(100) NOT NULL,
         \`email\` varchar(255) NOT NULL,
@@ -30,7 +30,7 @@ export class InitialTables1758513256230 implements MigrationInterface {
 
     // Create client table
     await queryRunner.query(`
-      CREATE TABLE \`client\` (
+      CREATE TABLE IF NOT EXISTS \`client\` (
         \`id\` int NOT NULL AUTO_INCREMENT,
         \`clientId\` varchar(255) NOT NULL,
         \`clientSecret\` varchar(255) NULL,
@@ -54,7 +54,7 @@ export class InitialTables1758513256230 implements MigrationInterface {
 
     // Create scope table
     await queryRunner.query(`
-      CREATE TABLE \`scope\` (
+      CREATE TABLE IF NOT EXISTS \`scope\` (
         \`id\` int NOT NULL AUTO_INCREMENT,
         \`name\` varchar(255) NOT NULL,
         \`description\` varchar(255) NOT NULL,
@@ -69,14 +69,14 @@ export class InitialTables1758513256230 implements MigrationInterface {
 
     // Create token table
     await queryRunner.query(`
-      CREATE TABLE \`token\` (
+      CREATE TABLE IF NOT EXISTS \`token\` (
         \`id\` int NOT NULL AUTO_INCREMENT,
         \`accessToken\` varchar(2048) NOT NULL,
         \`refreshToken\` varchar(2048) NULL,
         \`expiresAt\` datetime NOT NULL,
         \`refreshExpiresAt\` datetime NULL,
         \`scopes\` json NULL,
-        \`tokenType\` varchar(20) NOT NULL DEFAULT 'bearer',
+        \`tokenType\` varchar(20) NOT NULL DEFAULT 'login',
         \`isRevoked\` tinyint NOT NULL DEFAULT 0,
         \`revokedAt\` datetime NULL,
         \`isRefreshTokenUsed\` tinyint NOT NULL DEFAULT 0,
@@ -92,7 +92,7 @@ export class InitialTables1758513256230 implements MigrationInterface {
 
     // Create authorization_code table
     await queryRunner.query(`
-      CREATE TABLE \`authorization_code\` (
+      CREATE TABLE IF NOT EXISTS \`authorization_code\` (
         \`id\` int NOT NULL AUTO_INCREMENT,
         \`code\` varchar(128) NOT NULL,
         \`expiresAt\` datetime NOT NULL,
@@ -162,10 +162,10 @@ export class InitialTables1758513256230 implements MigrationInterface {
     );
 
     // Drop tables in reverse order
-    await queryRunner.query(`DROP TABLE \`authorization_code\``);
-    await queryRunner.query(`DROP TABLE \`token\``);
-    await queryRunner.query(`DROP TABLE \`scope\``);
-    await queryRunner.query(`DROP TABLE \`client\``);
-    await queryRunner.query(`DROP TABLE \`user\``);
+    await queryRunner.query(`DROP TABLE IF EXISTS \`authorization_code\``);
+    await queryRunner.query(`DROP TABLE IF EXISTS \`token\``);
+    await queryRunner.query(`DROP TABLE IF EXISTS \`scope\``);
+    await queryRunner.query(`DROP TABLE IF EXISTS \`client\``);
+    await queryRunner.query(`DROP TABLE IF EXISTS \`user\``);
   }
 }

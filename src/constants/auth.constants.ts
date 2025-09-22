@@ -6,6 +6,14 @@ export const JWT_CONSTANTS = {
   TOKEN_TYPE: 'access' as const,
 } as const;
 
+// 토큰 타입 상수들
+export const TOKEN_TYPES = {
+  LOGIN: 'login',
+  OAUTH2: 'oauth2',
+} as const;
+
+export type TokenType = (typeof TOKEN_TYPES)[keyof typeof TOKEN_TYPES];
+
 // 권한 비트마스크 상수들
 export const PERMISSIONS = {
   // 사용자 권한

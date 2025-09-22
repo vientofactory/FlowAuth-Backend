@@ -4,16 +4,13 @@ import { PassportStrategy } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Strategy, ExtractJwt, StrategyOptions } from 'passport-jwt';
-import { User } from '../user/user.entity';
-import { Token } from '../token/token.entity';
-import { AUTH_ERROR_MESSAGES, TOKEN_TYPES } from '../constants/auth.constants';
-import { JwtPayload } from '../types/auth.types';
+import { Token } from '../../token/token.entity';
+import { AUTH_ERROR_MESSAGES } from '../../constants/auth.constants';
+import { OAuth2JwtPayload } from '../../types/oauth2.types';
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
+export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
   constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
     private configService: ConfigService,
@@ -30,77 +27,69 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super(options);
   }
 
-  async validate(payload: JwtPayload): Promise<User> {
+  async validate(payload: OAuth2JwtPayload): Promise<OAuth2JwtPayload> {
     try {
-      // Validate payload structure
-      if (!payload.sub || typeof payload.sub !== 'string') {
+      console.log('OAuth2Strategy: Validating OAuth2 token payload:', {
+        sub: payload.sub,
+        client_id: payload.client_id,
+        scopes: payload.scopes,
+        token_type: payload.token_type,
+        hasJti: !!payload.jti,
+      });
+
+      // Validate OAuth2 payload structure
+      if (payload.token_type !== 'Bearer') {
+        console.log('OAuth2Strategy: Invalid token_type:', payload.token_type);
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
       }
 
-      if (!payload.email || typeof payload.email !== 'string') {
+      if (!Array.isArray(payload.scopes)) {
+        console.log('OAuth2Strategy: Invalid scopes format');
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
-      }
-
-      // Check token type - only login tokens are allowed here
-      if (payload.type !== TOKEN_TYPES.LOGIN) {
-        throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN_TYPE);
       }
 
       // If jti is present, verify token exists in database (for revocation check)
       if (payload.jti) {
+        console.log('OAuth2Strategy: Checking jti:', payload.jti);
         const tokenId = parseInt(payload.jti, 10);
         const token = await this.tokenRepository.findOne({
           where: { id: tokenId },
-          relations: ['user'],
+          relations: ['client'],
         });
 
         if (!token) {
+          console.log('OAuth2Strategy: Token not found in database');
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
-        if (!token.user) {
+        if (!token.client) {
+          console.log('OAuth2Strategy: Token has no associated client');
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
-        // Verify token belongs to the user
-        if (token.user.id !== parseInt(payload.sub, 10)) {
+        // Verify token belongs to the client
+        if (payload.client_id && token.client.clientId !== payload.client_id) {
+          console.log('OAuth2Strategy: Token client mismatch');
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
         // Verify token is not revoked and not expired
         if (token.isRevoked || token.expiresAt < new Date()) {
+          console.log('OAuth2Strategy: Token is revoked or expired');
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
+
+        console.log('OAuth2Strategy: JTI validation passed');
       }
 
-      // Find user in database
-      const user = await this.userRepository.findOne({
-        where: { id: parseInt(payload.sub) },
-        select: [
-          'id',
-          'email',
-          'username',
-          'firstName',
-          'lastName',
-          'permissions',
-        ],
-      });
-
-      if (!user) {
-        throw new UnauthorizedException(AUTH_ERROR_MESSAGES.USER_NOT_FOUND);
-      }
-
-      // Verify email matches
-      if (user.email !== payload.email) {
-        throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
-      }
-
-      return user;
+      console.log('OAuth2Strategy: OAuth2 token validation passed');
+      return payload;
     } catch (error: unknown) {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
 
+      console.log('OAuth2Strategy: Unexpected error during validation:', error);
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
     }
   }

@@ -11,6 +11,7 @@ import { ScopeService } from './scope.service';
 import { CleanupSchedulerService } from './cleanup-scheduler.service';
 import { OAuth2BearerGuard } from './oauth2-bearer.guard';
 import { OAuth2ScopeGuard } from './guards/oauth2-scope.guard';
+import { OAuth2Strategy } from './guards/oauth2.strategy';
 import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
@@ -43,6 +44,7 @@ import { CacheConfigModule } from '../cache/cache-config.module';
     CleanupSchedulerService,
     OAuth2BearerGuard,
     OAuth2ScopeGuard,
+    OAuth2Strategy,
     AppConfigService,
   ],
   exports: [OAuth2Service, TokenService, OAuth2BearerGuard, OAuth2ScopeGuard],
