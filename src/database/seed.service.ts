@@ -21,37 +21,6 @@ export class SeedService {
   private readonly logger = new Logger(SeedService.name);
 
   private static readonly DEFAULT_SCOPES: readonly ScopeData[] = [
-    // 기존 스코프들 (하위 호환성)
-    {
-      name: 'read',
-      description: 'Read access to user data',
-      isDefault: true,
-    },
-    {
-      name: 'write',
-      description: 'Write access to user data',
-      isDefault: false,
-    },
-    {
-      name: 'profile',
-      description: 'Access to user profile information',
-      isDefault: true,
-    },
-    {
-      name: 'email',
-      description: 'Access to user email',
-      isDefault: true,
-    },
-    {
-      name: 'openid',
-      description: 'OpenID Connect identification',
-      isDefault: true,
-    },
-    {
-      name: 'offline_access',
-      description: 'Offline access (refresh tokens)',
-      isDefault: false,
-    },
     // 새로운 OAuth2 스코프들
     {
       name: OAUTH2_SCOPES.READ_USER,
@@ -59,24 +28,9 @@ export class SeedService {
       isDefault: true,
     },
     {
-      name: OAUTH2_SCOPES.WRITE_USER,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.WRITE_USER],
-      isDefault: false,
-    },
-    {
-      name: OAUTH2_SCOPES.DELETE_USER,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.DELETE_USER],
-      isDefault: false,
-    },
-    {
       name: OAUTH2_SCOPES.READ_PROFILE,
       description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.READ_PROFILE],
       isDefault: true,
-    },
-    {
-      name: OAUTH2_SCOPES.WRITE_PROFILE,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.WRITE_PROFILE],
-      isDefault: false,
     },
     {
       name: OAUTH2_SCOPES.UPLOAD_FILE,
@@ -109,14 +63,14 @@ export class SeedService {
       isDefault: false,
     },
     {
-      name: OAUTH2_SCOPES.ADMIN,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.ADMIN],
-      isDefault: false,
-    },
-    {
       name: OAUTH2_SCOPES.BASIC,
       description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.BASIC],
       isDefault: true,
+    },
+    {
+      name: OAUTH2_SCOPES.EMAIL,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.EMAIL],
+      isDefault: false,
     },
   ] as const;
 
@@ -188,11 +142,8 @@ export class SeedService {
         grants: ['authorization_code', 'refresh_token'],
         scopes: [
           OAUTH2_SCOPES.READ_USER,
-          OAUTH2_SCOPES.WRITE_USER,
           OAUTH2_SCOPES.READ_PROFILE,
-          OAUTH2_SCOPES.WRITE_PROFILE,
           OAUTH2_SCOPES.BASIC,
-          OAUTH2_SCOPES.EMAIL,
         ],
         isActive: true,
         userId: firstUser.id, // Assign to the first user

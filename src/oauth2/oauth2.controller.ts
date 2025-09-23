@@ -43,7 +43,6 @@ import type { User } from '../user/user.entity';
 import type { OAuth2JwtPayload } from '../types/oauth2.types';
 import type { JwtPayload } from '../types/auth.types';
 import { PermissionUtils } from '../utils/permission.util';
-import { OAUTH2_SCOPES } from '../constants/oauth2.constants';
 import {
   AuthorizeRequestDto,
   TokenRequestDto,
@@ -483,7 +482,7 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
 
   @Get('userinfo')
   @UseGuards(OAuth2BearerGuard, OAuth2ScopeGuard)
-  @RequireScopes(OAUTH2_SCOPES.READ_USER)
+  @RequireScopes('read:user')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '사용자 정보 조회',
@@ -542,8 +541,8 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
       response.email = user.email;
     }
 
-    // profile 스코프가 있을 때만 프로필 정보 반환
-    if (userScopes.includes('profile')) {
+    // read:profile 스코프가 있을 때만 프로필 정보 반환
+    if (userScopes.includes('read:profile')) {
       response.username = user.username;
       response.roles = [PermissionUtils.getRoleName(user.permissions)];
     }
@@ -854,9 +853,32 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
   }
 
   @Post('scopes/refresh')
-  @UseGuards(JwtAuthGuard, OAuth2ScopeGuard)
-  @RequireScopes(OAUTH2_SCOPES.ADMIN)
-  async refreshScopesCache() {
+  @UseGuards(JwtAuthGuard)
+  async refreshScopesCache(@Request() req: ExpressRequest) {
+    // JWT 토큰에서 사용자 정보 추출
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      throw new BadRequestException('Authorization token required');
+    }
+
+    let payload: JwtPayload;
+    try {
+      payload = this.jwtService.verify<JwtPayload>(token);
+    } catch {
+      throw new BadRequestException('Invalid token');
+    }
+
+    // 사용자 정보 조회
+    const user = await this.oauth2Service.getUserInfo(payload.sub);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // 시스템 관리자 권한 확인
+    if (!PermissionUtils.isAdmin(user.permissions)) {
+      throw new BadRequestException('System administrator privileges required');
+    }
+
     await this.scopeService.refreshCache();
     const cacheInfo = this.scopeService.getCacheInfo();
 
@@ -867,9 +889,32 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
   }
 
   @Get('scopes/cache-info')
-  @UseGuards(JwtAuthGuard, OAuth2ScopeGuard)
-  @RequireScopes(OAUTH2_SCOPES.ADMIN)
-  getScopesCacheInfo() {
+  @UseGuards(JwtAuthGuard)
+  async getScopesCacheInfo(@Request() req: ExpressRequest) {
+    // JWT 토큰에서 사용자 정보 추출
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      throw new BadRequestException('Authorization token required');
+    }
+
+    let payload: JwtPayload;
+    try {
+      payload = this.jwtService.verify<JwtPayload>(token);
+    } catch {
+      throw new BadRequestException('Invalid token');
+    }
+
+    // 사용자 정보 조회
+    const user = await this.oauth2Service.getUserInfo(payload.sub);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // 시스템 관리자 권한 확인
+    if (!PermissionUtils.isAdmin(user.permissions)) {
+      throw new BadRequestException('System administrator privileges required');
+    }
+
     return this.scopeService.getCacheInfo();
   }
 }

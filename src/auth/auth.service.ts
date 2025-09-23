@@ -218,7 +218,7 @@ export class AuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
+        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.READ_PROFILE], // Default scopes for general login
         user,
         tokenType: TOKEN_TYPES.LOGIN,
         // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
@@ -338,7 +338,7 @@ export class AuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
+        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.READ_PROFILE], // Default scopes for general login
         user,
         isRefreshTokenUsed: false,
       });
@@ -469,7 +469,7 @@ export class AuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
+        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.READ_PROFILE], // Default scopes for general login
         user: updatedUser,
         // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
         isRefreshTokenUsed: false,
@@ -528,7 +528,6 @@ export class AuthService {
         : [
             OAUTH2_SCOPES.READ_USER,
             OAUTH2_SCOPES.READ_PROFILE,
-            OAUTH2_SCOPES.EMAIL,
             OAUTH2_SCOPES.BASIC,
           ];
 
