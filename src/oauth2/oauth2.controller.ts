@@ -44,6 +44,10 @@ import type { OAuth2JwtPayload } from '../types/oauth2.types';
 import type { JwtPayload } from '../types/auth.types';
 import { PermissionUtils } from '../utils/permission.util';
 import {
+  mapExceptionToOAuth2Error,
+  createOAuth2Error,
+} from '../utils/oauth2-error.util';
+import {
   AuthorizeRequestDto,
   TokenRequestDto,
   TokenResponseDto,
@@ -370,6 +374,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
         'access_denied',
         'unsupported_response_type',
         'invalid_scope',
+        'invalid_grant',
         'server_error',
         'temporarily_unavailable',
       ];
@@ -470,14 +475,25 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
   async token(
     @Body() tokenDto: TokenRequestDto,
   ): Promise<TokenResponseDto | ErrorResponseDto> {
-    if (tokenDto.grant_type !== 'authorization_code') {
-      return {
-        error: 'unsupported_grant_type',
-        error_description: 'Grant type must be "authorization_code"',
-      };
-    }
+    try {
+      if (tokenDto.grant_type !== 'authorization_code') {
+        return {
+          error: 'unsupported_grant_type',
+          error_description: 'Grant type must be "authorization_code"',
+        };
+      }
 
-    return await this.oauth2Service.token(tokenDto);
+      return await this.oauth2Service.token(tokenDto);
+    } catch (error) {
+      // Convert exceptions to OAuth2 standard error responses
+      if (error instanceof BadRequestException) {
+        return mapExceptionToOAuth2Error(error);
+      }
+
+      // For unexpected errors
+      this.logger.error('Unexpected error in token endpoint', error);
+      return createOAuth2Error('server_error', 'An unexpected error occurred');
+    }
   }
 
   @Get('userinfo')
