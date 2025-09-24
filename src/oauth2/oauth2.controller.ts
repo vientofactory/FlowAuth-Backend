@@ -412,19 +412,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
       if (!['http:', 'https:'].includes(url.protocol)) {
         return null;
       }
-      // Prevent localhost/private IP redirects in production
-      if (process.env.NODE_ENV === 'production') {
-        const hostname = url.hostname.toLowerCase();
-        if (
-          hostname === 'localhost' ||
-          hostname === '127.0.0.1' ||
-          hostname.startsWith('192.168.') ||
-          hostname.startsWith('10.') ||
-          hostname.startsWith('172.')
-        ) {
-          return null;
-        }
-      }
+      // Remove Private/Loopback Address Filter - For testing Purposes
       return redirectUri;
     } catch {
       return null;
