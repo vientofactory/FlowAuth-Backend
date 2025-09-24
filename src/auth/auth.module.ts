@@ -18,6 +18,7 @@ import { FileUploadService } from '../upload/file-upload.service';
 import { RecaptchaService } from '../utils/recaptcha.util';
 import { AppConfigService } from '../config/app-config.service';
 import { LoggingModule } from '../logging/logging.module';
+import { JWT_CONSTANTS } from '../constants/auth.constants';
 
 @Module({
   imports: [
@@ -26,8 +27,10 @@ import { LoggingModule } from '../logging/logging.module';
     LoggingModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'your-secret-key',
-        signOptions: { expiresIn: '1h' },
+        secret:
+          configService.get<string>('JWT_SECRET') ||
+          JWT_CONSTANTS.SECRET_KEY_FALLBACK,
+        signOptions: { expiresIn: JWT_CONSTANTS.EXPIRES_IN },
       }),
       inject: [ConfigService],
     }),
