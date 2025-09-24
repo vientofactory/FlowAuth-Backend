@@ -68,4 +68,12 @@ export class CreateClientDto {
   @IsString()
   @IsOptional()
   policyUri?: string;
+
+  @ApiProperty({
+    description: 'reCAPTCHA 토큰',
+    example: 'recaptcha_token_here',
+  })
+  @IsString()
+  @IsNotEmpty()
+  recaptchaToken: string;
 }

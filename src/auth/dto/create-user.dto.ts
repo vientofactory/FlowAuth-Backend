@@ -69,9 +69,8 @@ export class CreateUserDto {
   @ApiProperty({
     description: 'reCAPTCHA 토큰',
     example: 'recaptcha_token_here',
-    required: false,
   })
-  @IsOptional()
   @IsString()
-  recaptchaToken?: string;
+  @IsNotEmpty()
+  recaptchaToken: string;
 }

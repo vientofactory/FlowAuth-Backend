@@ -7,6 +7,7 @@ import {
   UseInterceptors,
   UploadedFile,
   UseGuards,
+  Body,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -26,6 +27,7 @@ import { UPLOAD_ERRORS } from './types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FileUploadResponseDto } from './dto/response.dto';
 import { validateFile, isValidFilename } from './validators';
+import { RecaptchaService } from '../utils/recaptcha.util';
 
 // Factory function to create multer options using the service
 function createMulterOptions(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
@@ -40,7 +42,10 @@ function createMulterOptions(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
 @Controller('uploads')
 @ApiTags('File Upload')
 export class UploadController {
-  constructor(private readonly fileUploadService: FileUploadService) {}
+  constructor(
+    private readonly fileUploadService: FileUploadService,
+    private readonly recaptchaService: RecaptchaService,
+  ) {}
 
   @Post('logo')
   @UseGuards(JwtAuthGuard)
@@ -71,8 +76,12 @@ export class UploadController {
           format: 'binary',
           description: '로고 이미지 파일',
         },
+        recaptchaToken: {
+          type: 'string',
+          description: 'reCAPTCHA 토큰',
+        },
       },
-      required: ['logo'],
+      required: ['logo', 'recaptchaToken'],
     },
   })
   @ApiResponse({
@@ -88,9 +97,20 @@ export class UploadController {
     status: 401,
     description: '인증 필요',
   })
-  uploadLogo(@UploadedFile() file: MulterFile): FileUploadResponseDto {
+  async uploadLogo(
+    @UploadedFile() file: MulterFile,
+    @Body() body: { recaptchaToken: string },
+  ): Promise<FileUploadResponseDto> {
     if (!file) {
       throw UPLOAD_ERRORS.NO_FILE_UPLOADED;
+    }
+
+    // Verify reCAPTCHA token (required for logo upload)
+    const isValidRecaptcha = await this.recaptchaService.verifyToken(
+      body.recaptchaToken,
+    );
+    if (!isValidRecaptcha) {
+      throw new Error('reCAPTCHA verification failed');
     }
 
     // Validate file using centralized validator

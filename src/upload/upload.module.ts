@@ -10,6 +10,7 @@ import { JwtStrategy } from '../auth/jwt.strategy';
 import { User } from '../user/user.entity';
 import { Token } from '../token/token.entity';
 import { JWT_CONSTANTS } from '../constants/auth.constants';
+import { UtilsModule } from '../utils/utils.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
       }),
       inject: [ConfigService],
     }),
+    UtilsModule,
   ],
   providers: [FileUploadService, JwtAuthGuard, JwtStrategy],
   controllers: [UploadController],

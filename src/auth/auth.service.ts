@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  BadRequestException,
   Logger,
   Inject,
 } from '@nestjs/common';
@@ -71,15 +72,13 @@ export class AuthService {
       recaptchaToken,
     } = createUserDto;
 
-    // Verify reCAPTCHA token if provided
-    if (recaptchaToken) {
-      const isValidRecaptcha = await this.recaptchaService.verifyToken(
-        recaptchaToken,
-        'register',
-      );
-      if (!isValidRecaptcha) {
-        throw new UnauthorizedException('reCAPTCHA verification failed');
-      }
+    // Verify reCAPTCHA token (required for registration)
+    const isValidRecaptcha = await this.recaptchaService.verifyToken(
+      recaptchaToken,
+      'register',
+    );
+    if (!isValidRecaptcha) {
+      throw new UnauthorizedException('reCAPTCHA verification failed');
     }
 
     // Check if user already exists
@@ -515,7 +514,15 @@ export class AuthService {
       logoUri,
       termsOfServiceUri,
       policyUri,
+      recaptchaToken,
     } = createClientDto;
+
+    // Verify reCAPTCHA token (required for client creation)
+    const isValidRecaptcha =
+      await this.recaptchaService.verifyToken(recaptchaToken);
+    if (!isValidRecaptcha) {
+      throw new BadRequestException('reCAPTCHA verification failed');
+    }
 
     // Generate clientId using Snowflake ID and clientSecret using crypto-safe random string
     const clientId = snowflakeGenerator.generate();

@@ -15,9 +15,8 @@ import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
 import { FileUploadService } from '../upload/file-upload.service';
-import { RecaptchaService } from '../utils/recaptcha.util';
-import { AppConfigService } from '../config/app-config.service';
 import { LoggingModule } from '../logging/logging.module';
+import { UtilsModule } from '../utils/utils.module';
 import { JWT_CONSTANTS } from '../constants/auth.constants';
 
 @Module({
@@ -25,6 +24,7 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
     TypeOrmModule.forFeature([User, Client, Token, AuthorizationCode]),
     PassportModule,
     LoggingModule,
+    UtilsModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
         secret:
@@ -42,8 +42,6 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
     JwtAuthGuard,
     PermissionsGuard,
     FileUploadService,
-    RecaptchaService,
-    AppConfigService,
   ],
   controllers: [AuthController, TwoFactorController],
   exports: [JwtAuthGuard, FileUploadService],
