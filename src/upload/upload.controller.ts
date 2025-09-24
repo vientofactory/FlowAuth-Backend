@@ -52,10 +52,9 @@ export class UploadController {
 
 **지원 파일 형식:**
 - PNG, JPG, JPEG, WebP
-- 최대 크기: 5MB
+- 최대 크기: 1MB
 
 **업로드된 파일:**
-- 자동으로 WebP 형식으로 변환
 - 고유한 파일명으로 저장
 - 공개 URL 제공
     `,
