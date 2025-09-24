@@ -35,12 +35,16 @@ import {
   type TokenType,
 } from '../constants/auth.constants';
 import { LoginResponseDto, ClientCreateResponseDto } from './dto/response.dto';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
 @ApiTags('Authentication')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Post('register')
   @ApiOperation({ summary: '사용자 등록' })
@@ -79,10 +83,10 @@ export class AuthController {
 
     // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {
-      httpOnly: false, // JavaScript에서 접근 가능하도록 설정
-      secure: false, // 개발 환경에서는 false, 프로덕션에서는 true
+      httpOnly: false,
+      secure: this.configService.get('NODE_ENV') === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 24시간
+      maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
     return result;
@@ -123,10 +127,10 @@ export class AuthController {
 
     // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {
-      httpOnly: false, // JavaScript에서 접근 가능하도록 설정
-      secure: false, // 개발 환경에서는 false, 프로덕션에서는 true
+      httpOnly: false,
+      secure: this.configService.get('NODE_ENV') === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 24시간
+      maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
     return result;
