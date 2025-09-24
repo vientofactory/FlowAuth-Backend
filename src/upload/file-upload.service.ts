@@ -14,6 +14,7 @@ import {
   FileUploadError,
 } from './types';
 import { UPLOAD_CONFIG, getUploadPath } from './config';
+import { fileUploadValidator } from './validators';
 
 @Injectable()
 export class FileUploadService {
@@ -92,36 +93,28 @@ export class FileUploadService {
    * Create multer file filter for a specific file type
    */
   createFileFilter(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
-    const config = UPLOAD_CONFIG.fileTypes[type];
-
     return (req: Request, file: MulterFile, cb: MulterFileFilterCallback) => {
       try {
-        // Validate file type
-        if (
-          !(config.allowedMimes as readonly string[]).includes(file.mimetype)
-        ) {
+        // Use centralized validation
+        const validationResult = fileUploadValidator.validateFile(file, type);
+
+        if (!validationResult.isValid) {
           const error = new FileUploadError(
-            `Invalid file type. Allowed types: ${config.allowedMimes.join(', ')}`,
-            'INVALID_FILE_TYPE',
+            validationResult.errors.join('; '),
+            'INVALID_FILE',
           );
           this.logger.warn(
-            `File type validation failed: ${file.originalname} (${file.mimetype})`,
+            `File validation failed: ${file.originalname} - ${validationResult.errors.join('; ')}`,
           );
           cb(error, false);
           return;
         }
 
-        // Validate file size
-        if (file.size > config.maxSize) {
-          const error = new FileUploadError(
-            `File size exceeds limit of ${config.maxSize} bytes`,
-            'FILE_TOO_LARGE',
-          );
+        // Log warnings if any
+        if (validationResult.warnings.length > 0) {
           this.logger.warn(
-            `File size validation failed: ${file.originalname} (${file.size} bytes)`,
+            `File validation warnings: ${file.originalname} - ${validationResult.warnings.join('; ')}`,
           );
-          cb(error, false);
-          return;
         }
 
         cb(null, true);
@@ -157,28 +150,15 @@ export class FileUploadService {
   }
 
   /**
-   * Validate uploaded file
+   * Validate uploaded file (legacy method for backward compatibility)
+   * @deprecated Use fileUploadValidator.validateFile() directly for more detailed validation
    */
   validateFile(
     file: MulterFile,
     type: keyof typeof UPLOAD_CONFIG.fileTypes,
   ): boolean {
-    const config = UPLOAD_CONFIG.fileTypes[type];
-
-    const isValidType = (config.allowedMimes as readonly string[]).includes(
-      file.mimetype,
-    );
-    const isValidSize = file.size <= config.maxSize;
-
-    if (!isValidType) {
-      this.logger.warn(`Invalid file type: ${file.mimetype}`);
-    }
-
-    if (!isValidSize) {
-      this.logger.warn(`File too large: ${file.size} > ${config.maxSize}`);
-    }
-
-    return isValidType && isValidSize;
+    const result = fileUploadValidator.validateFile(file, type);
+    return result.isValid;
   }
 
   /**

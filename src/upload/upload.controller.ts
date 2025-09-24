@@ -25,6 +25,7 @@ import { UPLOAD_CONFIG } from './config';
 import { UPLOAD_ERRORS } from './types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FileUploadResponseDto } from './dto/response.dto';
+import { validateFile, isValidFilename } from './validators';
 
 // Factory function to create multer options using the service
 function createMulterOptions(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
@@ -92,9 +93,15 @@ export class UploadController {
       throw UPLOAD_ERRORS.NO_FILE_UPLOADED;
     }
 
-    // Validate file using service
-    if (!this.fileUploadService.validateFile(file, 'logo')) {
-      throw UPLOAD_ERRORS.INVALID_FILE_TYPE;
+    // Validate file using centralized validator
+    const validationResult = validateFile(file, 'logo');
+    if (!validationResult.isValid) {
+      throw new Error(`파일 검증 실패: ${validationResult.errors.join(', ')}`);
+    }
+
+    // Log warnings if any
+    if (validationResult.warnings.length > 0) {
+      console.warn(`파일 업로드 경고: ${validationResult.warnings.join(', ')}`);
     }
 
     const logoUrl = this.fileUploadService.getFileUrl('logo', file.filename);
@@ -145,8 +152,8 @@ export class UploadController {
     description: '파일을 찾을 수 없음',
   })
   getLogo(@Param('filename') filename: string, @Res() res: Response) {
-    // Validate filename to prevent directory traversal
-    if (!filename || filename.includes('..') || filename.includes('/')) {
+    // Validate filename to prevent directory traversal and invalid characters
+    if (!isValidFilename(filename)) {
       throw UPLOAD_ERRORS.INVALID_FILE_TYPE;
     }
 
