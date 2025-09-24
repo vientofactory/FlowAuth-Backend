@@ -95,8 +95,11 @@ export class FileUploadService {
   createFileFilter(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
     return (req: Request, file: MulterFile, cb: MulterFileFilterCallback) => {
       try {
-        // Use centralized validation
-        const validationResult = fileUploadValidator.validateFile(file, type);
+        // Use centralized validation but skip size validation in fileFilter
+        // (size validation will be done after file is fully uploaded)
+        const validationResult = fileUploadValidator.validateFile(file, type, {
+          skipSizeValidation: true,
+        });
 
         if (!validationResult.isValid) {
           const error = new FileUploadError(

@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import type { MulterFile } from './types';
 import { UPLOAD_CONFIG } from './config';
 
@@ -47,8 +46,6 @@ export interface FileValidationResult {
  * 파일 업로드 검증기 클래스
  */
 export class FileUploadValidator {
-  private readonly logger = new Logger(FileUploadValidator.name);
-
   /**
    * 파일명 검증 (디렉토리 트래버설 및 보안 취약점 방지)
    */
@@ -101,8 +98,7 @@ export class FileUploadValidator {
         isValid: true,
         sanitizedFilename: filename.trim(),
       };
-    } catch (error) {
-      this.logger.error(`파일명 검증 중 오류 발생: ${filename}`, error);
+    } catch {
       return {
         isValid: false,
         error: '파일명 검증 중 오류가 발생했습니다.',
@@ -133,11 +129,7 @@ export class FileUploadValidator {
       }
 
       return { isValid: true };
-    } catch (error) {
-      this.logger.error(
-        `파일 타입 검증 중 오류 발생: ${file.originalname}`,
-        error,
-      );
+    } catch {
       return {
         isValid: false,
         error: '파일 타입 검증 중 오류가 발생했습니다.',
@@ -153,10 +145,32 @@ export class FileUploadValidator {
     maxSize: number,
   ): { isValid: boolean; error?: string } {
     try {
-      if (!file || typeof file.size !== 'number') {
+      // 파일 객체 존재 여부 및 size 속성 검증
+      if (!file) {
+        return {
+          isValid: false,
+          error: '파일 객체가 존재하지 않습니다.',
+        };
+      }
+
+      // size 속성이 없거나 유효하지 않은 경우
+      if (
+        file.size === undefined ||
+        file.size === null ||
+        isNaN(file.size) ||
+        typeof file.size !== 'number'
+      ) {
         return {
           isValid: false,
           error: '파일 크기를 확인할 수 없습니다.',
+        };
+      }
+
+      // 파일 크기가 음수인 경우
+      if (file.size < 0) {
+        return {
+          isValid: false,
+          error: '파일 크기가 유효하지 않습니다.',
         };
       }
 
@@ -178,11 +192,7 @@ export class FileUploadValidator {
       }
 
       return { isValid: true };
-    } catch (error) {
-      this.logger.error(
-        `파일 크기 검증 중 오류 발생: ${file.originalname}`,
-        error,
-      );
+    } catch {
       return {
         isValid: false,
         error: '파일 크기 검증 중 오류가 발생했습니다.',
@@ -237,11 +247,7 @@ export class FileUploadValidator {
       }
 
       return { isValid: true };
-    } catch (error) {
-      this.logger.error(
-        `파일 확장자 검증 중 오류 발생: ${file.originalname}`,
-        error,
-      );
+    } catch {
       return {
         isValid: false,
         error: '파일 확장자 검증 중 오류가 발생했습니다.',
@@ -255,6 +261,7 @@ export class FileUploadValidator {
   validateFile(
     file: MulterFile,
     type: keyof typeof UPLOAD_CONFIG.fileTypes,
+    options: { skipSizeValidation?: boolean } = {},
   ): FileValidationResult {
     const result: FileValidationResult = {
       isValid: true,
@@ -277,11 +284,13 @@ export class FileUploadValidator {
         result.errors.push(typeValidation.error!);
       }
 
-      // 파일 크기 검증
-      const sizeValidation = this.validateFileSize(file, config.maxSize);
-      if (!sizeValidation.isValid) {
-        result.isValid = false;
-        result.errors.push(sizeValidation.error!);
+      // 파일 크기 검증 (옵션에 따라 건너뜀)
+      if (!options.skipSizeValidation) {
+        const sizeValidation = this.validateFileSize(file, config.maxSize);
+        if (!sizeValidation.isValid) {
+          result.isValid = false;
+          result.errors.push(sizeValidation.error!);
+        }
       }
 
       // 파일 확장자 검증
@@ -297,11 +306,7 @@ export class FileUploadValidator {
       // 예: 바이러스 스캔, 이미지 유효성 검증 등
 
       return result;
-    } catch (error) {
-      this.logger.error(
-        `파일 종합 검증 중 오류 발생: ${file.originalname}`,
-        error,
-      );
+    } catch {
       result.isValid = false;
       result.errors.push('파일 검증 중 오류가 발생했습니다.');
       return result;
