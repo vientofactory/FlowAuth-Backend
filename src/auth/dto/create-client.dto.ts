@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsString, IsArray, IsOptional } from 'class-validator';
+import { Trim, Escape } from 'class-sanitizer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateClientDto {
@@ -8,6 +9,8 @@ export class CreateClientDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Trim()
+  @Escape()
   name: string;
 
   @ApiPropertyOptional({
@@ -16,6 +19,8 @@ export class CreateClientDto {
   })
   @IsString()
   @IsOptional()
+  @Trim()
+  @Escape()
   description?: string;
 
   @ApiProperty({

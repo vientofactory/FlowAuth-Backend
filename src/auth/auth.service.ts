@@ -129,19 +129,17 @@ export class AuthService {
   async login(loginDto: {
     email: string;
     password: string;
-    recaptchaToken?: string;
+    recaptchaToken: string;
   }): Promise<LoginResponse> {
     const { email, password, recaptchaToken } = loginDto;
 
-    // Verify reCAPTCHA token if provided
-    if (recaptchaToken) {
-      const isValidRecaptcha = await this.recaptchaService.verifyToken(
-        recaptchaToken,
-        'login',
-      );
-      if (!isValidRecaptcha) {
-        throw new UnauthorizedException('reCAPTCHA verification failed');
-      }
+    // Verify reCAPTCHA token (required for login)
+    const isValidRecaptcha = await this.recaptchaService.verifyToken(
+      recaptchaToken,
+      'login',
+    );
+    if (!isValidRecaptcha) {
+      throw new UnauthorizedException('reCAPTCHA verification failed');
     }
 
     try {
@@ -265,6 +263,7 @@ export class AuthService {
     email: string,
     token: string,
   ): Promise<LoginResponse> {
+    this.logger.log(`2FA token verification attempt for email: ${email}`);
     try {
       // Find user with 2FA fields
       const user = await this.userRepository.findOne({
@@ -304,7 +303,12 @@ export class AuthService {
         window: 2, // Allow 2 time windows (30 seconds each)
       });
 
+      this.logger.log(
+        `2FA token verification result for ${email}: ${isValidToken}`,
+      );
+
       if (!isValidToken) {
+        this.logger.log(`Invalid 2FA token provided for ${email}`);
         throw new UnauthorizedException(
           AUTH_ERROR_MESSAGES.INVALID_TWO_FACTOR_TOKEN,
         );

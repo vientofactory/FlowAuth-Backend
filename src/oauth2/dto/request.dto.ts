@@ -7,6 +7,7 @@ import {
   Length,
   Matches,
 } from 'class-validator';
+import { Trim, Escape } from 'class-sanitizer';
 import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
 
 /**
@@ -30,6 +31,8 @@ export class AuthorizeConsentDto {
   @Length(1, OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH, {
     message: `client_id must be between 1 and ${OAUTH2_CONSTANTS.CLIENT_ID_MAX_LENGTH} characters`,
   })
+  @Trim()
+  @Escape()
   client_id?: string;
 
   @ApiProperty({
@@ -42,6 +45,7 @@ export class AuthorizeConsentDto {
   @Length(1, OAUTH2_CONSTANTS.REDIRECT_URI_MAX_LENGTH, {
     message: `redirect_uri must be between 1 and ${OAUTH2_CONSTANTS.REDIRECT_URI_MAX_LENGTH} characters`,
   })
+  @Trim()
   redirect_uri?: string;
 
   @ApiProperty({
@@ -67,6 +71,8 @@ export class AuthorizeConsentDto {
   @Length(0, OAUTH2_CONSTANTS.SCOPE_MAX_LENGTH, {
     message: `scope must not exceed ${OAUTH2_CONSTANTS.SCOPE_MAX_LENGTH} characters`,
   })
+  @Trim()
+  @Escape()
   scope?: string;
 
   @ApiProperty({
@@ -80,6 +86,8 @@ export class AuthorizeConsentDto {
   @Length(0, OAUTH2_CONSTANTS.STATE_MAX_LENGTH, {
     message: `state must not exceed ${OAUTH2_CONSTANTS.STATE_MAX_LENGTH} characters`,
   })
+  @Trim()
+  @Escape()
   state?: string;
 
   @ApiProperty({
@@ -92,6 +100,7 @@ export class AuthorizeConsentDto {
   @Matches(OAUTH2_CONSTANTS.PKCE_UNRESERVED_CHAR_PATTERN, {
     message: 'code_challenge contains invalid characters',
   })
+  @Trim()
   code_challenge?: string;
 
   @ApiProperty({
