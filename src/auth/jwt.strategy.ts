@@ -33,13 +33,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: JwtPayload): Promise<User> {
     try {
-      this.logger.log('Starting JWT token validation', {
-        hasSub: !!payload.sub,
-        hasEmail: !!payload.email,
-        hasType: !!payload.type,
-        type: payload.type,
-      });
-
       // Validate payload structure
       if (!payload.sub || typeof payload.sub !== 'string') {
         this.logger.error('JWT validation failed: Invalid sub in payload');
@@ -59,13 +52,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN_TYPE);
       }
 
-      this.logger.log(
-        'JWT payload validation passed, checking token in database',
-      );
-
       // If jti is present, verify token exists in database (for revocation check)
       if (payload.jti) {
-        this.logger.log(`Checking token revocation for jti: ${payload.jti}`);
         // Validate that jti is a valid numeric string
         if (typeof payload.jti !== 'string' || isNaN(Number(payload.jti))) {
           this.logger.error('JWT validation failed: Invalid jti format');
@@ -73,19 +61,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         }
 
         const tokenId = parseInt(payload.jti, 10);
-        this.logger.log(`Looking up token with ID: ${tokenId} in database`);
-
         const token = await this.tokenRepository.findOne({
           where: { id: tokenId },
           relations: ['user'],
-        });
-
-        this.logger.log(`Token lookup result:`, {
-          tokenFound: !!token,
-          hasUser: token ? !!token.user : false,
-          isRevoked: token ? token.isRevoked : 'N/A',
-          expiresAt: token ? token.expiresAt : 'N/A',
-          currentTime: new Date().toISOString(),
         });
 
         if (!token) {
@@ -124,8 +102,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           );
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
-
-        this.logger.log('Token validation in database passed');
       } else {
         this.logger.warn(
           'No jti in token payload - skipping database token validation',
@@ -133,9 +109,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
 
       // Find user in database
-      this.logger.log(
-        `Looking up user in database for id: ${parseInt(payload.sub)}`,
-      );
       const user = await this.userRepository.findOne({
         where: { id: parseInt(payload.sub) },
         select: [
@@ -153,12 +126,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         this.logger.error(`User not found for id: ${parseInt(payload.sub)}`);
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.USER_NOT_FOUND);
       }
-
-      this.logger.log('User found successfully', {
-        id: user.id,
-        email: user.email,
-        hasAvatar: !!user.avatar,
-      });
 
       // Verify email matches
       if (user.email !== payload.email) {
