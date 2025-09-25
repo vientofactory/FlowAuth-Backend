@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { extname, join } from 'path';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
+import { writeFile } from 'fs/promises';
 import { diskStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import type { Request } from 'express';
@@ -256,5 +257,84 @@ export class FileUploadService {
       );
       return false;
     }
+  }
+
+  /**
+   * Upload and process an avatar file
+   * @param file - The uploaded file from multer
+   * @param userId - The user ID for filename generation
+   * @param existingAvatarUrl - Optional existing avatar URL to delete
+   * @returns Promise<string> - The URL of the uploaded avatar
+   */
+  async uploadAvatar(
+    file: MulterFile,
+    userId: number,
+    existingAvatarUrl?: string,
+  ): Promise<string> {
+    // Validate file using centralized validator
+    const validationResult = fileUploadValidator.validateFile(file, 'avatar');
+
+    if (!validationResult.isValid) {
+      throw new FileUploadError(
+        `File validation failed: ${validationResult.errors.join(', ')}`,
+        'VALIDATION_FAILED',
+      );
+    }
+
+    // Log warnings if any
+    if (validationResult.warnings.length > 0) {
+      this.logger.warn(
+        `File validation warnings for user ${userId}: ${validationResult.warnings.join(', ')}`,
+      );
+    }
+
+    // Delete existing avatar if provided
+    if (existingAvatarUrl) {
+      try {
+        const deleted = this.deleteFile(existingAvatarUrl);
+        if (deleted) {
+          this.logger.log(`Deleted existing avatar for user ${userId}`);
+        }
+      } catch (error) {
+        // Log but don't fail the upload if old file deletion fails
+        this.logger.warn(
+          `Failed to delete existing avatar for user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    // Generate unique filename using UUID
+    const fileExtension =
+      file.originalname.split('.').pop()?.toLowerCase() || '';
+    const uniqueId = uuidv4();
+    const filename = `avatar_${userId}_${uniqueId}.${fileExtension}`;
+
+    // Save the file to disk
+    const destinationPath = getUploadPath('avatar');
+    const fullPath = join(destinationPath, filename);
+
+    try {
+      // Ensure destination directory exists
+      if (!existsSync(destinationPath)) {
+        mkdirSync(destinationPath, { recursive: true });
+      }
+
+      // Write file to disk
+      await writeFile(fullPath, file.buffer);
+
+      this.logger.log(`Avatar file saved for user ${userId}: ${filename}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to save avatar file for user ${userId}:`,
+        error,
+      );
+      throw new FileUploadError('Failed to save avatar file', 'SAVE_FAILED');
+    }
+
+    // Get file URL using standard pattern
+    const avatarUrl = this.getFileUrl('avatar', filename);
+
+    this.logger.log(`Avatar processed for user ${userId}: ${filename}`);
+    return avatarUrl;
   }
 }

@@ -15,6 +15,7 @@ import { Request, Response, NextFunction } from 'express';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { setupSwagger } from './config/swagger.setup';
 import { ValidationSanitizationPipe } from './common/validation-sanitization.pipe';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 /**
  * FlowAuth Application Bootstrap
@@ -181,6 +182,9 @@ function configureCORS(app: NestExpressApplication): void {
  * Configure validation and serialization
  */
 function configureValidation(app: NestExpressApplication): void {
+  // Global exception filter for consistent error handling
+  app.useGlobalFilters(new GlobalExceptionFilter());
+
   // Global validation and sanitization pipe
   app.useGlobalPipes(new ValidationSanitizationPipe());
 

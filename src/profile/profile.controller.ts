@@ -6,6 +6,10 @@ import {
   Request,
   UseGuards,
   Param,
+  Post,
+  UseInterceptors,
+  UploadedFile,
+  Delete,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -13,7 +17,9 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiConsumes,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ProfileService } from './profile.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../types/auth.types';
@@ -146,5 +152,89 @@ export class ProfileController {
     @Request() req: AuthenticatedRequest,
   ): Promise<{ available: boolean; message: string }> {
     return this.profileService.checkUsernameAvailability(username, req.user.id);
+  }
+
+  @Post('avatar')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('avatar'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '프로필 아바타 업로드' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        avatar: {
+          type: 'string',
+          format: 'binary',
+          description: '업로드할 아바타 이미지 파일',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: '아바타 업로드 성공',
+    schema: {
+      type: 'object',
+      properties: {
+        avatarUrl: {
+          type: 'string',
+          example: '/uploads/avatars/avatar_1_1234567890.png',
+        },
+        message: {
+          type: 'string',
+          example: '아바타가 성공적으로 업로드되었습니다.',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: '잘못된 파일 형식 또는 크기 초과',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증되지 않은 사용자',
+  })
+  async uploadAvatar(
+    @Request() req: AuthenticatedRequest,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<{ avatarUrl: string; message: string }> {
+    const avatarUrl = await this.profileService.uploadAvatar(req.user.id, file);
+    return {
+      avatarUrl,
+      message: '아바타가 성공적으로 업로드되었습니다.',
+    };
+  }
+
+  @Delete('avatar')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '프로필 아바타 제거' })
+  @ApiResponse({
+    status: 200,
+    description: '아바타 제거 성공',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: '아바타가 성공적으로 제거되었습니다.',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증되지 않은 사용자',
+  })
+  async removeAvatar(
+    @Request() req: AuthenticatedRequest,
+  ): Promise<{ message: string }> {
+    await this.profileService.removeAvatar(req.user.id);
+    return {
+      message: '아바타가 성공적으로 제거되었습니다.',
+    };
   }
 }

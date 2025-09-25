@@ -53,6 +53,21 @@ export class User {
   @Exclude()
   backupCodes?: string[];
 
+  @Column({ type: 'tinyint', default: 1 })
+  isActive: boolean;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  avatar?: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  bio?: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  website?: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  location?: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

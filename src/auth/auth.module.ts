@@ -18,6 +18,7 @@ import { FileUploadService } from '../upload/file-upload.service';
 import { LoggingModule } from '../logging/logging.module';
 import { UtilsModule } from '../utils/utils.module';
 import { JWT_CONSTANTS } from '../constants/auth.constants';
+import { UserManagementService } from './services/user-management.service';
 
 @Module({
   imports: [
@@ -42,8 +43,9 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
     JwtAuthGuard,
     PermissionsGuard,
     FileUploadService,
+    UserManagementService,
   ],
   controllers: [AuthController, TwoFactorController],
-  exports: [JwtAuthGuard, FileUploadService],
+  exports: [JwtAuthGuard, FileUploadService, UserManagementService],
 })
 export class AuthModule {}
