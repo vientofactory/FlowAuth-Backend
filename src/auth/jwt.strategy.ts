@@ -73,9 +73,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         }
 
         const tokenId = parseInt(payload.jti, 10);
+        this.logger.log(`Looking up token with ID: ${tokenId} in database`);
+
         const token = await this.tokenRepository.findOne({
           where: { id: tokenId },
           relations: ['user'],
+        });
+
+        this.logger.log(`Token lookup result:`, {
+          tokenFound: !!token,
+          hasUser: token ? !!token.user : false,
+          isRevoked: token ? token.isRevoked : 'N/A',
+          expiresAt: token ? token.expiresAt : 'N/A',
+          currentTime: new Date().toISOString(),
         });
 
         if (!token) {
