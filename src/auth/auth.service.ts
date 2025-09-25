@@ -159,6 +159,7 @@ export class AuthService {
           'userType',
           'isTwoFactorEnabled',
           'twoFactorSecret',
+          'avatar',
         ],
       });
 
@@ -278,6 +279,7 @@ export class AuthService {
           'userType',
           'isTwoFactorEnabled',
           'twoFactorSecret',
+          'avatar',
         ],
       });
 
@@ -388,6 +390,7 @@ export class AuthService {
           'isTwoFactorEnabled',
           'twoFactorSecret',
           'backupCodes',
+          'avatar',
         ],
       });
 
