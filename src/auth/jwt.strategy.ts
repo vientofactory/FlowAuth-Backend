@@ -33,33 +33,42 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: JwtPayload): Promise<User> {
     try {
-      this.logger.log('Validating token payload:', {
-        sub: payload.sub,
-        email: payload.email,
+      this.logger.log('Starting JWT token validation', {
+        hasSub: !!payload.sub,
+        hasEmail: !!payload.email,
+        hasType: !!payload.type,
         type: payload.type,
       });
 
       // Validate payload structure
       if (!payload.sub || typeof payload.sub !== 'string') {
-        this.logger.error('Invalid sub in payload');
+        this.logger.error('JWT validation failed: Invalid sub in payload');
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
       }
 
       if (!payload.email || typeof payload.email !== 'string') {
-        this.logger.error('Invalid email in payload');
+        this.logger.error('JWT validation failed: Invalid email in payload');
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
       }
 
       // Check token type - only login tokens are allowed here
       if (payload.type !== TOKEN_TYPES.LOGIN) {
-        this.logger.error(`Invalid token type: ${payload.type}`);
+        this.logger.error(
+          `JWT validation failed: Invalid token type: ${payload.type}`,
+        );
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN_TYPE);
       }
 
+      this.logger.log(
+        'JWT payload validation passed, checking token in database',
+      );
+
       // If jti is present, verify token exists in database (for revocation check)
       if (payload.jti) {
+        this.logger.log(`Checking token revocation for jti: ${payload.jti}`);
         // Validate that jti is a valid numeric string
         if (typeof payload.jti !== 'string' || isNaN(Number(payload.jti))) {
+          this.logger.error('JWT validation failed: Invalid jti format');
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
@@ -70,22 +79,47 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         });
 
         if (!token) {
+          this.logger.error(
+            `JWT validation failed: Token not found for jti: ${payload.jti}`,
+          );
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
         if (!token.user) {
+          this.logger.error(
+            `JWT validation failed: Token has no associated user for jti: ${payload.jti}`,
+          );
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
         // Verify token belongs to the user
         if (token.user.id !== parseInt(payload.sub, 10)) {
+          this.logger.error(
+            `JWT validation failed: Token user mismatch. Token user: ${token.user.id}, Payload user: ${payload.sub}`,
+          );
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
         // Verify token is not revoked and not expired
-        if (token.isRevoked || token.expiresAt < new Date()) {
+        if (token.isRevoked) {
+          this.logger.error(
+            `JWT validation failed: Token is revoked for jti: ${payload.jti}`,
+          );
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
+
+        if (token.expiresAt < new Date()) {
+          this.logger.error(
+            `JWT validation failed: Token expired. Expires at: ${token.expiresAt.toISOString()}, Current time: ${new Date().toISOString()}`,
+          );
+          throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
+        }
+
+        this.logger.log('Token validation in database passed');
+      } else {
+        this.logger.warn(
+          'No jti in token payload - skipping database token validation',
+        );
       }
 
       // Find user in database
@@ -101,7 +135,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           'firstName',
           'lastName',
           'permissions',
-          'avatar',
+          'avatar', // Avatar 컬럼이 존재하므로 다시 추가
         ],
       });
 
@@ -110,7 +144,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.USER_NOT_FOUND);
       }
 
-      this.logger.log('User found:', {
+      this.logger.log('User found successfully', {
         id: user.id,
         email: user.email,
         hasAvatar: !!user.avatar,
