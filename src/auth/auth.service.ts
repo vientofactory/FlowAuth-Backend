@@ -201,6 +201,7 @@ export class AuthService {
         roles: [PermissionUtils.getRoleName(user.permissions)],
         permissions: user.permissions,
         type: TOKEN_TYPES.LOGIN,
+        avatar: user.avatar || undefined,
       };
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
@@ -322,6 +323,7 @@ export class AuthService {
         roles: [PermissionUtils.getRoleName(user.permissions)],
         permissions: user.permissions,
         type: TOKEN_TYPES.LOGIN,
+        avatar: user.avatar || undefined,
       };
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
@@ -454,6 +456,7 @@ export class AuthService {
         roles: [PermissionUtils.getRoleName(updatedUser.permissions)],
         permissions: updatedUser.permissions,
         type: TOKEN_TYPES.LOGIN,
+        avatar: updatedUser.avatar || undefined,
       };
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);

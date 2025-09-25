@@ -9,6 +9,7 @@ export interface JwtPayload {
   roles: string[];
   permissions: number;
   type: TokenType;
+  avatar?: string;
   jti?: string; // JWT ID for token revocation
   iat?: number;
   exp?: number;

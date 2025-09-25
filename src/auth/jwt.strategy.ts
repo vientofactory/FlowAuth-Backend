@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -11,6 +11,7 @@ import { JwtPayload } from '../types/auth.types';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly logger = new Logger(JwtStrategy.name);
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
@@ -32,17 +33,26 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: JwtPayload): Promise<User> {
     try {
+      this.logger.log('Validating token payload:', {
+        sub: payload.sub,
+        email: payload.email,
+        type: payload.type,
+      });
+
       // Validate payload structure
       if (!payload.sub || typeof payload.sub !== 'string') {
+        this.logger.error('Invalid sub in payload');
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
       }
 
       if (!payload.email || typeof payload.email !== 'string') {
+        this.logger.error('Invalid email in payload');
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
       }
 
       // Check token type - only login tokens are allowed here
       if (payload.type !== TOKEN_TYPES.LOGIN) {
+        this.logger.error(`Invalid token type: ${payload.type}`);
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN_TYPE);
       }
 
@@ -79,6 +89,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
 
       // Find user in database
+      this.logger.log(
+        `Looking up user in database for id: ${parseInt(payload.sub)}`,
+      );
       const user = await this.userRepository.findOne({
         where: { id: parseInt(payload.sub) },
         select: [
@@ -93,8 +106,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       });
 
       if (!user) {
+        this.logger.error(`User not found for id: ${parseInt(payload.sub)}`);
         throw new UnauthorizedException(AUTH_ERROR_MESSAGES.USER_NOT_FOUND);
       }
+
+      this.logger.log('User found:', {
+        id: user.id,
+        email: user.email,
+        hasAvatar: !!user.avatar,
+      });
 
       // Verify email matches
       if (user.email !== payload.email) {
