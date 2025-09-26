@@ -19,6 +19,7 @@ import {
   USER_TYPES,
   USER_TYPE_PERMISSIONS,
   PERMISSION_UTILS,
+  CACHE_CONSTANTS,
 } from '../../constants/auth.constants';
 import { TwoFactorService } from '../two-factor.service';
 import { FileUploadService } from '../../upload/file-upload.service';
@@ -128,7 +129,7 @@ export class UserManagementService {
     }
 
     // Cache the result
-    await this.cacheManager.set(cacheKey, user, 600000); // 10 minutes
+    await this.cacheManager.set(cacheKey, user, CACHE_CONSTANTS.USER_CACHE_TTL);
     return user;
   }
 

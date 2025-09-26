@@ -158,6 +158,20 @@ export enum USER_TYPES {
   DEVELOPER = 'developer', // 개발자 - 클라이언트 관리 가능
 }
 
+// 캐시 관련 상수들
+export const CACHE_CONSTANTS = {
+  USER_CACHE_TTL: 600000, // 10분 (밀리초)
+  PERMISSIONS_CACHE_TTL: 300000, // 5분 (밀리초)
+} as const;
+
+// 2FA 관련 상수들
+export const TWO_FACTOR_CONSTANTS = {
+  SECRET_LENGTH: 32, // TOTP 시크릿 길이
+  BACKUP_CODE_COUNT: 10, // 백업 코드 개수
+  BACKUP_CODE_LENGTH: 10, // 각 백업 코드 길이
+  WINDOW_TIME: 30, // TOTP 윈도우 시간 (초)
+} as const;
+
 // 사용자 유형별 기본 권한
 export const USER_TYPE_PERMISSIONS = {
   [USER_TYPES.REGULAR]:

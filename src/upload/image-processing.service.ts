@@ -255,7 +255,7 @@ export class ImageProcessingService {
       }
 
       // Check buffer size limits to prevent memory issues
-      const maxBufferSize = 50 * 1024 * 1024; // 50MB limit
+      const maxBufferSize = UPLOAD_CONFIG.imageProcessing.limits.maxBufferSize;
       if (buffer.length > maxBufferSize) {
         throw new FileUploadError(
           `Image buffer too large: ${buffer.length} bytes (max: ${maxBufferSize})`,
@@ -266,7 +266,7 @@ export class ImageProcessingService {
       const sharpInstance = sharp(buffer, {
         // Limit input format detection for security
         failOnError: false, // Don't fail on minor errors
-        limitInputPixels: 50 * 1024 * 1024, // 50MP limit
+        limitInputPixels: UPLOAD_CONFIG.imageProcessing.limits.maxInputPixels,
       });
 
       // Apply resize with error handling

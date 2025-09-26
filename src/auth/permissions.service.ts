@@ -5,7 +5,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { User } from '../user/user.entity';
 import { PermissionUtils } from '../utils/permission.util';
-import { ROLES } from '../constants/auth.constants';
+import { ROLES, CACHE_CONSTANTS } from '../constants/auth.constants';
 
 @Injectable()
 export class PermissionsService {
@@ -39,7 +39,11 @@ export class PermissionsService {
     }
 
     // 결과를 캐시에 저장 (5분 TTL)
-    await this.cacheManager.set(cacheKey, user.permissions, 300000);
+    await this.cacheManager.set(
+      cacheKey,
+      user.permissions,
+      CACHE_CONSTANTS.PERMISSIONS_CACHE_TTL,
+    );
     return user.permissions;
   }
 
