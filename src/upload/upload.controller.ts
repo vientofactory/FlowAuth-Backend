@@ -95,7 +95,9 @@ export class UploadController {
     status: 401,
     description: '인증 필요',
   })
-  uploadLogo(@UploadedFile() file: MulterFile): FileUploadResponseDto {
+  async uploadLogo(
+    @UploadedFile() file: MulterFile,
+  ): Promise<FileUploadResponseDto> {
     if (!file) {
       throw UPLOAD_ERRORS.NO_FILE_UPLOADED;
     }
@@ -111,13 +113,15 @@ export class UploadController {
       console.warn(`파일 업로드 경고: ${validationResult.warnings.join(', ')}`);
     }
 
-    const logoUrl = this.fileUploadService.getFileUrl('logo', file.filename);
+    // Process logo image with Sharp for optimization
+    const logoUrl = await this.fileUploadService.processLogoImage(file);
+    const filename = logoUrl.split('/').pop() || '';
 
     return {
       success: true,
       message: 'Logo uploaded successfully',
       data: {
-        filename: file.filename,
+        filename,
         url: logoUrl,
         originalName: file.originalname,
         size: file.size,

@@ -2,7 +2,59 @@ import {
   PERMISSIONS,
   ROLES,
   PERMISSION_UTILS,
+  type TokenType,
 } from '../constants/auth.constants';
+import { JwtService } from '@nestjs/jwt';
+import type { JwtPayload } from '../types/auth.types';
+
+/**
+ * 토큰 유틸리티 클래스
+ * JWT 토큰 타입 검증을 위한 헬퍼 함수들
+ */
+export class TokenUtils {
+  /**
+   * 토큰 타입 검증
+   * @param token JWT 토큰 문자열
+   * @param expectedType 예상되는 토큰 타입
+   * @param jwtService JWT 서비스 인스턴스
+   * @returns 토큰 타입이 일치하는지 여부
+   */
+  static async validateTokenType(
+    token: string,
+    expectedType: TokenType,
+    jwtService: JwtService,
+  ): Promise<boolean> {
+    try {
+      const payload = await jwtService.verifyAsync<JwtPayload>(token);
+      return payload.type === expectedType;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * 토큰에서 페이로드 추출 및 타입 검증
+   * @param token JWT 토큰 문자열
+   * @param expectedType 예상되는 토큰 타입
+   * @param jwtService JWT 서비스 인스턴스
+   * @returns 검증된 페이로드 또는 null
+   */
+  static async extractAndValidatePayload(
+    token: string,
+    expectedType: TokenType,
+    jwtService: JwtService,
+  ): Promise<JwtPayload | null> {
+    try {
+      const payload = await jwtService.verifyAsync<JwtPayload>(token);
+      if (payload.type === expectedType) {
+        return payload;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+}
 
 /**
  * 권한 유틸리티 클래스
@@ -150,15 +202,13 @@ export class PermissionUtils {
   }
 
   /**
-   * 관리자 권한인지 확인
+   * 관리자 권한인지 확인 (ADMIN 권한의 비트를 가지고 있는지)
    * @param permissions 권한 비트마스크
    * @returns 관리자 권한 여부
    */
   static isAdmin(permissions: number): boolean {
-    return this.hasPermission(
-      permissions,
-      PERMISSION_UTILS.getAdminPermission(),
-    );
+    const adminPermission = PERMISSION_UTILS.getAdminPermission();
+    return (permissions & adminPermission) !== 0;
   }
 
   /**

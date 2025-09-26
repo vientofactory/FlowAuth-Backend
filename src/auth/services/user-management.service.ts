@@ -260,11 +260,25 @@ export class UserManagementService {
   ): Promise<string> {
     const user = await this.findById(userId);
 
-    // Upload avatar using FileUploadService
-    const avatarUrl = await this.fileUploadService.uploadAvatar(
-      file,
+    // Delete existing avatar if exists
+    if (user.avatar) {
+      try {
+        const deleted = this.fileUploadService.deleteFile(user.avatar);
+        if (deleted) {
+          this.logger.log(`Deleted existing avatar for user ${userId}`);
+        }
+      } catch (error) {
+        // Log but don't fail the upload if old file deletion fails
+        this.logger.warn(
+          `Failed to delete existing avatar for user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    // Process avatar image with Sharp for optimization
+    const avatarUrl = await this.fileUploadService.processAvatarImage(
       userId,
-      user.avatar || undefined, // Pass existing avatar for cleanup
+      file,
     );
 
     // Update user with new avatar URL

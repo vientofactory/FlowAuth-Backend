@@ -2,15 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { extname, join } from 'path';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import { writeFile } from 'fs/promises';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
+import sharp from 'sharp';
 import type { Request } from 'express';
 import {
   MulterFile,
   UploadedFile,
   UploadLimits,
-  MulterDestinationCallback,
-  MulterFilenameCallback,
   MulterFileFilterCallback,
   FileUploadError,
 } from './types';
@@ -47,47 +46,8 @@ export class FileUploadService {
    * Create multer storage configuration for a specific file type
    */
   createStorage(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
-    const destination = getUploadPath(type);
-
-    return diskStorage({
-      destination: (
-        req: Request,
-        file: MulterFile,
-        cb: MulterDestinationCallback,
-      ) => {
-        try {
-          cb(null, destination);
-        } catch (error: unknown) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          const stack = error instanceof Error ? error.stack : undefined;
-          this.logger.error(`Storage destination error: ${message}`, stack);
-          cb(
-            error instanceof Error ? error : new Error(String(error)),
-            destination,
-          );
-        }
-      },
-      filename: (
-        req: Request,
-        file: MulterFile,
-        cb: MulterFilenameCallback,
-      ) => {
-        try {
-          const uniqueName = this.generateFilename(file);
-          cb(null, uniqueName);
-        } catch (error: unknown) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          const stack = error instanceof Error ? error.stack : undefined;
-          this.logger.error(`Filename generation error: ${message}`, stack);
-          cb(
-            error instanceof Error ? error : new Error(String(error)),
-            file.originalname,
-          );
-        }
-      },
-    });
+    // Use memory storage for image processing with Sharp
+    return memoryStorage();
   }
 
   /**
@@ -266,75 +226,102 @@ export class FileUploadService {
    * @param existingAvatarUrl - Optional existing avatar URL to delete
    * @returns Promise<string> - The URL of the uploaded avatar
    */
-  async uploadAvatar(
+  private async processImage(
+    type: 'logo' | 'avatar',
     file: MulterFile,
-    userId: number,
-    existingAvatarUrl?: string,
+    userId?: number,
   ): Promise<string> {
-    // Validate file using centralized validator
-    const validationResult = fileUploadValidator.validateFile(file, 'avatar');
-
-    if (!validationResult.isValid) {
-      throw new FileUploadError(
-        `File validation failed: ${validationResult.errors.join(', ')}`,
-        'VALIDATION_FAILED',
-      );
-    }
-
-    // Log warnings if any
-    if (validationResult.warnings.length > 0) {
-      this.logger.warn(
-        `File validation warnings for user ${userId}: ${validationResult.warnings.join(', ')}`,
-      );
-    }
-
-    // Delete existing avatar if provided
-    if (existingAvatarUrl) {
-      try {
-        const deleted = this.deleteFile(existingAvatarUrl);
-        if (deleted) {
-          this.logger.log(`Deleted existing avatar for user ${userId}`);
-        }
-      } catch (error) {
-        // Log but don't fail the upload if old file deletion fails
-        this.logger.warn(
-          `Failed to delete existing avatar for user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+    try {
+      // Validate file type
+      if (!file.mimetype.startsWith('image/')) {
+        throw new FileUploadError(
+          `Invalid file type for ${type}`,
+          'INVALID_FILE_TYPE',
         );
       }
-    }
 
-    // Generate unique filename using UUID
-    const fileExtension =
-      file.originalname.split('.').pop()?.toLowerCase() || '';
-    const uniqueId = uuidv4();
-    const filename = `avatar_${userId}_${uniqueId}.${fileExtension}`;
+      // Validate file buffer
+      if (
+        !file.buffer ||
+        !Buffer.isBuffer(file.buffer) ||
+        file.buffer.length === 0
+      ) {
+        throw new FileUploadError(
+          `Invalid or empty file buffer for ${type}`,
+          'INVALID_FILE_BUFFER',
+        );
+      }
 
-    // Save the file to disk
-    const destinationPath = getUploadPath('avatar');
-    const fullPath = join(destinationPath, filename);
+      // Generate unique filename using UUID
+      const fileExtension =
+        file.originalname.split('.').pop()?.toLowerCase() || '';
+      const uniqueId = uuidv4();
+      const filename =
+        type === 'avatar' && userId
+          ? `${type}_${userId}_${uniqueId}.${fileExtension}`
+          : `${type}_${uniqueId}.${fileExtension}`;
 
-    try {
+      // Process image with Sharp: resize to 256x256, optimize size
+      const processedBuffer = await sharp(file.buffer)
+        .resize(256, 256, {
+          fit: 'cover',
+          position: 'center',
+        })
+        .jpeg({ quality: 85, mozjpeg: true })
+        .png({ compressionLevel: 9 })
+        .toBuffer();
+
+      // Save processed file
+      const destinationPath = getUploadPath(type);
+      const fullPath = join(destinationPath, filename);
+
       // Ensure destination directory exists
       if (!existsSync(destinationPath)) {
         mkdirSync(destinationPath, { recursive: true });
       }
 
-      // Write file to disk
-      await writeFile(fullPath, file.buffer);
+      await writeFile(fullPath, processedBuffer);
 
-      this.logger.log(`Avatar file saved for user ${userId}: ${filename}`);
-    } catch (error) {
-      this.logger.error(
-        `Failed to save avatar file for user ${userId}:`,
-        error,
+      // Get file URL using standard pattern
+      const imageUrl = this.getFileUrl(type, filename);
+
+      this.logger.log(
+        `${type.charAt(0).toUpperCase() + type.slice(1)} processed${
+          userId ? ` for user ${userId}` : ''
+        }: ${filename}`,
       );
-      throw new FileUploadError('Failed to save avatar file', 'SAVE_FAILED');
+      return imageUrl;
+    } catch (error) {
+      // Handle Sharp-specific errors
+      if (error instanceof Error && error.message.includes('Invalid input')) {
+        this.logger.error(
+          `Invalid image format or corrupted file for ${type}: ${error.message}`,
+          error.stack,
+        );
+        throw new FileUploadError(
+          `Invalid image format for ${type}. Please upload a valid image file.`,
+          'INVALID_IMAGE_FORMAT',
+        );
+      }
+
+      this.logger.error(
+        `Failed to process ${type} image: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new FileUploadError(
+        `Failed to process ${type} file`,
+        'PROCESS_FAILED',
+      );
     }
+  }
 
-    // Get file URL using standard pattern
-    const avatarUrl = this.getFileUrl('avatar', filename);
+  async processLogoImage(file: MulterFile): Promise<string> {
+    return this.processImage('logo', file);
+  }
 
-    this.logger.log(`Avatar processed for user ${userId}: ${filename}`);
-    return avatarUrl;
+  async processAvatarImage(userId: number, file: MulterFile): Promise<string> {
+    return this.processImage('avatar', file, userId);
   }
 }

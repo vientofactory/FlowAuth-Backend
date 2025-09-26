@@ -39,10 +39,14 @@ import { AuthorizationCodeService } from './authorization-code.service';
 import { ScopeService } from './scope.service';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
+import { PERMISSIONS, TOKEN_TYPES } from '../constants/auth.constants';
 import type { User } from '../user/user.entity';
 import type { OAuth2JwtPayload } from '../types/oauth2.types';
-import type { JwtPayload } from '../types/auth.types';
-import { PermissionUtils } from '../utils/permission.util';
+import { PermissionUtils, TokenUtils } from '../utils/permission.util';
 import {
   mapExceptionToOAuth2Error,
   createOAuth2Error,
@@ -78,12 +82,14 @@ export class OAuth2Controller {
     const cookieToken = cookies?.token;
 
     if (cookieToken && typeof cookieToken === 'string') {
-      try {
-        const payload = this.jwtService.verify<JwtPayload>(cookieToken);
+      const payload = await TokenUtils.extractAndValidatePayload(
+        cookieToken,
+        TOKEN_TYPES.LOGIN,
+        this.jwtService,
+      );
+      if (payload) {
         const user = await this.oauth2Service.getUserInfo(payload.sub);
         return user;
-      } catch {
-        // Continue to check authorization header
       }
     }
 
@@ -95,13 +101,15 @@ export class OAuth2Controller {
   ): Promise<User | null> {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.substring(7);
-        const payload = this.jwtService.verify<JwtPayload>(token);
+      const token = authHeader.substring(7);
+      const payload = await TokenUtils.extractAndValidatePayload(
+        token,
+        TOKEN_TYPES.LOGIN,
+        this.jwtService,
+      );
+      if (payload) {
         const user = await this.oauth2Service.getUserInfo(payload.sub);
         return user;
-      } catch {
-        // Token verification failed
       }
     }
 
@@ -857,7 +865,8 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
   }
 
   @Post('scopes/refresh')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.MANAGE_SYSTEM)
   async refreshScopesCache(@Request() req: ExpressRequest) {
     // JWT 토큰에서 사용자 정보 추출
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -865,10 +874,12 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
       throw new BadRequestException('Authorization token required');
     }
 
-    let payload: JwtPayload;
-    try {
-      payload = this.jwtService.verify<JwtPayload>(token);
-    } catch {
+    const payload = await TokenUtils.extractAndValidatePayload(
+      token,
+      TOKEN_TYPES.LOGIN,
+      this.jwtService,
+    );
+    if (!payload) {
       throw new BadRequestException('Invalid token');
     }
 
@@ -876,11 +887,6 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
     const user = await this.oauth2Service.getUserInfo(payload.sub);
     if (!user) {
       throw new BadRequestException('User not found');
-    }
-
-    // 시스템 관리자 권한 확인
-    if (!PermissionUtils.isAdmin(user.permissions)) {
-      throw new BadRequestException('System administrator privileges required');
     }
 
     await this.scopeService.refreshCache();
@@ -893,7 +899,8 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
   }
 
   @Get('scopes/cache-info')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.MANAGE_SYSTEM)
   async getScopesCacheInfo(@Request() req: ExpressRequest) {
     // JWT 토큰에서 사용자 정보 추출
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -901,10 +908,12 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
       throw new BadRequestException('Authorization token required');
     }
 
-    let payload: JwtPayload;
-    try {
-      payload = this.jwtService.verify<JwtPayload>(token);
-    } catch {
+    const payload = await TokenUtils.extractAndValidatePayload(
+      token,
+      TOKEN_TYPES.LOGIN,
+      this.jwtService,
+    );
+    if (!payload) {
       throw new BadRequestException('Invalid token');
     }
 
