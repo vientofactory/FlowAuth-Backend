@@ -34,6 +34,15 @@ export const PERMISSIONS = {
   // 시스템 권한
   MANAGE_USERS: 1 << 9, // 512
   MANAGE_SYSTEM: 1 << 10, // 1024
+
+  // 대시보드 권한
+  READ_DASHBOARD: 1 << 11, // 2048
+  WRITE_DASHBOARD: 1 << 12, // 4096
+  MANAGE_DASHBOARD: 1 << 13, // 8192
+
+  // 업로드 권한
+  UPLOAD_FILE: 1 << 14, // 16384
+
   // ADMIN 권한은 별도로 계산됨 (모든 권한의 조합)
 } as const;
 
@@ -73,7 +82,10 @@ export const ROLES = {
     PERMISSIONS.DELETE_CLIENT |
     PERMISSIONS.READ_TOKEN |
     PERMISSIONS.WRITE_TOKEN |
-    PERMISSIONS.DELETE_TOKEN, // OAuth2 기본 기능 포함
+    PERMISSIONS.DELETE_TOKEN |
+    PERMISSIONS.READ_DASHBOARD |
+    PERMISSIONS.WRITE_DASHBOARD |
+    PERMISSIONS.UPLOAD_FILE, // 대시보드 및 업로드 권한 추가
   TOKEN_MANAGER:
     PERMISSIONS.READ_TOKEN | PERMISSIONS.WRITE_TOKEN | PERMISSIONS.DELETE_TOKEN,
   USER_MANAGER:
@@ -103,20 +115,19 @@ export const AUTH_CONSTANTS = {
 
 // 에러 메시지들
 export const AUTH_ERROR_MESSAGES = {
-  JWT_SECRET_MISSING: 'JWT_SECRET environment variable is required',
-  INVALID_CREDENTIALS: 'Invalid credentials',
-  USER_NOT_FOUND: 'User not found',
-  TOKEN_EXPIRED: 'Token has expired',
-  INVALID_TOKEN: 'Invalid token',
-  INVALID_TOKEN_TYPE: 'Invalid token type',
-  UNAUTHORIZED: 'Unauthorized',
-  AUTHENTICATION_FAILED: 'Authentication failed',
-  USER_ALREADY_EXISTS: 'User already exists',
-  LOGIN_FAILED: 'Login failed',
-  TWO_FACTOR_NOT_ENABLED:
-    'Two-factor authentication is not enabled for this user',
-  INVALID_TWO_FACTOR_TOKEN: 'Invalid two-factor authentication token',
-  INVALID_BACKUP_CODE: 'Invalid backup code',
+  JWT_SECRET_MISSING: 'JWT_SECRET 환경 변수가 필요합니다',
+  INVALID_CREDENTIALS: '잘못된 자격 증명입니다',
+  USER_NOT_FOUND: '사용자를 찾을 수 없습니다',
+  TOKEN_EXPIRED: '토큰이 만료되었습니다',
+  INVALID_TOKEN: '잘못된 토큰입니다',
+  INVALID_TOKEN_TYPE: '잘못된 토큰 유형입니다',
+  UNAUTHORIZED: '권한이 없습니다',
+  AUTHENTICATION_FAILED: '인증에 실패했습니다',
+  USER_ALREADY_EXISTS: '이미 존재하는 사용자입니다',
+  LOGIN_FAILED: '로그인에 실패했습니다',
+  TWO_FACTOR_NOT_ENABLED: '이 사용자에 대해 2단계 인증이 활성화되지 않았습니다',
+  INVALID_TWO_FACTOR_TOKEN: '잘못된 2단계 인증 토큰입니다',
+  INVALID_BACKUP_CODE: '잘못된 백업 코드입니다',
 } as const;
 
 // 로그 메시지들
@@ -149,7 +160,11 @@ export enum USER_TYPES {
 
 // 사용자 유형별 기본 권한
 export const USER_TYPE_PERMISSIONS = {
-  [USER_TYPES.REGULAR]: PERMISSIONS.READ_USER,
+  [USER_TYPES.REGULAR]:
+    PERMISSIONS.READ_USER |
+    PERMISSIONS.READ_DASHBOARD |
+    PERMISSIONS.WRITE_DASHBOARD |
+    PERMISSIONS.UPLOAD_FILE, // 기본 사용자 권한 + 대시보드 + 업로드
   [USER_TYPES.DEVELOPER]:
     PERMISSIONS.READ_USER |
     PERMISSIONS.READ_CLIENT |
@@ -157,5 +172,8 @@ export const USER_TYPE_PERMISSIONS = {
     PERMISSIONS.DELETE_CLIENT |
     PERMISSIONS.READ_TOKEN |
     PERMISSIONS.WRITE_TOKEN |
-    PERMISSIONS.DELETE_TOKEN,
+    PERMISSIONS.DELETE_TOKEN |
+    PERMISSIONS.READ_DASHBOARD |
+    PERMISSIONS.WRITE_DASHBOARD |
+    PERMISSIONS.UPLOAD_FILE, // 개발자 권한 + 대시보드 + 업로드
 } as const;

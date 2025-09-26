@@ -25,6 +25,11 @@ import type { MulterFile } from './types';
 import { UPLOAD_CONFIG } from './config';
 import { UPLOAD_ERRORS } from './types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
+import { PERMISSIONS } from '../constants/auth.constants';
 import { FileUploadResponseDto } from './dto/response.dto';
 import { validateFile, isValidFilename } from './validators';
 
@@ -44,7 +49,8 @@ export class UploadController {
   constructor(private readonly fileUploadService: FileUploadService) {}
 
   @Post('logo')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.UPLOAD_FILE)
   @UseInterceptors(FileInterceptor('logo', createMulterOptions('logo')))
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
@@ -121,7 +127,8 @@ export class UploadController {
   }
 
   @Get('logos/:filename')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.UPLOAD_FILE)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '로고 파일 조회',
@@ -178,7 +185,8 @@ export class UploadController {
   }
 
   @Get('config/:type')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.UPLOAD_FILE)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '업로드 설정 조회',

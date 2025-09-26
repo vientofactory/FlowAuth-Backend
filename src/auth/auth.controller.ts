@@ -557,7 +557,8 @@ export class AuthController {
   }
 
   @Get('tokens')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.READ_TOKEN)
   @ApiBearerAuth()
   @ApiOperation({ summary: '사용자 토큰 목록 조회' })
   @ApiResponse({
