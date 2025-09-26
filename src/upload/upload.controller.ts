@@ -1,10 +1,8 @@
 import {
   Controller,
-  Post,
   Get,
   Param,
   Res,
-  UseInterceptors,
   UploadedFile,
   UseGuards,
 } from '@nestjs/common';
@@ -17,7 +15,6 @@ import {
   ApiBearerAuth,
   ApiParam,
 } from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { FileUploadService } from './file-upload.service';
 import type { MulterFile } from './types';
@@ -32,26 +29,10 @@ import { PERMISSIONS } from '../constants/auth.constants';
 import { FileUploadResponseDto } from './dto/response.dto';
 import { validateFile, isValidFilename } from './validators';
 
-// Factory function to create multer options using the service
-function createMulterOptions(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
-  const service = new FileUploadService();
-  return {
-    storage: service.createStorage(),
-    fileFilter: service.createFileFilter(type),
-    limits: service.getUploadLimits(type),
-  };
-}
-
 @Controller('uploads')
 @ApiTags('File Upload')
 export class UploadController {
   constructor(private readonly fileUploadService: FileUploadService) {}
-
-  @Post('logo')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(PERMISSIONS.UPLOAD_FILE)
-  @UseInterceptors(FileInterceptor('logo', createMulterOptions('logo')))
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '로고 파일 업로드',
     description: `

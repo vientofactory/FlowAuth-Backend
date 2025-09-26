@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { FileUploadService } from './file-upload.service';
+import { ImageProcessingService } from './image-processing.service';
 import { UploadController } from './upload.controller';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtStrategy } from '../auth/jwt.strategy';
@@ -27,7 +28,12 @@ import { UtilsModule } from '../utils/utils.module';
     }),
     UtilsModule,
   ],
-  providers: [FileUploadService, JwtAuthGuard, JwtStrategy],
+  providers: [
+    FileUploadService,
+    ImageProcessingService,
+    JwtAuthGuard,
+    JwtStrategy,
+  ],
   controllers: [UploadController],
   exports: [FileUploadService],
 })

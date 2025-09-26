@@ -14,11 +14,11 @@ import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
-import { FileUploadService } from '../upload/file-upload.service';
 import { LoggingModule } from '../logging/logging.module';
 import { UtilsModule } from '../utils/utils.module';
 import { JWT_CONSTANTS } from '../constants/auth.constants';
 import { UserManagementService } from './services/user-management.service';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
   imports: [
@@ -26,6 +26,7 @@ import { UserManagementService } from './services/user-management.service';
     PassportModule,
     LoggingModule,
     UtilsModule,
+    UploadModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
         secret:
@@ -42,10 +43,9 @@ import { UserManagementService } from './services/user-management.service';
     JwtStrategy,
     JwtAuthGuard,
     PermissionsGuard,
-    FileUploadService,
     UserManagementService,
   ],
   controllers: [AuthController, TwoFactorController],
-  exports: [JwtAuthGuard, FileUploadService, UserManagementService],
+  exports: [JwtAuthGuard, UserManagementService],
 })
 export class AuthModule {}

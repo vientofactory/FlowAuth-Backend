@@ -1,10 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { extname, join } from 'path';
-import { existsSync, mkdirSync, unlinkSync } from 'fs';
-import { writeFile } from 'fs/promises';
+import { existsSync, unlinkSync } from 'fs';
 import { memoryStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
-import sharp from 'sharp';
 import type { Request } from 'express';
 import {
   MulterFile,
@@ -15,31 +13,19 @@ import {
 } from './types';
 import { UPLOAD_CONFIG, getUploadPath } from './config';
 import { fileUploadValidator } from './validators';
+import { ImageProcessingService } from './image-processing.service';
 
 @Injectable()
 export class FileUploadService {
   private readonly logger = new Logger(FileUploadService.name);
 
-  constructor() {
-    this.ensureDirectoriesExist();
-  }
+  constructor(
+    private readonly imageProcessingService: ImageProcessingService,
+  ) {}
 
   private ensureDirectoriesExist(): void {
-    if (!existsSync(UPLOAD_CONFIG.baseUploadPath)) {
-      mkdirSync(UPLOAD_CONFIG.baseUploadPath, { recursive: true });
-      this.logger.log(
-        `Created base upload directory: ${UPLOAD_CONFIG.baseUploadPath}`,
-      );
-    }
-
-    // Create directories for each file type
-    Object.keys(UPLOAD_CONFIG.fileTypes).forEach((type) => {
-      const path = getUploadPath(type as keyof typeof UPLOAD_CONFIG.fileTypes);
-      if (!existsSync(path)) {
-        mkdirSync(path, { recursive: true });
-        this.logger.log(`Created upload directory for ${type}: ${path}`);
-      }
-    });
+    // Note: Directory creation is now handled by ImageProcessingService
+    // This method is kept for backward compatibility but is no longer used
   }
 
   /**
@@ -220,108 +206,25 @@ export class FileUploadService {
   }
 
   /**
-   * Upload and process an avatar file
-   * @param file - The uploaded file from multer
-   * @param userId - The user ID for filename generation
-   * @param existingAvatarUrl - Optional existing avatar URL to delete
-   * @returns Promise<string> - The URL of the uploaded avatar
+   * Process and save a logo image
+   * @param file - The uploaded logo file
+   * @returns Promise<string> - URL of the processed logo
    */
-  private async processImage(
-    type: 'logo' | 'avatar',
-    file: MulterFile,
-    userId?: number,
-  ): Promise<string> {
-    try {
-      // Validate file type
-      if (!file.mimetype.startsWith('image/')) {
-        throw new FileUploadError(
-          `Invalid file type for ${type}`,
-          'INVALID_FILE_TYPE',
-        );
-      }
-
-      // Validate file buffer
-      if (
-        !file.buffer ||
-        !Buffer.isBuffer(file.buffer) ||
-        file.buffer.length === 0
-      ) {
-        throw new FileUploadError(
-          `Invalid or empty file buffer for ${type}`,
-          'INVALID_FILE_BUFFER',
-        );
-      }
-
-      // Generate unique filename using UUID
-      const fileExtension =
-        file.originalname.split('.').pop()?.toLowerCase() || '';
-      const uniqueId = uuidv4();
-      const filename =
-        type === 'avatar' && userId
-          ? `${type}_${userId}_${uniqueId}.${fileExtension}`
-          : `${type}_${uniqueId}.${fileExtension}`;
-
-      // Process image with Sharp: resize to 256x256, optimize size
-      const processedBuffer = await sharp(file.buffer)
-        .resize(256, 256, {
-          fit: 'cover',
-          position: 'center',
-        })
-        .jpeg({ quality: 85, mozjpeg: true })
-        .png({ compressionLevel: 9 })
-        .toBuffer();
-
-      // Save processed file
-      const destinationPath = getUploadPath(type);
-      const fullPath = join(destinationPath, filename);
-
-      // Ensure destination directory exists
-      if (!existsSync(destinationPath)) {
-        mkdirSync(destinationPath, { recursive: true });
-      }
-
-      await writeFile(fullPath, processedBuffer);
-
-      // Get file URL using standard pattern
-      const imageUrl = this.getFileUrl(type, filename);
-
-      this.logger.log(
-        `${type.charAt(0).toUpperCase() + type.slice(1)} processed${
-          userId ? ` for user ${userId}` : ''
-        }: ${filename}`,
-      );
-      return imageUrl;
-    } catch (error) {
-      // Handle Sharp-specific errors
-      if (error instanceof Error && error.message.includes('Invalid input')) {
-        this.logger.error(
-          `Invalid image format or corrupted file for ${type}: ${error.message}`,
-          error.stack,
-        );
-        throw new FileUploadError(
-          `Invalid image format for ${type}. Please upload a valid image file.`,
-          'INVALID_IMAGE_FORMAT',
-        );
-      }
-
-      this.logger.error(
-        `Failed to process ${type} image: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-        error instanceof Error ? error.stack : undefined,
-      );
-      throw new FileUploadError(
-        `Failed to process ${type} file`,
-        'PROCESS_FAILED',
-      );
-    }
-  }
-
   async processLogoImage(file: MulterFile): Promise<string> {
-    return this.processImage('logo', file);
+    return this.imageProcessingService.processAndSaveImage('logo', file);
   }
 
+  /**
+   * Process and save an avatar image
+   * @param userId - The user ID
+   * @param file - The uploaded avatar file
+   * @returns Promise<string> - URL of the processed avatar
+   */
   async processAvatarImage(userId: number, file: MulterFile): Promise<string> {
-    return this.processImage('avatar', file, userId);
+    return this.imageProcessingService.processAndSaveImage(
+      'avatar',
+      file,
+      userId,
+    );
   }
 }

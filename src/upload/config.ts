@@ -57,6 +57,52 @@ export const UPLOAD_CONFIG = {
     maxAge: 31536000, // 1 year in seconds
     cacheControl: 'public, max-age=31536000',
   },
+
+  // Image processing settings
+  imageProcessing: {
+    // Default resize dimensions for avatars and logos
+    defaultSize: {
+      width: 256,
+      height: 256,
+    },
+
+    // Resize options
+    resizeOptions: {
+      fit: 'cover' as const,
+      position: 'center' as const,
+    },
+
+    // Output format priority (most optimized first)
+    outputFormats: ['webp', 'avif', 'jpeg', 'png'] as const,
+
+    // Format-specific optimization settings
+    formatOptions: {
+      jpeg: {
+        quality: 85,
+        mozjpeg: true,
+      } as const,
+      png: {
+        compressionLevel: 9,
+      } as const,
+      webp: {
+        quality: 85,
+        effort: 6,
+      } as const,
+      avif: {
+        quality: 80,
+        effort: 6,
+      } as const,
+    } as const,
+
+    // Legacy options for backward compatibility
+    jpegOptions: {
+      quality: 85,
+      mozjpeg: true,
+    },
+    pngOptions: {
+      compressionLevel: 9,
+    },
+  },
 } as const;
 
 // Helper functions
