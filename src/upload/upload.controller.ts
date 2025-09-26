@@ -7,7 +7,6 @@ import {
   UseInterceptors,
   UploadedFile,
   UseGuards,
-  Body,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -37,7 +36,7 @@ import { validateFile, isValidFilename } from './validators';
 function createMulterOptions(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
   const service = new FileUploadService();
   return {
-    storage: service.createStorage(type),
+    storage: service.createStorage(),
     fileFilter: service.createFileFilter(type),
     limits: service.getUploadLimits(type),
   };

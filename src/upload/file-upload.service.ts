@@ -45,7 +45,7 @@ export class FileUploadService {
   /**
    * Create multer storage configuration for a specific file type
    */
-  createStorage(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
+  createStorage() {
     // Use memory storage for image processing with Sharp
     return memoryStorage();
   }
