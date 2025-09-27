@@ -6,6 +6,9 @@ import { Token } from '../token/token.entity';
 import { OAuth2Module } from '../oauth2/oauth2.module';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
+import { DashboardStatsService } from './dashboard-stats.service';
+import { DashboardAnalyticsService } from './dashboard-analytics.service';
+import { CacheManagerService } from './cache-manager.service';
 import { LoggingModule } from '../logging/logging.module';
 
 @Module({
@@ -15,7 +18,12 @@ import { LoggingModule } from '../logging/logging.module';
     LoggingModule,
   ],
   controllers: [DashboardController],
-  providers: [DashboardService],
-  exports: [DashboardService],
+  providers: [
+    DashboardService,
+    DashboardStatsService,
+    DashboardAnalyticsService,
+    CacheManagerService,
+  ],
+  exports: [DashboardService, CacheManagerService],
 })
 export class DashboardModule {}
