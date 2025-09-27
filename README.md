@@ -2,7 +2,7 @@
 
 FlowAuth의 백엔드 API 서버입니다. NestJS와 TypeORM을 기반으로 OAuth2 인증 시스템을 구현합니다.
 
-## 🚀 기술 스택
+## 기술 스택
 
 - **Framework**: [NestJS](https://nestjs.com/)
 - **Database**: MariaDB + [TypeORM](https://typeorm.io/)
@@ -13,13 +13,13 @@ FlowAuth의 백엔드 API 서버입니다. NestJS와 TypeORM을 기반으로 OAu
 - **Language**: TypeScript
 - **Documentation**: Swagger/OpenAPI
 
-## 📋 사전 요구사항
+## 사전 요구사항
 
 - Node.js (v18 이상)
 - MariaDB (또는 MySQL 호환 데이터베이스)
 - npm 또는 yarn
 
-## 🛠️ 빠른 시작
+## 빠른 시작
 
 ### 1. 의존성 설치
 
@@ -206,7 +206,7 @@ npm run start:dev
 
 서버가 `http://localhost:3000`에서 실행됩니다.
 
-## 📚 API 문서
+## API 문서
 
 ### Swagger UI
 
@@ -214,31 +214,31 @@ API 문서를 확인하려면 브라우저에서 `http://localhost:3000/api`로 
 
 ### 주요 엔드포인트
 
-#### 🔐 인증 관련
+#### 인증 관련
 
 - `POST /auth/login` - 사용자 로그인
 - `POST /auth/register` - 사용자 등록
 - `GET /auth/profile` - 프로필 조회
 
-#### 🔄 OAuth2 관련
+#### OAuth2 관련
 
 - `GET /oauth2/authorize` - 인가 요청
 - `POST /oauth2/token` - 토큰 발급
 - `GET /oauth2/userinfo` - 사용자 정보 조회
 - `POST /oauth2/authorize/consent` - 동의 처리
 
-#### 🏢 클라이언트 관리
+#### 클라이언트 관리
 
 - `GET /clients` - 클라이언트 목록 조회
 - `POST /clients` - 새 클라이언트 생성
 - `PUT /clients/:id` - 클라이언트 수정
 - `DELETE /clients/:id` - 클라이언트 삭제
 
-## 🗄️ 데이터베이스 스키마
+## 데이터베이스 스키마
 
 ### 주요 엔티티
 
-#### 👤 User (사용자)
+#### User (사용자)
 
 ```sql
 - id: number (Primary Key)
@@ -250,7 +250,7 @@ API 문서를 확인하려면 브라우저에서 `http://localhost:3000/api`로 
 - updatedAt: Date
 ```
 
-#### 🏢 Client (OAuth2 클라이언트)
+#### Client (OAuth2 클라이언트)
 
 ```sql
 - id: number (Primary Key)
@@ -264,7 +264,7 @@ API 문서를 확인하려면 브라우저에서 `http://localhost:3000/api`로 
 - updatedAt: Date
 ```
 
-#### 🔄 AuthorizationCode (인가 코드)
+#### AuthorizationCode (인가 코드)
 
 ```sql
 - id: number (Primary Key)
@@ -280,7 +280,7 @@ API 문서를 확인하려면 브라우저에서 `http://localhost:3000/api`로 
 - client: Client (Foreign Key)
 ```
 
-#### 🎫 Token (액세스 토큰)
+#### Token (액세스 토큰)
 
 ```sql
 - id: number (Primary Key)
@@ -293,7 +293,7 @@ API 문서를 확인하려면 브라우저에서 `http://localhost:3000/api`로 
 - client: Client (Foreign Key)
 ```
 
-## 🧪 테스트
+## 테스트
 
 ```bash
 # 단위 테스트 실행
@@ -329,7 +329,7 @@ npm run seed             # 초기 데이터 시딩
 npm run typeorm
 ```
 
-## ⚙️ 환경 설정
+## 환경 설정
 
 ### 추가 환경 변수 (선택사항)
 
@@ -350,7 +350,7 @@ CLEANUP_CRON_EXPRESSION=0 0 * * *
 FRONTEND_URL=http://localhost:5173
 ```
 
-## 🔒 보안 기능
+## 보안 기능
 
 - **JWT 토큰 기반 인증**
 - **비밀번호 해싱 (bcrypt)**
@@ -361,7 +361,7 @@ FRONTEND_URL=http://localhost:5173
 - **인가 코드 만료 (기본 10분)**
 - **토큰 만료 관리**
 
-## 🔧 문제 해결
+## 문제 해결
 
 ### OAuth2 인증이 작동하지 않는 경우
 
@@ -403,7 +403,7 @@ FRONTEND_URL=http://localhost:5173
 2. 이전 마이그레이션이 성공적으로 실행되었는지 확인
 3. 마이그레이션 파일의 구문 오류 확인
 
-## 🤝 기여하기
+## 기여하기
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
