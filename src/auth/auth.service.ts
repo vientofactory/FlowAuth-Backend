@@ -16,6 +16,7 @@ import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
+import { TokenDto } from './dto/response.dto';
 import * as bcrypt from 'bcrypt';
 import * as speakeasy from 'speakeasy';
 import * as crypto from 'crypto';
@@ -753,12 +754,30 @@ export class AuthService {
     await this.clientRepository.remove(client);
   }
 
-  async getUserTokens(userId: number): Promise<Token[]> {
-    return this.tokenRepository.find({
+  async getUserTokens(userId: number): Promise<TokenDto[]> {
+    const tokens = await this.tokenRepository.find({
       where: { user: { id: userId } },
-      relations: ['client'],
+      relations: ['client', 'user'],
       order: { createdAt: 'DESC' },
     });
+
+    return tokens.map((token) => ({
+      id: token.id,
+      tokenType: token.tokenType,
+      expiresAt: token.expiresAt.toISOString(),
+      refreshExpiresAt: token.refreshExpiresAt?.toISOString(),
+      scopes: token.scopes,
+      userId: token.user!.id,
+      clientId: token.client?.id,
+      client: token.client
+        ? {
+            name: token.client.name,
+            clientId: token.client.clientId,
+          }
+        : undefined,
+      createdAt: token.createdAt.toISOString(),
+      updatedAt: token.createdAt.toISOString(), // updatedAt이 없으므로 createdAt 사용
+    }));
   }
 
   async revokeToken(userId: number, tokenId: number): Promise<void> {

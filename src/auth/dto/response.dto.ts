@@ -171,3 +171,74 @@ export class ClientSecretResetResponseDto {
   })
   message: string;
 }
+
+/**
+ * 토큰 DTO
+ */
+export class TokenDto {
+  @ApiProperty({
+    description: '토큰 ID',
+    example: 1,
+  })
+  id: number;
+
+  @ApiProperty({
+    description: '토큰 타입',
+    example: 'login',
+  })
+  tokenType: string;
+
+  @ApiProperty({
+    description: '만료 일시',
+    example: '2023-12-31T23:59:59.000Z',
+  })
+  expiresAt: string;
+
+  @ApiProperty({
+    description: '리프레시 토큰 만료 일시',
+    example: '2024-01-30T23:59:59.000Z',
+    required: false,
+  })
+  refreshExpiresAt?: string;
+
+  @ApiProperty({
+    description: '권한 범위',
+    example: ['read:user', 'read:profile'],
+    required: false,
+  })
+  scopes?: string[];
+
+  @ApiProperty({
+    description: '사용자 ID',
+    example: 1,
+  })
+  userId: number;
+
+  @ApiProperty({
+    description: '클라이언트 ID',
+    example: 1,
+    required: false,
+  })
+  clientId?: number;
+
+  @ApiProperty({
+    description: '클라이언트 정보',
+    required: false,
+  })
+  client?: {
+    name: string;
+    clientId: string;
+  };
+
+  @ApiProperty({
+    description: '생성 일시',
+    example: '2023-12-01T00:00:00.000Z',
+  })
+  createdAt: string;
+
+  @ApiProperty({
+    description: '수정 일시',
+    example: '2023-12-01T00:00:00.000Z',
+  })
+  updatedAt: string;
+}

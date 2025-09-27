@@ -25,6 +25,7 @@ import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { CreateClientDto } from './dto/create-client.dto';
+import { TokenDto } from './dto/response.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard, RequirePermissions } from './permissions.guard';
 import { User } from '../user/user.entity';
@@ -564,6 +565,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: '토큰 목록 반환',
+    type: [TokenDto],
   })
   async getUserTokens(@Request() req: AuthenticatedRequest) {
     return this.authService.getUserTokens(req.user.id);
