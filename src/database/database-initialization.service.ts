@@ -272,7 +272,7 @@ export class DatabaseInitializationService
   private async seedInitialData(): Promise<void> {
     try {
       this.logger.log('Starting initial data seeding...');
-      await this.seedService.seedScopes();
+      await this.seedService.seedDatabase();
       this.logger.log('Initial data seeding completed');
     } catch (error) {
       this.logger.error('Error during initial data seeding:', error);

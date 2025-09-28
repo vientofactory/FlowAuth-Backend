@@ -9,7 +9,6 @@ import { AppModule } from './app.module';
 import { Reflector } from '@nestjs/core';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import { SeedService } from './database/seed.service';
 import { join } from 'path';
 import { Request, Response, NextFunction } from 'express';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -27,7 +26,7 @@ async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
 
   // Configure application middleware and settings
-  await configureApp(app, configService, logger);
+  configureApp(app);
 
   // Start the server
   const port = configService.get<number>('PORT') ?? 3000;
@@ -52,11 +51,7 @@ async function bootstrap(): Promise<void> {
 /**
  * Configure application middleware, security, and features
  */
-async function configureApp(
-  app: NestExpressApplication,
-  configService: ConfigService,
-  logger: Logger,
-): Promise<void> {
+function configureApp(app: NestExpressApplication): void {
   // Security configuration
   configureSecurity(app);
 
@@ -71,9 +66,6 @@ async function configureApp(
 
   // Validation and serialization
   configureValidation(app);
-
-  // Database seeding
-  await seedDatabase(app, logger);
 
   // API documentation
   setupSwagger(app);
@@ -190,23 +182,6 @@ function configureValidation(app: NestExpressApplication): void {
 
   // Global serialization interceptor
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
-}
-
-/**
- * Seed database with initial data
- */
-async function seedDatabase(
-  app: INestApplication,
-  logger: Logger,
-): Promise<void> {
-  try {
-    const seedService = app.get(SeedService);
-    await seedService.seedDatabase();
-    logger.log('Database seeding completed successfully');
-  } catch (error: unknown) {
-    logger.error('Database seeding failed:', error);
-    logger.warn('Continuing with application startup despite seeding failure');
-  }
 }
 
 // Start the application
