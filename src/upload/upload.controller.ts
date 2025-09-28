@@ -2,10 +2,13 @@ import {
   Controller,
   Get,
   Param,
+  Post,
   Res,
   UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
@@ -33,6 +36,12 @@ import { validateFile, isValidFilename } from './validators';
 @ApiTags('File Upload')
 export class UploadController {
   constructor(private readonly fileUploadService: FileUploadService) {}
+
+  @Post('logo')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.UPLOAD_FILE)
+  @UseInterceptors(FileInterceptor('logo'))
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '로고 파일 업로드',
     description: `
