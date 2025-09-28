@@ -292,7 +292,7 @@ export class ImageProcessingService {
           break;
         default:
           // Fallback to JPEG
-          sharpInstance.jpeg(UPLOAD_CONFIG.imageProcessing.jpegOptions);
+          sharpInstance.jpeg(UPLOAD_CONFIG.imageProcessing.formatOptions.jpeg);
       }
 
       const processedBuffer = await sharpInstance.toBuffer();

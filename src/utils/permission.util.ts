@@ -208,7 +208,7 @@ export class PermissionUtils {
    */
   static isAdmin(permissions: number): boolean {
     const adminPermission = PERMISSION_UTILS.getAdminPermission();
-    return (permissions & adminPermission) !== 0;
+    return this.hasPermission(permissions, adminPermission);
   }
 
   /**
