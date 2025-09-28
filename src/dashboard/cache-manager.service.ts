@@ -6,6 +6,24 @@ import type { Cache } from 'cache-manager';
 import { User } from '../user/user.entity';
 import { CACHE_KEYS, DASHBOARD_CONFIG } from './dashboard.constants';
 
+// Redis 클라이언트 인터페이스 정의
+interface RedisClient {
+  scan(
+    cursor: string,
+    ...args: (
+      | string
+      | number
+      | ((err: Error | null, reply: [string, string[]]) => void)
+    )[]
+  ): void;
+  del(keys: string[], callback: (err: Error | null) => void): void;
+}
+
+// Cache store 인터페이스 정의
+interface CacheStore {
+  client?: RedisClient;
+}
+
 @Injectable()
 export class CacheManagerService {
   constructor(
@@ -111,25 +129,22 @@ export class CacheManagerService {
   private async deleteKeysByPattern(pattern: string): Promise<void> {
     try {
       // Redis 클라이언트에 안전하게 접근
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      const cacheStore = (this.cacheManager as any).store;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      const redisClient = cacheStore?.client;
+      const cacheStore = (
+        this.cacheManager as unknown as { store?: CacheStore }
+      ).store;
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (!redisClient || typeof redisClient.scan !== 'function') {
-        console.warn(
-          'Redis client not available or SCAN not supported, skipping pattern deletion',
-        );
+      if (!cacheStore?.client) {
+        console.warn('Redis client not available, skipping pattern deletion');
         return;
       }
+
+      const redisClient = cacheStore.client;
 
       return new Promise<void>((resolve, reject) => {
         const keysToDelete: string[] = [];
         let cursor = '0';
 
         const scanAndDelete = () => {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
           redisClient.scan(
             cursor,
             'MATCH',
@@ -151,7 +166,6 @@ export class CacheManagerService {
               // 모든 키를 스캔했으면 삭제 실행
               if (cursor === '0') {
                 if (keysToDelete.length > 0) {
-                  // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
                   redisClient.del(keysToDelete, (delErr: Error | null) => {
                     if (delErr) {
                       reject(delErr);
