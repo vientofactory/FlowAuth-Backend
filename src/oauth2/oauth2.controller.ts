@@ -494,7 +494,7 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
 
   @Get('userinfo')
   @UseGuards(OAuth2BearerGuard, OAuth2ScopeGuard)
-  @RequireScopes('read:user')
+  @RequireScopes('identify')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '사용자 정보 조회',
@@ -503,10 +503,10 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
 
 **스코프별 반환 정보:**
 - 기본: sub (사용자 식별자)
+- identify 스코프: 사용자명, 역할 정보
 - email 스코프: 이메일 주소
-- profile 스코프: 사용자명, 역할 정보
 
-**필요한 스코프:** read:user
+**필요한 스코프:** identify
     `,
   })
   @ApiResponse({
@@ -553,8 +553,8 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
       response.email = user.email;
     }
 
-    // read:profile 스코프가 있을 때만 프로필 정보 반환
-    if (userScopes.includes('read:profile')) {
+    // identify 스코프가 있을 때만 프로필 정보 반환
+    if (userScopes.includes('identify')) {
       response.username = user.username;
       response.roles = [PermissionUtils.getRoleName(user.permissions)];
     }
@@ -808,12 +808,12 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
               name: {
                 type: 'string',
                 description: '스코프 이름',
-                example: 'read:user',
+                example: 'identify',
               },
               description: {
                 type: 'string',
                 description: '스코프 설명',
-                example: '사용자 기본 정보 읽기',
+                example: '계정의 기본 정보 읽기 (사용자 ID, 이름 등)',
               },
               isDefault: {
                 type: 'boolean',

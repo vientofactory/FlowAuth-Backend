@@ -203,7 +203,7 @@ export class TokenDto {
 
   @ApiProperty({
     description: '권한 범위',
-    example: ['read:user', 'read:profile'],
+    example: ['identify', 'email'],
     required: false,
   })
   scopes?: string[];

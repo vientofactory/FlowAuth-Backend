@@ -43,7 +43,7 @@ export class CreateClientDto {
 
   @ApiProperty({
     description: '허용된 스코프 목록',
-    example: ['read:user', 'read:profile', 'basic'],
+    example: ['identify', 'email'],
     type: [String],
   })
   @IsArray()

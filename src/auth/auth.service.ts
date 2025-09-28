@@ -218,7 +218,7 @@ export class AuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.READ_PROFILE], // Default scopes for general login
+        scopes: undefined, // 로그인 토큰은 스코프 대신 JWT payload의 permissions 사용
         user,
         tokenType: TOKEN_TYPES.LOGIN,
         // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
@@ -346,8 +346,9 @@ export class AuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.READ_PROFILE], // Default scopes for general login
+        scopes: undefined, // 로그인 토큰은 스코프 대신 JWT payload의 permissions 사용
         user,
+        tokenType: TOKEN_TYPES.LOGIN,
         isRefreshTokenUsed: false,
       });
       await this.tokenRepository.save(tokenEntity);
@@ -479,8 +480,9 @@ export class AuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.READ_PROFILE], // Default scopes for general login
+        scopes: undefined, // 로그인 토큰은 스코프 대신 JWT payload의 permissions 사용
         user: updatedUser,
+        tokenType: TOKEN_TYPES.LOGIN,
         // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
         isRefreshTokenUsed: false,
       });
@@ -541,13 +543,7 @@ export class AuthService {
 
     // Set default scopes if not provided
     const clientScopes =
-      scopes && scopes.length > 0
-        ? scopes
-        : [
-            OAUTH2_SCOPES.READ_USER,
-            OAUTH2_SCOPES.READ_PROFILE,
-            OAUTH2_SCOPES.BASIC,
-          ];
+      scopes && scopes.length > 0 ? scopes : [OAUTH2_SCOPES.IDENTIFY];
 
     const client = this.clientRepository.create({
       clientId,

@@ -23,48 +23,8 @@ export class SeedService {
   private static readonly DEFAULT_SCOPES: readonly ScopeData[] = [
     // 새로운 OAuth2 스코프들
     {
-      name: OAUTH2_SCOPES.READ_USER,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.READ_USER],
-      isDefault: true,
-    },
-    {
-      name: OAUTH2_SCOPES.READ_PROFILE,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.READ_PROFILE],
-      isDefault: true,
-    },
-    {
-      name: OAUTH2_SCOPES.UPLOAD_FILE,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.UPLOAD_FILE],
-      isDefault: false,
-    },
-    {
-      name: OAUTH2_SCOPES.READ_FILE,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.READ_FILE],
-      isDefault: false,
-    },
-    {
-      name: OAUTH2_SCOPES.DELETE_FILE,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.DELETE_FILE],
-      isDefault: false,
-    },
-    {
-      name: OAUTH2_SCOPES.READ_CLIENT,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.READ_CLIENT],
-      isDefault: false,
-    },
-    {
-      name: OAUTH2_SCOPES.WRITE_CLIENT,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.WRITE_CLIENT],
-      isDefault: false,
-    },
-    {
-      name: OAUTH2_SCOPES.DELETE_CLIENT,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.DELETE_CLIENT],
-      isDefault: false,
-    },
-    {
-      name: OAUTH2_SCOPES.BASIC,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.BASIC],
+      name: OAUTH2_SCOPES.IDENTIFY,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.IDENTIFY],
       isDefault: true,
     },
     {
@@ -140,11 +100,7 @@ export class SeedService {
           'http://localhost:3000/callback',
         ],
         grants: ['authorization_code', 'refresh_token'],
-        scopes: [
-          OAUTH2_SCOPES.READ_USER,
-          OAUTH2_SCOPES.READ_PROFILE,
-          OAUTH2_SCOPES.BASIC,
-        ],
+        scopes: [OAUTH2_SCOPES.IDENTIFY],
         isActive: true,
         userId: firstUser.id, // Assign to the first user
       });

@@ -78,24 +78,8 @@ export const OAUTH2_LOG_MESSAGES = {
 
 // OAuth2 스코프 상수들
 export const OAUTH2_SCOPES = {
-  // 사용자 정보 관련
-  READ_USER: 'read:user',
-
-  // 프로필 관련
-  READ_PROFILE: 'read:profile',
-
-  // 파일 업로드 관련
-  UPLOAD_FILE: 'upload:file',
-  READ_FILE: 'read:file',
-  DELETE_FILE: 'delete:file',
-
-  // 클라이언트 관리 관련
-  READ_CLIENT: 'read:client',
-  WRITE_CLIENT: 'write:client',
-  DELETE_CLIENT: 'delete:client',
-
-  // 기본 스코프
-  BASIC: 'basic',
+  // 계정 기본 정보 스코프 (Discord 스타일)
+  IDENTIFY: 'identify',
 
   // 이메일 주소 스코프
   EMAIL: 'email',
@@ -103,21 +87,9 @@ export const OAUTH2_SCOPES = {
 
 // 스코프 설명
 export const SCOPE_DESCRIPTIONS = {
-  [OAUTH2_SCOPES.READ_USER]: '사용자 기본 정보 읽기',
-  [OAUTH2_SCOPES.READ_PROFILE]: '사용자 프로필 읽기',
-  [OAUTH2_SCOPES.UPLOAD_FILE]: '파일 업로드',
-  [OAUTH2_SCOPES.READ_FILE]: '파일 읽기',
-  [OAUTH2_SCOPES.DELETE_FILE]: '파일 삭제',
-  [OAUTH2_SCOPES.READ_CLIENT]: '클라이언트 정보 읽기',
-  [OAUTH2_SCOPES.WRITE_CLIENT]: '클라이언트 정보 수정',
-  [OAUTH2_SCOPES.DELETE_CLIENT]: '클라이언트 삭제',
-  [OAUTH2_SCOPES.BASIC]: '기본 접근 권한',
+  [OAUTH2_SCOPES.IDENTIFY]: '계정의 기본 정보 읽기 (사용자 ID, 이름 등)',
   [OAUTH2_SCOPES.EMAIL]: '사용자 이메일 주소 읽기',
 } as const;
 
 // 기본 스코프 목록
-export const DEFAULT_SCOPES = [
-  OAUTH2_SCOPES.BASIC,
-  OAUTH2_SCOPES.READ_USER,
-  OAUTH2_SCOPES.READ_PROFILE,
-] as const;
+export const DEFAULT_SCOPES = [OAUTH2_SCOPES.IDENTIFY] as const;

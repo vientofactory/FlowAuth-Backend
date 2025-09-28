@@ -421,7 +421,7 @@ export class AuthController {
         scopes: {
           type: 'array',
           items: { type: 'string' },
-          example: ['read:user', 'read:profile'],
+          example: ['identify', 'email'],
         },
       },
     },
