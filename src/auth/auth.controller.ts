@@ -25,6 +25,7 @@ import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { CreateClientDto } from './dto/create-client.dto';
+import { TokenDto } from './dto/response.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard, RequirePermissions } from './permissions.guard';
 import { User } from '../user/user.entity';
@@ -35,12 +36,16 @@ import {
   type TokenType,
 } from '../constants/auth.constants';
 import { LoginResponseDto, ClientCreateResponseDto } from './dto/response.dto';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
 @ApiTags('Authentication')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Post('register')
   @ApiOperation({ summary: '사용자 등록' })
@@ -79,10 +84,10 @@ export class AuthController {
 
     // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {
-      httpOnly: false, // JavaScript에서 접근 가능하도록 설정
-      secure: false, // 개발 환경에서는 false, 프로덕션에서는 true
+      httpOnly: false,
+      secure: this.configService.get('NODE_ENV') === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 24시간
+      maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
     return result;
@@ -123,10 +128,10 @@ export class AuthController {
 
     // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {
-      httpOnly: false, // JavaScript에서 접근 가능하도록 설정
-      secure: false, // 개발 환경에서는 false, 프로덕션에서는 true
+      httpOnly: false,
+      secure: this.configService.get('NODE_ENV') === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 24시간
+      maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
     return result;
@@ -212,10 +217,10 @@ export class AuthController {
 
     // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {
-      httpOnly: false, // JavaScript에서 접근 가능하도록 설정
-      secure: false, // 개발 환경에서는 false, 프로덕션에서는 true
+      httpOnly: false,
+      secure: this.configService.get('NODE_ENV') === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 24시간
+      maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
     return result;
@@ -416,7 +421,7 @@ export class AuthController {
         scopes: {
           type: 'array',
           items: { type: 'string' },
-          example: ['read', 'write'],
+          example: ['identify', 'email'],
         },
       },
     },
@@ -553,12 +558,14 @@ export class AuthController {
   }
 
   @Get('tokens')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.READ_TOKEN)
   @ApiBearerAuth()
   @ApiOperation({ summary: '사용자 토큰 목록 조회' })
   @ApiResponse({
     status: 200,
     description: '토큰 목록 반환',
+    type: [TokenDto],
   })
   async getUserTokens(@Request() req: AuthenticatedRequest) {
     return this.authService.getUserTokens(req.user.id);

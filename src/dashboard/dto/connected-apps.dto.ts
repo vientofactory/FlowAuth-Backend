@@ -29,7 +29,7 @@ export class ConnectedAppDto {
 
   @ApiProperty({
     description: '연결된 권한 범위 목록',
-    example: ['read:user', 'write:user'],
+    example: ['identify', 'email'],
     type: [String],
   })
   scopes: string[];

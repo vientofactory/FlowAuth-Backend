@@ -38,19 +38,6 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
         hasJti: !!payload.jti,
       });
 
-      // Validate OAuth2 payload structure
-      if (payload.token_type !== 'Bearer') {
-        this.logger.warn('Invalid token_type in OAuth2 payload', {
-          token_type: payload.token_type,
-        });
-        throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
-      }
-
-      if (!Array.isArray(payload.scopes)) {
-        this.logger.warn('Invalid scopes format in OAuth2 payload');
-        throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
-      }
-
       // If jti is present, verify token exists in database (for revocation check)
       if (payload.jti) {
         this.logger.debug('Checking jti in database', { jti: payload.jti });

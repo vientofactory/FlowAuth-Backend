@@ -42,13 +42,22 @@ export class PermissionsGuard implements CanActivate {
     }
 
     // permissions가 string인 경우 number로 변환
-    const userPermissions =
-      typeof user.permissions === 'string'
-        ? parseInt(user.permissions, 10)
-        : user.permissions;
+    let userPermissions: number;
+    if (typeof user.permissions === 'string') {
+      userPermissions = parseInt(user.permissions, 10);
+    } else if (typeof user.permissions === 'bigint') {
+      userPermissions = Number(user.permissions);
+    } else {
+      userPermissions = user.permissions;
+    }
 
     if (typeof userPermissions !== 'number' || isNaN(userPermissions)) {
       throw new ForbiddenException('권한 정보가 올바르지 않습니다.');
+    }
+
+    // ADMIN 권한이 있는 경우 모든 권한 체크 통과
+    if (PermissionUtils.isAdmin(userPermissions)) {
+      return true;
     }
 
     const hasPermission = PermissionUtils.hasAnyPermission(

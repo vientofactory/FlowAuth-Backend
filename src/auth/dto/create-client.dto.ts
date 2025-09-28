@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsString, IsArray, IsOptional } from 'class-validator';
+import { Trim, Escape } from 'class-sanitizer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateClientDto {
@@ -8,6 +9,8 @@ export class CreateClientDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Trim()
+  @Escape()
   name: string;
 
   @ApiPropertyOptional({
@@ -16,6 +19,8 @@ export class CreateClientDto {
   })
   @IsString()
   @IsOptional()
+  @Trim()
+  @Escape()
   description?: string;
 
   @ApiProperty({
@@ -38,7 +43,7 @@ export class CreateClientDto {
 
   @ApiProperty({
     description: '허용된 스코프 목록',
-    example: ['read', 'write', 'profile'],
+    example: ['identify', 'email'],
     type: [String],
   })
   @IsArray()
@@ -68,4 +73,12 @@ export class CreateClientDto {
   @IsString()
   @IsOptional()
   policyUri?: string;
+
+  @ApiProperty({
+    description: 'reCAPTCHA 토큰',
+    example: 'recaptcha_token_here',
+  })
+  @IsString()
+  @IsNotEmpty()
+  recaptchaToken: string;
 }

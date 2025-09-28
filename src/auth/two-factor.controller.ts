@@ -17,7 +17,7 @@ import {
 import { TwoFactorService } from './two-factor.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard, RequirePermissions } from './permissions.guard';
-import { PERMISSIONS } from '../constants/auth.constants';
+import { PERMISSIONS, TWO_FACTOR_CONSTANTS } from '../constants/auth.constants';
 import {
   VerifyTwoFactorDto,
   DisableTwoFactorDto,
@@ -65,9 +65,14 @@ export class TwoFactorController {
   ): Promise<{ message: string }> {
     const { token, secret, backupCodes } = body;
 
-    if (!token || !secret || !backupCodes || backupCodes.length !== 10) {
+    if (
+      !token ||
+      !secret ||
+      !backupCodes ||
+      backupCodes.length !== TWO_FACTOR_CONSTANTS.BACKUP_CODE_COUNT
+    ) {
       throw new BadRequestException(
-        '토큰, 시크릿, 백업 코드(10개)가 모두 필요합니다.',
+        `토큰, 시크릿, 백업 코드(${TWO_FACTOR_CONSTANTS.BACKUP_CODE_COUNT}개)가 모두 필요합니다.`,
       );
     }
 

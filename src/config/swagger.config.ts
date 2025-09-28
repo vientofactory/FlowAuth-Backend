@@ -9,20 +9,10 @@ import { DocumentBuilder } from '@nestjs/swagger';
  * OAuth2 스코프 정의
  */
 export const OAUTH2_SCOPES = {
-  openid: 'OpenID Connect 식별',
-  profile: '사용자 프로필 정보 접근',
-  email: '사용자 이메일 주소 접근',
-  'read:user': '사용자 기본 정보 읽기',
-  'read:client': '클라이언트 정보 읽기',
-  'write:client': '클라이언트 정보 수정',
-  'delete:client': '클라이언트 삭제',
-  'upload:file': '파일 업로드',
-  admin: '관리자 권한',
-} as const;
-
-/**
- * API 태그 정의
- */
+  identify: '계정의 기본 정보 읽기 (사용자 ID, 이름 등)',
+  email: '사용자 이메일 주소 읽기',
+  basic: '기본 접근 권한',
+};
 export const API_TAGS = {
   SYSTEM: 'System',
   AUTHENTICATION: 'Authentication',

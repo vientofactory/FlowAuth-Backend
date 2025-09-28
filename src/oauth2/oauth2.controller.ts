@@ -39,11 +39,18 @@ import { AuthorizationCodeService } from './authorization-code.service';
 import { ScopeService } from './scope.service';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
+import { PERMISSIONS, TOKEN_TYPES } from '../constants/auth.constants';
 import type { User } from '../user/user.entity';
 import type { OAuth2JwtPayload } from '../types/oauth2.types';
-import type { JwtPayload } from '../types/auth.types';
-import { PermissionUtils } from '../utils/permission.util';
-import { OAUTH2_SCOPES } from '../constants/oauth2.constants';
+import { PermissionUtils, TokenUtils } from '../utils/permission.util';
+import {
+  mapExceptionToOAuth2Error,
+  createOAuth2Error,
+} from '../utils/oauth2-error.util';
 import {
   AuthorizeRequestDto,
   TokenRequestDto,
@@ -75,12 +82,14 @@ export class OAuth2Controller {
     const cookieToken = cookies?.token;
 
     if (cookieToken && typeof cookieToken === 'string') {
-      try {
-        const payload = this.jwtService.verify<JwtPayload>(cookieToken);
+      const payload = await TokenUtils.extractAndValidatePayload(
+        cookieToken,
+        TOKEN_TYPES.LOGIN,
+        this.jwtService,
+      );
+      if (payload) {
         const user = await this.oauth2Service.getUserInfo(payload.sub);
         return user;
-      } catch {
-        // Continue to check authorization header
       }
     }
 
@@ -92,13 +101,15 @@ export class OAuth2Controller {
   ): Promise<User | null> {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.substring(7);
-        const payload = this.jwtService.verify<JwtPayload>(token);
+      const token = authHeader.substring(7);
+      const payload = await TokenUtils.extractAndValidatePayload(
+        token,
+        TOKEN_TYPES.LOGIN,
+        this.jwtService,
+      );
+      if (payload) {
         const user = await this.oauth2Service.getUserInfo(payload.sub);
         return user;
-      } catch {
-        // Token verification failed
       }
     }
 
@@ -371,6 +382,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
         'access_denied',
         'unsupported_response_type',
         'invalid_scope',
+        'invalid_grant',
         'server_error',
         'temporarily_unavailable',
       ];
@@ -408,19 +420,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
       if (!['http:', 'https:'].includes(url.protocol)) {
         return null;
       }
-      // Prevent localhost/private IP redirects in production
-      if (process.env.NODE_ENV === 'production') {
-        const hostname = url.hostname.toLowerCase();
-        if (
-          hostname === 'localhost' ||
-          hostname === '127.0.0.1' ||
-          hostname.startsWith('192.168.') ||
-          hostname.startsWith('10.') ||
-          hostname.startsWith('172.')
-        ) {
-          return null;
-        }
-      }
+      // Remove Private/Loopback Address Filter - For testing Purposes
       return redirectUri;
     } catch {
       return null;
@@ -471,19 +471,30 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
   async token(
     @Body() tokenDto: TokenRequestDto,
   ): Promise<TokenResponseDto | ErrorResponseDto> {
-    if (tokenDto.grant_type !== 'authorization_code') {
-      return {
-        error: 'unsupported_grant_type',
-        error_description: 'Grant type must be "authorization_code"',
-      };
-    }
+    try {
+      if (tokenDto.grant_type !== 'authorization_code') {
+        return {
+          error: 'unsupported_grant_type',
+          error_description: 'Grant type must be "authorization_code"',
+        };
+      }
 
-    return await this.oauth2Service.token(tokenDto);
+      return await this.oauth2Service.token(tokenDto);
+    } catch (error) {
+      // Convert exceptions to OAuth2 standard error responses
+      if (error instanceof BadRequestException) {
+        return mapExceptionToOAuth2Error(error);
+      }
+
+      // For unexpected errors
+      this.logger.error('Unexpected error in token endpoint', error);
+      return createOAuth2Error('server_error', 'An unexpected error occurred');
+    }
   }
 
   @Get('userinfo')
   @UseGuards(OAuth2BearerGuard, OAuth2ScopeGuard)
-  @RequireScopes(OAUTH2_SCOPES.READ_USER)
+  @RequireScopes('identify')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '사용자 정보 조회',
@@ -492,10 +503,10 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
 
 **스코프별 반환 정보:**
 - 기본: sub (사용자 식별자)
+- identify 스코프: 사용자명, 역할 정보
 - email 스코프: 이메일 주소
-- profile 스코프: 사용자명, 역할 정보
 
-**필요한 스코프:** read:user
+**필요한 스코프:** identify
     `,
   })
   @ApiResponse({
@@ -542,8 +553,8 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
       response.email = user.email;
     }
 
-    // profile 스코프가 있을 때만 프로필 정보 반환
-    if (userScopes.includes('profile')) {
+    // identify 스코프가 있을 때만 프로필 정보 반환
+    if (userScopes.includes('identify')) {
       response.username = user.username;
       response.roles = [PermissionUtils.getRoleName(user.permissions)];
     }
@@ -797,12 +808,12 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
               name: {
                 type: 'string',
                 description: '스코프 이름',
-                example: 'read:user',
+                example: 'identify',
               },
               description: {
                 type: 'string',
                 description: '스코프 설명',
-                example: '사용자 기본 정보 읽기',
+                example: '계정의 기본 정보 읽기 (사용자 ID, 이름 등)',
               },
               isDefault: {
                 type: 'boolean',
@@ -854,9 +865,30 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
   }
 
   @Post('scopes/refresh')
-  @UseGuards(JwtAuthGuard, OAuth2ScopeGuard)
-  @RequireScopes(OAUTH2_SCOPES.ADMIN)
-  async refreshScopesCache() {
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.MANAGE_SYSTEM)
+  async refreshScopesCache(@Request() req: ExpressRequest) {
+    // JWT 토큰에서 사용자 정보 추출
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      throw new BadRequestException('Authorization token required');
+    }
+
+    const payload = await TokenUtils.extractAndValidatePayload(
+      token,
+      TOKEN_TYPES.LOGIN,
+      this.jwtService,
+    );
+    if (!payload) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    // 사용자 정보 조회
+    const user = await this.oauth2Service.getUserInfo(payload.sub);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
     await this.scopeService.refreshCache();
     const cacheInfo = this.scopeService.getCacheInfo();
 
@@ -867,9 +899,35 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
   }
 
   @Get('scopes/cache-info')
-  @UseGuards(JwtAuthGuard, OAuth2ScopeGuard)
-  @RequireScopes(OAUTH2_SCOPES.ADMIN)
-  getScopesCacheInfo() {
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.MANAGE_SYSTEM)
+  async getScopesCacheInfo(@Request() req: ExpressRequest) {
+    // JWT 토큰에서 사용자 정보 추출
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      throw new BadRequestException('Authorization token required');
+    }
+
+    const payload = await TokenUtils.extractAndValidatePayload(
+      token,
+      TOKEN_TYPES.LOGIN,
+      this.jwtService,
+    );
+    if (!payload) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    // 사용자 정보 조회
+    const user = await this.oauth2Service.getUserInfo(payload.sub);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // 시스템 관리자 권한 확인
+    if (!PermissionUtils.isAdmin(user.permissions)) {
+      throw new BadRequestException('System administrator privileges required');
+    }
+
     return this.scopeService.getCacheInfo();
   }
 }

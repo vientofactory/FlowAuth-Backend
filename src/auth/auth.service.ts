@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  BadRequestException,
   Logger,
   Inject,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
+import { TokenDto } from './dto/response.dto';
 import * as bcrypt from 'bcrypt';
 import * as speakeasy from 'speakeasy';
 import * as crypto from 'crypto';
@@ -71,15 +73,13 @@ export class AuthService {
       recaptchaToken,
     } = createUserDto;
 
-    // Verify reCAPTCHA token if provided
-    if (recaptchaToken) {
-      const isValidRecaptcha = await this.recaptchaService.verifyToken(
-        recaptchaToken,
-        'register',
-      );
-      if (!isValidRecaptcha) {
-        throw new UnauthorizedException('reCAPTCHA verification failed');
-      }
+    // Verify reCAPTCHA token (required for registration)
+    const isValidRecaptcha = await this.recaptchaService.verifyToken(
+      recaptchaToken,
+      'register',
+    );
+    if (!isValidRecaptcha) {
+      throw new UnauthorizedException('reCAPTCHA verification failed');
     }
 
     // Check if user already exists
@@ -130,19 +130,17 @@ export class AuthService {
   async login(loginDto: {
     email: string;
     password: string;
-    recaptchaToken?: string;
+    recaptchaToken: string;
   }): Promise<LoginResponse> {
     const { email, password, recaptchaToken } = loginDto;
 
-    // Verify reCAPTCHA token if provided
-    if (recaptchaToken) {
-      const isValidRecaptcha = await this.recaptchaService.verifyToken(
-        recaptchaToken,
-        'login',
-      );
-      if (!isValidRecaptcha) {
-        throw new UnauthorizedException('reCAPTCHA verification failed');
-      }
+    // Verify reCAPTCHA token (required for login)
+    const isValidRecaptcha = await this.recaptchaService.verifyToken(
+      recaptchaToken,
+      'login',
+    );
+    if (!isValidRecaptcha) {
+      throw new UnauthorizedException('reCAPTCHA verification failed');
     }
 
     try {
@@ -160,6 +158,7 @@ export class AuthService {
           'userType',
           'isTwoFactorEnabled',
           'twoFactorSecret',
+          'avatar',
         ],
       });
 
@@ -201,6 +200,7 @@ export class AuthService {
         roles: [PermissionUtils.getRoleName(user.permissions)],
         permissions: user.permissions,
         type: TOKEN_TYPES.LOGIN,
+        avatar: user.avatar || undefined,
       };
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
@@ -218,7 +218,7 @@ export class AuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
+        scopes: undefined, // 로그인 토큰은 스코프 대신 JWT payload의 permissions 사용
         user,
         tokenType: TOKEN_TYPES.LOGIN,
         // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
@@ -264,6 +264,7 @@ export class AuthService {
     email: string,
     token: string,
   ): Promise<LoginResponse> {
+    this.logger.log(`2FA token verification attempt for email: ${email}`);
     try {
       // Find user with 2FA fields
       const user = await this.userRepository.findOne({
@@ -279,6 +280,7 @@ export class AuthService {
           'userType',
           'isTwoFactorEnabled',
           'twoFactorSecret',
+          'avatar',
         ],
       });
 
@@ -302,7 +304,12 @@ export class AuthService {
         window: 2, // Allow 2 time windows (30 seconds each)
       });
 
+      this.logger.log(
+        `2FA token verification result for ${email}: ${isValidToken}`,
+      );
+
       if (!isValidToken) {
+        this.logger.log(`Invalid 2FA token provided for ${email}`);
         throw new UnauthorizedException(
           AUTH_ERROR_MESSAGES.INVALID_TWO_FACTOR_TOKEN,
         );
@@ -321,6 +328,7 @@ export class AuthService {
         roles: [PermissionUtils.getRoleName(user.permissions)],
         permissions: user.permissions,
         type: TOKEN_TYPES.LOGIN,
+        avatar: user.avatar || undefined,
       };
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
@@ -338,8 +346,9 @@ export class AuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
+        scopes: undefined, // 로그인 토큰은 스코프 대신 JWT payload의 permissions 사용
         user,
+        tokenType: TOKEN_TYPES.LOGIN,
         isRefreshTokenUsed: false,
       });
       await this.tokenRepository.save(tokenEntity);
@@ -389,6 +398,7 @@ export class AuthService {
           'isTwoFactorEnabled',
           'twoFactorSecret',
           'backupCodes',
+          'avatar',
         ],
       });
 
@@ -452,6 +462,7 @@ export class AuthService {
         roles: [PermissionUtils.getRoleName(updatedUser.permissions)],
         permissions: updatedUser.permissions,
         type: TOKEN_TYPES.LOGIN,
+        avatar: updatedUser.avatar || undefined,
       };
       // Generate JWT token (uses global expiration settings)
       const accessToken = this.jwtService.sign(payload);
@@ -469,8 +480,9 @@ export class AuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: [OAUTH2_SCOPES.READ_USER, OAUTH2_SCOPES.WRITE_USER], // Default scopes for general login
+        scopes: undefined, // 로그인 토큰은 스코프 대신 JWT payload의 permissions 사용
         user: updatedUser,
+        tokenType: TOKEN_TYPES.LOGIN,
         // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
         isRefreshTokenUsed: false,
       });
@@ -515,7 +527,15 @@ export class AuthService {
       logoUri,
       termsOfServiceUri,
       policyUri,
+      recaptchaToken,
     } = createClientDto;
+
+    // Verify reCAPTCHA token (required for client creation)
+    const isValidRecaptcha =
+      await this.recaptchaService.verifyToken(recaptchaToken);
+    if (!isValidRecaptcha) {
+      throw new BadRequestException('reCAPTCHA verification failed');
+    }
 
     // Generate clientId using Snowflake ID and clientSecret using crypto-safe random string
     const clientId = snowflakeGenerator.generate();
@@ -523,14 +543,7 @@ export class AuthService {
 
     // Set default scopes if not provided
     const clientScopes =
-      scopes && scopes.length > 0
-        ? scopes
-        : [
-            OAUTH2_SCOPES.READ_USER,
-            OAUTH2_SCOPES.READ_PROFILE,
-            OAUTH2_SCOPES.EMAIL,
-            OAUTH2_SCOPES.BASIC,
-          ];
+      scopes && scopes.length > 0 ? scopes : [OAUTH2_SCOPES.IDENTIFY];
 
     const client = this.clientRepository.create({
       clientId,
@@ -737,12 +750,30 @@ export class AuthService {
     await this.clientRepository.remove(client);
   }
 
-  async getUserTokens(userId: number): Promise<Token[]> {
-    return this.tokenRepository.find({
+  async getUserTokens(userId: number): Promise<TokenDto[]> {
+    const tokens = await this.tokenRepository.find({
       where: { user: { id: userId } },
-      relations: ['client'],
+      relations: ['client', 'user'],
       order: { createdAt: 'DESC' },
     });
+
+    return tokens.map((token) => ({
+      id: token.id,
+      tokenType: token.tokenType,
+      expiresAt: token.expiresAt.toISOString(),
+      refreshExpiresAt: token.refreshExpiresAt?.toISOString(),
+      scopes: token.scopes,
+      userId: token.user!.id,
+      clientId: token.client?.id,
+      client: token.client
+        ? {
+            name: token.client.name,
+            clientId: token.client.clientId,
+          }
+        : undefined,
+      createdAt: token.createdAt.toISOString(),
+      updatedAt: token.createdAt.toISOString(), // updatedAt이 없으므로 createdAt 사용
+    }));
   }
 
   async revokeToken(userId: number, tokenId: number): Promise<void> {

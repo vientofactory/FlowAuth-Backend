@@ -10,6 +10,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
 import { User } from '../user/user.entity';
+import { UserManagementService } from '../auth/services/user-management.service';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
 
 @Injectable()
@@ -19,6 +20,7 @@ export class ProfileService {
     private userRepository: Repository<User>,
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
+    private userManagementService: UserManagementService,
   ) {}
 
   async findById(id: number): Promise<User> {
@@ -217,5 +219,16 @@ export class ProfileService {
     }
 
     return { available: true, message: '사용 가능한 사용자명입니다.' };
+  }
+
+  async uploadAvatar(
+    userId: number,
+    file: Express.Multer.File,
+  ): Promise<string> {
+    return this.userManagementService.uploadAvatar(userId, file);
+  }
+
+  async removeAvatar(userId: number): Promise<void> {
+    await this.userManagementService.removeAvatar(userId);
   }
 }

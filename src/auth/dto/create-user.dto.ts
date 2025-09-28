@@ -31,12 +31,12 @@ export class CreateUserDto {
   email: string;
 
   @ApiProperty({
-    description: '비밀번호 (최소 6자)',
+    description: '비밀번호 (최소 8자)',
     example: 'password123',
-    minLength: 6,
+    minLength: 8,
   })
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
   @Trim()
   password: string;
 
@@ -46,6 +46,8 @@ export class CreateUserDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Trim()
+  @Escape()
   firstName: string;
 
   @ApiProperty({
@@ -54,6 +56,8 @@ export class CreateUserDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Trim()
+  @Escape()
   lastName: string;
 
   @ApiProperty({
@@ -69,9 +73,8 @@ export class CreateUserDto {
   @ApiProperty({
     description: 'reCAPTCHA 토큰',
     example: 'recaptcha_token_here',
-    required: false,
   })
-  @IsOptional()
   @IsString()
-  recaptchaToken?: string;
+  @IsNotEmpty()
+  recaptchaToken: string;
 }

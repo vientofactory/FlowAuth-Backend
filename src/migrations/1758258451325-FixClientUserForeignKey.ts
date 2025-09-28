@@ -55,5 +55,26 @@ export class FixClientUserForeignKey1758258451325
         ALTER TABLE client DROP FOREIGN KEY FK_client_user
       `);
     }
+
+    // Also drop any associated indexes that might have been created
+    const indexes = (await queryRunner.query(`
+      SELECT INDEX_NAME
+      FROM INFORMATION_SCHEMA.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'client'
+      AND COLUMN_NAME = 'userId'
+      AND INDEX_NAME != 'PRIMARY'
+    `)) as Array<{ INDEX_NAME: string }>;
+
+    for (const index of indexes) {
+      try {
+        await queryRunner.query(`
+          ALTER TABLE client DROP INDEX \`${index.INDEX_NAME}\`
+        `);
+      } catch (error) {
+        // Ignore errors if index doesn't exist or is needed by other constraints
+        console.log(`Could not drop index ${index.INDEX_NAME}:`, String(error));
+      }
+    }
   }
 }

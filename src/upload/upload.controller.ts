@@ -1,13 +1,14 @@
 import {
   Controller,
-  Post,
   Get,
   Param,
+  Post,
   Res,
-  UseInterceptors,
   UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
@@ -17,24 +18,19 @@ import {
   ApiBearerAuth,
   ApiParam,
 } from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { FileUploadService } from './file-upload.service';
 import type { MulterFile } from './types';
 import { UPLOAD_CONFIG } from './config';
 import { UPLOAD_ERRORS } from './types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
+import { PERMISSIONS } from '../constants/auth.constants';
 import { FileUploadResponseDto } from './dto/response.dto';
-
-// Factory function to create multer options using the service
-function createMulterOptions(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
-  const service = new FileUploadService();
-  return {
-    storage: service.createStorage(type),
-    fileFilter: service.createFileFilter(type),
-    limits: service.getUploadLimits(type),
-  };
-}
+import { validateFile, isValidFilename } from './validators';
 
 @Controller('uploads')
 @ApiTags('File Upload')
@@ -42,8 +38,9 @@ export class UploadController {
   constructor(private readonly fileUploadService: FileUploadService) {}
 
   @Post('logo')
-  @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('logo', createMulterOptions('logo')))
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.UPLOAD_FILE)
+  @UseInterceptors(FileInterceptor('logo'))
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '로고 파일 업로드',
@@ -52,10 +49,9 @@ export class UploadController {
 
 **지원 파일 형식:**
 - PNG, JPG, JPEG, WebP
-- 최대 크기: 5MB
+- 최대 크기: 1MB
 
 **업로드된 파일:**
-- 자동으로 WebP 형식으로 변환
 - 고유한 파일명으로 저장
 - 공개 URL 제공
     `,
@@ -88,23 +84,33 @@ export class UploadController {
     status: 401,
     description: '인증 필요',
   })
-  uploadLogo(@UploadedFile() file: MulterFile): FileUploadResponseDto {
+  async uploadLogo(
+    @UploadedFile() file: MulterFile,
+  ): Promise<FileUploadResponseDto> {
     if (!file) {
       throw UPLOAD_ERRORS.NO_FILE_UPLOADED;
     }
 
-    // Validate file using service
-    if (!this.fileUploadService.validateFile(file, 'logo')) {
-      throw UPLOAD_ERRORS.INVALID_FILE_TYPE;
+    // Validate file using centralized validator
+    const validationResult = validateFile(file, 'logo');
+    if (!validationResult.isValid) {
+      throw new Error(`파일 검증 실패: ${validationResult.errors.join(', ')}`);
     }
 
-    const logoUrl = this.fileUploadService.getFileUrl('logo', file.filename);
+    // Log warnings if any
+    if (validationResult.warnings.length > 0) {
+      console.warn(`파일 업로드 경고: ${validationResult.warnings.join(', ')}`);
+    }
+
+    // Process logo image with Sharp for optimization
+    const logoUrl = await this.fileUploadService.processLogoImage(file);
+    const filename = logoUrl.split('/').pop() || '';
 
     return {
       success: true,
       message: 'Logo uploaded successfully',
       data: {
-        filename: file.filename,
+        filename,
         url: logoUrl,
         originalName: file.originalname,
         size: file.size,
@@ -114,7 +120,8 @@ export class UploadController {
   }
 
   @Get('logos/:filename')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.UPLOAD_FILE)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '로고 파일 조회',
@@ -146,8 +153,8 @@ export class UploadController {
     description: '파일을 찾을 수 없음',
   })
   getLogo(@Param('filename') filename: string, @Res() res: Response) {
-    // Validate filename to prevent directory traversal
-    if (!filename || filename.includes('..') || filename.includes('/')) {
+    // Validate filename to prevent directory traversal and invalid characters
+    if (!isValidFilename(filename)) {
       throw UPLOAD_ERRORS.INVALID_FILE_TYPE;
     }
 
@@ -171,7 +178,8 @@ export class UploadController {
   }
 
   @Get('config/:type')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.UPLOAD_FILE)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '업로드 설정 조회',

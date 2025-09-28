@@ -23,15 +23,21 @@ import {
   RevokeConnectionResponseDto,
 } from './dto/connected-apps.dto';
 import { LoginTokenGuard } from '../auth/guards/login-token.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
+import { PERMISSIONS } from '../constants/auth.constants';
 import type { AuthenticatedRequest } from '../types/auth.types';
 
 @Controller('dashboard')
 @ApiTags('Dashboard')
+@UseGuards(LoginTokenGuard, PermissionsGuard)
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('stats')
-  @UseGuards(LoginTokenGuard)
+  @RequirePermissions(PERMISSIONS.READ_DASHBOARD)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '대시보드 통계 정보',
@@ -60,7 +66,7 @@ export class DashboardController {
   }
 
   @Get('activities')
-  @UseGuards(LoginTokenGuard)
+  @RequirePermissions(PERMISSIONS.READ_DASHBOARD)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '최근 활동 조회',
@@ -86,7 +92,7 @@ export class DashboardController {
   }
 
   @Get('connected-apps')
-  @UseGuards(LoginTokenGuard)
+  @RequirePermissions(PERMISSIONS.READ_DASHBOARD)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '연결된 앱 목록 조회',
@@ -116,7 +122,7 @@ export class DashboardController {
   }
 
   @Delete('connected-apps/:clientId')
-  @UseGuards(LoginTokenGuard)
+  @RequirePermissions(PERMISSIONS.WRITE_DASHBOARD)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '앱 연결 해제',

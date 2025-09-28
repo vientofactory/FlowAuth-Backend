@@ -20,6 +20,7 @@ import { Scope } from '../scope/scope.entity';
 import { AppConfigService } from '../config/app-config.service';
 import { LoggingModule } from '../logging/logging.module';
 import { CacheConfigModule } from '../cache/cache-config.module';
+import { JWT_CONSTANTS } from '../constants/auth.constants';
 
 @Module({
   imports: [
@@ -29,8 +30,10 @@ import { CacheConfigModule } from '../cache/cache-config.module';
     CacheConfigModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'your-secret-key',
-        signOptions: { expiresIn: '1h' },
+        secret:
+          configService.get<string>('JWT_SECRET') ||
+          JWT_CONSTANTS.SECRET_KEY_FALLBACK,
+        signOptions: { expiresIn: JWT_CONSTANTS.EXPIRES_IN },
       }),
       inject: [ConfigService],
     }),

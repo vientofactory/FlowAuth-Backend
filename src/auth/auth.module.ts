@@ -14,20 +14,25 @@ import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { Token } from '../token/token.entity';
 import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
-import { FileUploadService } from '../upload/file-upload.service';
-import { RecaptchaService } from '../utils/recaptcha.util';
-import { AppConfigService } from '../config/app-config.service';
 import { LoggingModule } from '../logging/logging.module';
+import { UtilsModule } from '../utils/utils.module';
+import { JWT_CONSTANTS } from '../constants/auth.constants';
+import { UserManagementService } from './services/user-management.service';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Client, Token, AuthorizationCode]),
     PassportModule,
     LoggingModule,
+    UtilsModule,
+    UploadModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'your-secret-key',
-        signOptions: { expiresIn: '1h' },
+        secret:
+          configService.get<string>('JWT_SECRET') ||
+          JWT_CONSTANTS.SECRET_KEY_FALLBACK,
+        signOptions: { expiresIn: JWT_CONSTANTS.EXPIRES_IN },
       }),
       inject: [ConfigService],
     }),
@@ -38,11 +43,9 @@ import { LoggingModule } from '../logging/logging.module';
     JwtStrategy,
     JwtAuthGuard,
     PermissionsGuard,
-    FileUploadService,
-    RecaptchaService,
-    AppConfigService,
+    UserManagementService,
   ],
   controllers: [AuthController, TwoFactorController],
-  exports: [JwtAuthGuard, FileUploadService],
+  exports: [JwtAuthGuard, UserManagementService],
 })
 export class AuthModule {}

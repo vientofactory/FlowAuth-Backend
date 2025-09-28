@@ -76,7 +76,6 @@ export const FILE_TYPES = {
       'image/webp',
       'image/svg+xml',
     ] as const,
-    maxSize: 5 * 1024 * 1024, // 5MB
   },
   DOCUMENT: {
     allowedMimes: [
@@ -85,7 +84,6 @@ export const FILE_TYPES = {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'text/plain',
     ] as const,
-    maxSize: 10 * 1024 * 1024, // 10MB
   },
 } as const;
 

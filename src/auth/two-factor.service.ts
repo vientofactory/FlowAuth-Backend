@@ -10,7 +10,10 @@ import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
 import { User } from '../user/user.entity';
 import { TwoFactorResponseDto } from './dto/2fa/two-factor.dto';
-import { AUTH_ERROR_MESSAGES } from '../constants/auth.constants';
+import {
+  AUTH_ERROR_MESSAGES,
+  TWO_FACTOR_CONSTANTS,
+} from '../constants/auth.constants';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
@@ -70,7 +73,7 @@ export class TwoFactorService {
     const secret = speakeasyModule.generateSecret({
       name: `FlowAuth:${user.username}`,
       issuer: 'FlowAuth',
-      length: 32,
+      length: TWO_FACTOR_CONSTANTS.SECRET_LENGTH,
     });
 
     // 백업 코드 생성 (10개)
@@ -252,7 +255,7 @@ export class TwoFactorService {
    */
   private generateBackupCodes(): string[] {
     const codes: string[] = [];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < TWO_FACTOR_CONSTANTS.BACKUP_CODE_COUNT; i++) {
       // 8자리 16진수 코드 생성 (XXXX-XXXX 형식) - 암호학적으로 안전한 난수 사용
       const randomHex = randomBytes(4).toString('hex').toUpperCase();
       const part1 = randomHex.substring(0, 4);

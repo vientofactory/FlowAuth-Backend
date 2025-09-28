@@ -1,127 +1,70 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { extname, join } from 'path';
-import { existsSync, mkdirSync, unlinkSync } from 'fs';
-import { diskStorage } from 'multer';
+import { existsSync, unlinkSync } from 'fs';
+import { memoryStorage } from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import type { Request } from 'express';
 import {
   MulterFile,
   UploadedFile,
   UploadLimits,
-  MulterDestinationCallback,
-  MulterFilenameCallback,
   MulterFileFilterCallback,
   FileUploadError,
 } from './types';
 import { UPLOAD_CONFIG, getUploadPath } from './config';
+import { fileUploadValidator } from './validators';
+import { ImageProcessingService } from './image-processing.service';
 
 @Injectable()
 export class FileUploadService {
   private readonly logger = new Logger(FileUploadService.name);
 
-  constructor() {
-    this.ensureDirectoriesExist();
-  }
+  constructor(
+    private readonly imageProcessingService: ImageProcessingService,
+  ) {}
 
   private ensureDirectoriesExist(): void {
-    if (!existsSync(UPLOAD_CONFIG.baseUploadPath)) {
-      mkdirSync(UPLOAD_CONFIG.baseUploadPath, { recursive: true });
-      this.logger.log(
-        `Created base upload directory: ${UPLOAD_CONFIG.baseUploadPath}`,
-      );
-    }
-
-    // Create directories for each file type
-    Object.keys(UPLOAD_CONFIG.fileTypes).forEach((type) => {
-      const path = getUploadPath(type as keyof typeof UPLOAD_CONFIG.fileTypes);
-      if (!existsSync(path)) {
-        mkdirSync(path, { recursive: true });
-        this.logger.log(`Created upload directory for ${type}: ${path}`);
-      }
-    });
+    // Note: Directory creation is now handled by ImageProcessingService
+    // This method is kept for backward compatibility but is no longer used
   }
 
   /**
    * Create multer storage configuration for a specific file type
    */
-  createStorage(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
-    const destination = getUploadPath(type);
-
-    return diskStorage({
-      destination: (
-        req: Request,
-        file: MulterFile,
-        cb: MulterDestinationCallback,
-      ) => {
-        try {
-          cb(null, destination);
-        } catch (error: unknown) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          const stack = error instanceof Error ? error.stack : undefined;
-          this.logger.error(`Storage destination error: ${message}`, stack);
-          cb(
-            error instanceof Error ? error : new Error(String(error)),
-            destination,
-          );
-        }
-      },
-      filename: (
-        req: Request,
-        file: MulterFile,
-        cb: MulterFilenameCallback,
-      ) => {
-        try {
-          const uniqueName = this.generateFilename(file);
-          cb(null, uniqueName);
-        } catch (error: unknown) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          const stack = error instanceof Error ? error.stack : undefined;
-          this.logger.error(`Filename generation error: ${message}`, stack);
-          cb(
-            error instanceof Error ? error : new Error(String(error)),
-            file.originalname,
-          );
-        }
-      },
-    });
+  createStorage() {
+    // Use memory storage for image processing with Sharp
+    return memoryStorage();
   }
 
   /**
    * Create multer file filter for a specific file type
    */
   createFileFilter(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
-    const config = UPLOAD_CONFIG.fileTypes[type];
-
     return (req: Request, file: MulterFile, cb: MulterFileFilterCallback) => {
       try {
-        // Validate file type
-        if (
-          !(config.allowedMimes as readonly string[]).includes(file.mimetype)
-        ) {
+        // Use centralized validation but skip size validation in fileFilter
+        // (size validation will be done after file is fully uploaded)
+        const validationResult = fileUploadValidator.validateFile(file, type, {
+          skipSizeValidation: true,
+        });
+
+        if (!validationResult.isValid) {
           const error = new FileUploadError(
-            `Invalid file type. Allowed types: ${config.allowedMimes.join(', ')}`,
-            'INVALID_FILE_TYPE',
+            validationResult.errors.join('; '),
+            'INVALID_FILE',
           );
           this.logger.warn(
-            `File type validation failed: ${file.originalname} (${file.mimetype})`,
+            `File validation failed: ${file.originalname} - ${validationResult.errors.join('; ')}`,
           );
           cb(error, false);
           return;
         }
 
-        // Validate file size
-        if (file.size > config.maxSize) {
-          const error = new FileUploadError(
-            `File size exceeds limit of ${config.maxSize} bytes`,
-            'FILE_TOO_LARGE',
-          );
+        // Log warnings if any
+        if (validationResult.warnings.length > 0) {
           this.logger.warn(
-            `File size validation failed: ${file.originalname} (${file.size} bytes)`,
+            `File validation warnings: ${file.originalname} - ${validationResult.warnings.join('; ')}`,
           );
-          cb(error, false);
-          return;
         }
 
         cb(null, true);
@@ -157,28 +100,15 @@ export class FileUploadService {
   }
 
   /**
-   * Validate uploaded file
+   * Validate uploaded file (legacy method for backward compatibility)
+   * @deprecated Use fileUploadValidator.validateFile() directly for more detailed validation
    */
   validateFile(
     file: MulterFile,
     type: keyof typeof UPLOAD_CONFIG.fileTypes,
   ): boolean {
-    const config = UPLOAD_CONFIG.fileTypes[type];
-
-    const isValidType = (config.allowedMimes as readonly string[]).includes(
-      file.mimetype,
-    );
-    const isValidSize = file.size <= config.maxSize;
-
-    if (!isValidType) {
-      this.logger.warn(`Invalid file type: ${file.mimetype}`);
-    }
-
-    if (!isValidSize) {
-      this.logger.warn(`File too large: ${file.size} > ${config.maxSize}`);
-    }
-
-    return isValidType && isValidSize;
+    const result = fileUploadValidator.validateFile(file, type);
+    return result.isValid;
   }
 
   /**
@@ -273,5 +203,28 @@ export class FileUploadService {
       );
       return false;
     }
+  }
+
+  /**
+   * Process and save a logo image
+   * @param file - The uploaded logo file
+   * @returns Promise<string> - URL of the processed logo
+   */
+  async processLogoImage(file: MulterFile): Promise<string> {
+    return this.imageProcessingService.processAndSaveImage('logo', file);
+  }
+
+  /**
+   * Process and save an avatar image
+   * @param userId - The user ID
+   * @param file - The uploaded avatar file
+   * @returns Promise<string> - URL of the processed avatar
+   */
+  async processAvatarImage(userId: number, file: MulterFile): Promise<string> {
+    return this.imageProcessingService.processAndSaveImage(
+      'avatar',
+      file,
+      userId,
+    );
   }
 }

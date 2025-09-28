@@ -352,6 +352,7 @@ export class TokenService {
         user: { id: userId },
         expiresAt: LessThan(now),
         isRevoked: false,
+        tokenType: TOKEN_TYPES.OAUTH2,
       },
     });
   }

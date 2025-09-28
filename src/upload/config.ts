@@ -1,6 +1,14 @@
 import { join } from 'path';
 import { FILE_TYPES } from './types';
 
+// File size constants (in bytes)
+export const FILE_SIZE_LIMITS = {
+  IMAGE: 1 * 1024 * 1024, // 1MB
+  DOCUMENT: 5 * 1024 * 1024, // 5MB
+  AVATAR: 1 * 1024 * 1024, // 1MB
+  LOGO: 1 * 1024 * 1024, // 1MB
+} as const;
+
 // Upload configuration
 export const UPLOAD_CONFIG = {
   // Base paths
@@ -11,17 +19,17 @@ export const UPLOAD_CONFIG = {
     logo: {
       ...FILE_TYPES.IMAGE,
       destination: 'logos',
-      maxSize: 1 * 1024 * 1024, // 1MB
+      maxSize: FILE_SIZE_LIMITS.LOGO,
     },
     avatar: {
       ...FILE_TYPES.IMAGE,
       destination: 'avatars',
-      maxSize: 1 * 1024 * 1024, // 1MB
+      maxSize: FILE_SIZE_LIMITS.AVATAR,
     },
     document: {
       ...FILE_TYPES.DOCUMENT,
       destination: 'documents',
-      maxSize: 5 * 1024 * 1024, // 5MB
+      maxSize: FILE_SIZE_LIMITS.DOCUMENT,
     },
   },
 
@@ -56,6 +64,58 @@ export const UPLOAD_CONFIG = {
   cache: {
     maxAge: 31536000, // 1 year in seconds
     cacheControl: 'public, max-age=31536000',
+  },
+
+  // Image processing settings
+  imageProcessing: {
+    // Sharp processing limits
+    limits: {
+      maxBufferSize: 50 * 1024 * 1024, // 50MB limit for buffer processing
+      maxInputPixels: 50 * 1024 * 1024, // 50MP limit for input image pixels
+    },
+
+    // Default resize dimensions for avatars and logos
+    defaultSize: {
+      width: 256,
+      height: 256,
+    },
+
+    // Resize options
+    resizeOptions: {
+      fit: 'cover' as const,
+      position: 'center' as const,
+    },
+
+    // Output format priority (most optimized first)
+    outputFormats: ['webp', 'avif', 'jpeg', 'png'] as const,
+
+    // Format-specific optimization settings
+    formatOptions: {
+      jpeg: {
+        quality: 85,
+        mozjpeg: true,
+      } as const,
+      png: {
+        compressionLevel: 9,
+      } as const,
+      webp: {
+        quality: 85,
+        effort: 6,
+      } as const,
+      avif: {
+        quality: 80,
+        effort: 6,
+      } as const,
+    } as const,
+
+    // Legacy options for backward compatibility
+    jpegOptions: {
+      quality: 85,
+      mozjpeg: true,
+    },
+    pngOptions: {
+      compressionLevel: 9,
+    },
   },
 } as const;
 
