@@ -130,6 +130,7 @@ export const SWAGGER_SETUP_OPTIONS = {
     'https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-standalone-preset.js',
   ],
   customCssUrl: ['https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui.css'],
+  jsonDocumentUrl: 'swagger/json',
 };
 
 /**
