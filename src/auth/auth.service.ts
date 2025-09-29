@@ -29,6 +29,7 @@ import {
   USER_TYPES,
   USER_TYPE_PERMISSIONS,
   TOKEN_TYPES,
+  JWT_TOKEN_EXPIRY,
   type TokenType,
 } from '../constants/auth.constants';
 import { OAUTH2_SCOPES } from '../constants/oauth2.constants';
@@ -202,8 +203,10 @@ export class AuthService {
         type: TOKEN_TYPES.LOGIN,
         avatar: user.avatar || undefined,
       };
-      // Generate JWT token (uses global expiration settings)
-      const accessToken = this.jwtService.sign(payload);
+      // Generate JWT token (24 hours for login tokens)
+      const accessToken = this.jwtService.sign(payload, {
+        expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
+      });
 
       // Generate refresh token for general login
       const refreshToken = crypto.randomBytes(32).toString('hex');
@@ -231,7 +234,9 @@ export class AuthService {
         ...payload,
         jti: tokenEntity.id.toString(), // Include token ID for revocation
       };
-      const finalAccessToken = this.jwtService.sign(finalPayload);
+      const finalAccessToken = this.jwtService.sign(finalPayload, {
+        expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
+      });
 
       // Update token with final access token
       tokenEntity.accessToken = finalAccessToken;
@@ -330,8 +335,10 @@ export class AuthService {
         type: TOKEN_TYPES.LOGIN,
         avatar: user.avatar || undefined,
       };
-      // Generate JWT token (uses global expiration settings)
-      const accessToken = this.jwtService.sign(payload);
+      // Generate JWT token (24 hours for login tokens)
+      const accessToken = this.jwtService.sign(payload, {
+        expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
+      });
 
       // Generate refresh token for 2FA login
       const refreshToken = crypto.randomBytes(32).toString('hex');
@@ -464,8 +471,10 @@ export class AuthService {
         type: TOKEN_TYPES.LOGIN,
         avatar: updatedUser.avatar || undefined,
       };
-      // Generate JWT token (uses global expiration settings)
-      const accessToken = this.jwtService.sign(payload);
+      // Generate JWT token (24 hours for login tokens)
+      const accessToken = this.jwtService.sign(payload, {
+        expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
+      });
 
       // Generate refresh token for backup code login
       const refreshToken = crypto.randomBytes(32).toString('hex');

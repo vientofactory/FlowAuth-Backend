@@ -1,5 +1,5 @@
 // OAuth2 Guards
-export { OAuth2BearerGuard } from './oauth2-bearer.guard';
+export { OAuth2BearerGuard } from './guards/oauth2-bearer.guard';
 export { OAuth2ScopeGuard } from './guards/oauth2-scope.guard';
 
 // OAuth2 Decorators

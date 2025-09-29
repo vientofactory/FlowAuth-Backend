@@ -11,7 +11,7 @@ import { User } from '../user/user.entity';
 import { Client } from '../client/client.entity';
 import { OAuth2JwtPayload } from '../types/oauth2.types';
 import { StructuredLogger } from '../logging/structured-logger.service';
-import { TOKEN_TYPES } from '../constants/auth.constants';
+import { TOKEN_TYPES, JWT_TOKEN_EXPIRY } from '../constants/auth.constants';
 import * as crypto from 'crypto';
 
 interface TokenCreateResponse {
@@ -36,7 +36,7 @@ export class TokenService {
   ) {}
 
   private getAccessTokenExpiryHours(): number {
-    return this.appConfigService.accessTokenExpiryHours;
+    return JWT_TOKEN_EXPIRY.OAUTH2_HOURS;
   }
 
   private getRefreshTokenExpiryDays(): number {

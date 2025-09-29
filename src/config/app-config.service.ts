@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JWT_TOKEN_EXPIRY } from '../constants/auth.constants';
 
 @Injectable()
 export class AppConfigService {
@@ -38,7 +39,8 @@ export class AppConfigService {
   constructor(private configService: ConfigService) {
     // OAuth2 Token Configuration
     this.accessTokenExpiryHours = parseInt(
-      this.configService.get<string>('OAUTH2_ACCESS_TOKEN_EXPIRY_HOURS') || '1',
+      this.configService.get<string>('OAUTH2_ACCESS_TOKEN_EXPIRY_HOURS') ||
+        JWT_TOKEN_EXPIRY.OAUTH2_HOURS.toString(),
       10,
     );
     this.refreshTokenExpiryDays = parseInt(
