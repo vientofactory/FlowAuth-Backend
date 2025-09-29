@@ -32,6 +32,37 @@ import { PERMISSIONS } from '../constants/auth.constants';
 import { FileUploadResponseDto } from './dto/response.dto';
 import { validateFile, isValidFilename } from './validators';
 
+/**
+ * 로고 업로드 설정 정보를 가져오는 헬퍼 함수
+ */
+function getLogoUploadInfo() {
+  const logoConfig = UPLOAD_CONFIG.fileTypes.logo;
+  const imageProcessing = UPLOAD_CONFIG.imageProcessing;
+
+  // 지원 파일 형식 (대문자로 변환)
+  const supportedFormats = logoConfig.allowedMimes
+    .map((mime) => mime.split('/')[1]?.toUpperCase())
+    .filter(Boolean)
+    .join(', ');
+
+  // 최대 크기 (MB 단위로 변환)
+  const maxSizeMB = (logoConfig.maxSize / (1024 * 1024)).toFixed(1);
+
+  // 권장 크기 및 비율 정보
+  const recommendedSize = imageProcessing.defaultSize;
+  const aspectRatio = `${recommendedSize.width}:${recommendedSize.height}`;
+
+  return {
+    supportedFormats,
+    maxSizeMB,
+    recommendedWidth: recommendedSize.width,
+    recommendedHeight: recommendedSize.height,
+    aspectRatio,
+    resizeFit: imageProcessing.resizeOptions.fit,
+    resizePosition: imageProcessing.resizeOptions.position,
+  };
+}
+
 @Controller('uploads')
 @ApiTags('File Upload')
 export class UploadController {
@@ -44,17 +75,26 @@ export class UploadController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '로고 파일 업로드',
-    description: `
+    description: (() => {
+      const info = getLogoUploadInfo();
+      return `
 클라이언트 애플리케이션의 로고 파일을 업로드합니다.
 
 **지원 파일 형식:**
-- PNG, JPG, JPEG, WebP
-- 최대 크기: 1MB
+- ${info.supportedFormats}
+- 최대 크기: ${info.maxSizeMB}MB
+
+**권장 사항:**
+- 권장 크기: ${info.recommendedWidth}x${info.recommendedHeight} 픽셀
+- 권장 비율: ${info.aspectRatio}
+- 리사이징 방식: ${info.resizeFit} (${info.resizePosition} 기준)
 
 **업로드된 파일:**
 - 고유한 파일명으로 저장
 - 공개 URL 제공
-    `,
+- 자동 최적화 적용 (WebP/AVIF 우선)
+      `;
+    })(),
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -237,11 +277,45 @@ export class UploadController {
       throw new Error(`Upload configuration for type '${type}' not found`);
     }
 
-    return {
+    // 이미지 타입인 경우 추가 최적화 정보 제공
+    const isImageType = type === 'logo' || type === 'avatar';
+    const imageProcessing = isImageType ? UPLOAD_CONFIG.imageProcessing : null;
+
+    const baseConfig = {
       allowedMimes: config.allowedMimes,
       maxSize: config.maxSize,
       maxSizeMB: Math.round((config.maxSize / (1024 * 1024)) * 100) / 100,
       destination: config.destination,
     };
+
+    if (imageProcessing) {
+      return {
+        ...baseConfig,
+        // 지원 파일 형식 (대문자로 변환)
+        supportedFormats: (config.allowedMimes as readonly string[])
+          .map((mime: string) => mime.split('/')[1]?.toUpperCase())
+          .filter(Boolean)
+          .join(', '),
+        // 권장 크기 및 비율 정보
+        recommendedSize: {
+          width: imageProcessing.defaultSize.width,
+          height: imageProcessing.defaultSize.height,
+        },
+        aspectRatio: `${imageProcessing.defaultSize.width}:${imageProcessing.defaultSize.height}`,
+        resizeFit: imageProcessing.resizeOptions.fit,
+        resizePosition: imageProcessing.resizeOptions.position,
+        // 최적화 정보
+        optimization: {
+          outputFormats: imageProcessing.outputFormats,
+          quality: {
+            jpeg: imageProcessing.formatOptions.jpeg.quality,
+            webp: imageProcessing.formatOptions.webp.quality,
+            avif: imageProcessing.formatOptions.avif.quality,
+          },
+        },
+      };
+    }
+
+    return baseConfig;
   }
 }
