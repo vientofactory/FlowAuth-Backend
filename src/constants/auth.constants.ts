@@ -105,11 +105,17 @@ export const ROLE_NAMES = {
   [ROLES.ADMIN]: '시스템 관리자',
 } as const;
 
+// JWT 토큰 만료 시간 상수들 (시간 단위)
+export const JWT_TOKEN_EXPIRY = {
+  LOGIN_HOURS: 24, // 로그인 토큰: 24시간
+  OAUTH2_HOURS: 1, // OAuth2 토큰: 1시간
+} as const;
+
 // 인증 관련 상수들
 export const AUTH_CONSTANTS = {
   BCRYPT_SALT_ROUNDS: 10,
   DEFAULT_USER_PERMISSIONS: ROLES.CLIENT_MANAGER, // OAuth2 기본 기능 권한
-  TOKEN_EXPIRATION_SECONDS: 86400, // 24 hours
+  TOKEN_EXPIRATION_SECONDS: 86400, // 24 hours (로그인 토큰과 일치)
   TOKEN_TYPE: 'access' as const,
 } as const;
 

@@ -154,22 +154,4 @@ export class DashboardAnalyticsService {
     if (hours >= 24) return 'medium'; // 1일 이상
     return 'short'; // 1일 미만
   }
-
-  /**
-   * 보안 권장사항 생성 (토큰 수명 기반)
-   */
-  generateSecurityRecommendations(tokenLifetime: number): string {
-    const lifetimeClass = this.classifyTokenLifetime(tokenLifetime);
-
-    switch (lifetimeClass) {
-      case 'long':
-        return '토큰 수명이 깁니다. 보안을 강화하려면 만료 시간을 단축하는 것을 고려하세요.';
-      case 'medium':
-        return '토큰 수명이 적절합니다. 현재 설정을 유지하는 것이 좋습니다.';
-      case 'short':
-        return '토큰 수명이 매우 짧습니다. 사용자 경험을 위해 만료 시간을 연장하는 것을 고려하세요.';
-      default:
-        return '토큰 수명 데이터를 확인할 수 없습니다.';
-    }
-  }
 }

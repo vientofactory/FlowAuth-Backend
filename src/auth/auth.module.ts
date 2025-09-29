@@ -32,7 +32,6 @@ import { UploadModule } from '../upload/upload.module';
         secret:
           configService.get<string>('JWT_SECRET') ||
           JWT_CONSTANTS.SECRET_KEY_FALLBACK,
-        signOptions: { expiresIn: JWT_CONSTANTS.EXPIRES_IN },
       }),
       inject: [ConfigService],
     }),
