@@ -9,7 +9,7 @@ import { AuthorizationCodeService } from './authorization-code.service';
 import { TokenService } from './token.service';
 import { ScopeService } from './scope.service';
 import { CleanupSchedulerService } from './cleanup-scheduler.service';
-import { OAuth2BearerGuard } from './oauth2-bearer.guard';
+import { OAuth2BearerGuard } from './guards/oauth2-bearer.guard';
 import { OAuth2ScopeGuard } from './guards/oauth2-scope.guard';
 import { OAuth2Strategy } from './guards/oauth2.strategy';
 import { User } from '../user/user.entity';
