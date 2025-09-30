@@ -10,9 +10,17 @@ import { PermissionUtils } from '../utils/permission.util';
 
 export const PERMISSIONS_KEY = 'permissions';
 
-// 간단한 권한 요구 데코레이터
+// 간단한 권한 요구 데코레이터 (기본: 하나라도 있으면 통과)
 export const RequirePermissions = (...permissions: number[]) =>
-  SetMetadata(PERMISSIONS_KEY, permissions);
+  SetMetadata(PERMISSIONS_KEY, { permissions, requireAll: false });
+
+// 모든 권한이 필요할 때 사용하는 데코레이터
+export const RequireAllPermissions = (...permissions: number[]) =>
+  SetMetadata(PERMISSIONS_KEY, { permissions, requireAll: true });
+
+// 하나라도 권한이 있으면 통과하는 데코레이터 (명시적)
+export const RequireAnyPermissions = (...permissions: number[]) =>
+  SetMetadata(PERMISSIONS_KEY, { permissions, requireAll: false });
 
 interface RequestWithUser {
   user?: {
@@ -25,12 +33,12 @@ export class PermissionsGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredPermissions = this.reflector.getAllAndOverride<number[]>(
-      PERMISSIONS_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const permissionConfig = this.reflector.getAllAndOverride<{
+      permissions: number[];
+      requireAll: boolean;
+    }>(PERMISSIONS_KEY, [context.getHandler(), context.getClass()]);
 
-    if (!requiredPermissions || requiredPermissions.length === 0) {
+    if (!permissionConfig) {
       return true; // 권한 요구사항이 없으면 통과
     }
 
@@ -60,10 +68,10 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    const hasPermission = PermissionUtils.hasAnyPermission(
-      userPermissions,
-      requiredPermissions,
-    );
+    const { permissions, requireAll } = permissionConfig;
+    const hasPermission = requireAll
+      ? PermissionUtils.hasAllPermissions(userPermissions, permissions)
+      : PermissionUtils.hasAnyPermission(userPermissions, permissions);
 
     if (!hasPermission) {
       throw new ForbiddenException('필요한 권한이 없습니다.');

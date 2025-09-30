@@ -1,6 +1,8 @@
 import {
   PERMISSIONS,
   ROLES,
+  ROLE_PERMISSIONS,
+  ROLE_NAMES,
   PERMISSION_UTILS,
   type TokenType,
 } from '../constants/auth.constants';
@@ -161,40 +163,33 @@ export class PermissionUtils {
     if (
       this.hasPermission(permissions, PERMISSION_UTILS.getAdminPermission())
     ) {
-      return '시스템 관리자';
+      return ROLE_NAMES[ROLES.ADMIN];
     }
 
     // 정확히 일치하는 역할 찾기 (ADMIN 제외)
-    for (const [roleName, rolePermissions] of Object.entries(ROLES)) {
-      if (roleName !== 'ADMIN' && permissions === rolePermissions) {
-        // 역할 이름을 한국어로 변환
-        const roleNameMap: Record<string, string> = {
-          USER: '일반 사용자',
-          CLIENT_MANAGER: '클라이언트 관리자',
-          TOKEN_MANAGER: '토큰 관리자',
-          USER_MANAGER: '사용자 관리자',
-        };
-        return roleNameMap[roleName] || roleName;
+    for (const [roleName, rolePermissions] of Object.entries(
+      ROLE_PERMISSIONS,
+    )) {
+      if (
+        roleName !== ROLES.ADMIN &&
+        this.hasAllPermissions(permissions, [...rolePermissions])
+      ) {
+        return ROLE_NAMES[roleName as keyof typeof ROLE_NAMES];
       }
     }
 
     // 포함 관계로 가장 가까운 역할 찾기 (권한 레벨이 높은 순서로)
     const rolePriority = [
-      'USER_MANAGER',
-      'CLIENT_MANAGER',
-      'TOKEN_MANAGER',
-      'USER',
+      ROLES.USER_MANAGER,
+      ROLES.CLIENT_MANAGER,
+      ROLES.TOKEN_MANAGER,
+      ROLES.USER,
     ];
     for (const roleName of rolePriority) {
-      const rolePermissions = ROLES[roleName as keyof typeof ROLES];
-      if (this.hasAllPermissions(permissions, [rolePermissions])) {
-        const roleNameMap: Record<string, string> = {
-          USER: '일반 사용자',
-          CLIENT_MANAGER: '클라이언트 관리자',
-          TOKEN_MANAGER: '토큰 관리자',
-          USER_MANAGER: '사용자 관리자',
-        };
-        return roleNameMap[roleName] || roleName;
+      const rolePermissions =
+        ROLE_PERMISSIONS[roleName as keyof typeof ROLE_PERMISSIONS];
+      if (this.hasAllPermissions(permissions, [...rolePermissions])) {
+        return ROLE_NAMES[roleName as keyof typeof ROLE_NAMES];
       }
     }
 
@@ -216,7 +211,7 @@ export class PermissionUtils {
    * @returns 기본 권한 비트마스크
    */
   static getDefaultPermissions(): number {
-    return ROLES.USER;
+    return ROLE_PERMISSIONS[ROLES.USER].reduce((acc, perm) => acc | perm, 0);
   }
 
   /**

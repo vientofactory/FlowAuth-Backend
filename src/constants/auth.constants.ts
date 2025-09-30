@@ -43,29 +43,39 @@ export const PERMISSIONS = {
   // 업로드 권한
   UPLOAD_FILE: 1 << 14, // 16384
 
-  // ADMIN 권한은 별도로 계산됨 (모든 권한의 조합)
+  // ADMIN 권한 - 별도의 슈퍼 권한
+  ADMIN_ACCESS: 1 << 31, // 2147483648
 } as const;
 
 // 권한 헬퍼 함수들
 export const PERMISSION_UTILS = {
   /**
-   * 모든 권한의 비트마스크를 계산
+   * 모든 권한의 비트마스크를 계산 (ADMIN_ACCESS 제외)
    */
   getAllPermissionsMask: (): number => {
-    return Object.values(PERMISSIONS).reduce((acc, perm) => acc | perm, 0);
+    return Object.values(PERMISSIONS).reduce((acc, perm) => {
+      if (perm !== PERMISSIONS.ADMIN_ACCESS) {
+        return acc | perm;
+      }
+      return acc;
+    }, 0);
   },
 
   /**
-   * ADMIN 권한 값 (모든 권한의 조합)
+   * ADMIN 권한 값 (ADMIN_ACCESS 비트만)
    */
   getAdminPermission: (): number => {
-    return PERMISSION_UTILS.getAllPermissionsMask();
+    return PERMISSIONS.ADMIN_ACCESS;
   },
 
   /**
-   * 사용 가능한 모든 권한 목록
+   * 사용 가능한 모든 권한 목록 (ADMIN_ACCESS 제외)
    */
-  getAllPermissions: () => Object.values(PERMISSIONS),
+  getAllPermissions: () => {
+    return Object.values(PERMISSIONS).filter((p) => {
+      return p !== PERMISSIONS.ADMIN_ACCESS;
+    });
+  },
 
   /**
    * 권한 이름으로 값 찾기
@@ -73,27 +83,55 @@ export const PERMISSION_UTILS = {
   getPermissionValue: (name: keyof typeof PERMISSIONS) => PERMISSIONS[name],
 } as const;
 
-// 사전 정의된 역할들
+// 역할 상수들
 export const ROLES = {
-  USER: PERMISSIONS.READ_USER,
-  CLIENT_MANAGER:
-    PERMISSIONS.READ_CLIENT |
-    PERMISSIONS.WRITE_CLIENT |
-    PERMISSIONS.DELETE_CLIENT |
-    PERMISSIONS.READ_TOKEN |
-    PERMISSIONS.WRITE_TOKEN |
-    PERMISSIONS.DELETE_TOKEN |
-    PERMISSIONS.READ_DASHBOARD |
-    PERMISSIONS.WRITE_DASHBOARD |
-    PERMISSIONS.UPLOAD_FILE, // 대시보드 및 업로드 권한 추가
-  TOKEN_MANAGER:
-    PERMISSIONS.READ_TOKEN | PERMISSIONS.WRITE_TOKEN | PERMISSIONS.DELETE_TOKEN,
-  USER_MANAGER:
-    PERMISSIONS.READ_USER |
-    PERMISSIONS.WRITE_USER |
-    PERMISSIONS.DELETE_USER |
+  USER: 'user',
+  CLIENT_MANAGER: 'client_manager',
+  TOKEN_MANAGER: 'token_manager',
+  USER_MANAGER: 'user_manager',
+  ADMIN: 'admin',
+} as const;
+
+// 역할별 권한 매핑
+export const ROLE_PERMISSIONS = {
+  [ROLES.USER]: [PERMISSIONS.READ_USER, PERMISSIONS.READ_DASHBOARD],
+  [ROLES.CLIENT_MANAGER]: [
+    PERMISSIONS.READ_CLIENT,
+    PERMISSIONS.WRITE_CLIENT,
+    PERMISSIONS.DELETE_CLIENT,
+    PERMISSIONS.READ_TOKEN,
+    PERMISSIONS.WRITE_TOKEN,
+    PERMISSIONS.DELETE_TOKEN,
+    PERMISSIONS.READ_DASHBOARD,
+    PERMISSIONS.WRITE_DASHBOARD,
+    PERMISSIONS.UPLOAD_FILE,
+  ],
+  [ROLES.TOKEN_MANAGER]: [
+    PERMISSIONS.READ_TOKEN,
+    PERMISSIONS.WRITE_TOKEN,
+    PERMISSIONS.DELETE_TOKEN,
+  ],
+  [ROLES.USER_MANAGER]: [
+    PERMISSIONS.READ_USER,
+    PERMISSIONS.WRITE_USER,
+    PERMISSIONS.DELETE_USER,
     PERMISSIONS.MANAGE_USERS,
-  ADMIN: PERMISSION_UTILS.getAdminPermission(), // 동적으로 계산된 모든 권한
+  ],
+  [ROLES.ADMIN]: [PERMISSIONS.ADMIN_ACCESS], // ADMIN은 별도의 슈퍼 권한만 가짐
+} as const;
+
+// 역할 계층 구조 (상속 관계)
+export const ROLE_HIERARCHY = {
+  [ROLES.USER]: [],
+  [ROLES.CLIENT_MANAGER]: [ROLES.USER],
+  [ROLES.TOKEN_MANAGER]: [ROLES.USER],
+  [ROLES.USER_MANAGER]: [ROLES.USER, ROLES.CLIENT_MANAGER],
+  [ROLES.ADMIN]: [
+    ROLES.USER,
+    ROLES.CLIENT_MANAGER,
+    ROLES.TOKEN_MANAGER,
+    ROLES.USER_MANAGER,
+  ],
 } as const;
 
 // 역할 이름 매핑
@@ -178,22 +216,14 @@ export const TWO_FACTOR_CONSTANTS = {
   WINDOW_TIME: 30, // TOTP 윈도우 시간 (초)
 } as const;
 
-// 사용자 유형별 기본 권한
+// 사용자 유형별 기본 권한 (역할 기반)
 export const USER_TYPE_PERMISSIONS = {
-  [USER_TYPES.REGULAR]:
-    PERMISSIONS.READ_USER |
-    PERMISSIONS.READ_DASHBOARD |
-    PERMISSIONS.WRITE_DASHBOARD |
-    PERMISSIONS.UPLOAD_FILE, // 기본 사용자 권한 + 대시보드 + 업로드
-  [USER_TYPES.DEVELOPER]:
-    PERMISSIONS.READ_USER |
-    PERMISSIONS.READ_CLIENT |
-    PERMISSIONS.WRITE_CLIENT |
-    PERMISSIONS.DELETE_CLIENT |
-    PERMISSIONS.READ_TOKEN |
-    PERMISSIONS.WRITE_TOKEN |
-    PERMISSIONS.DELETE_TOKEN |
-    PERMISSIONS.READ_DASHBOARD |
-    PERMISSIONS.WRITE_DASHBOARD |
-    PERMISSIONS.UPLOAD_FILE, // 개발자 권한 + 대시보드 + 업로드
+  [USER_TYPES.REGULAR]: ROLE_PERMISSIONS[ROLES.USER].reduce(
+    (acc, perm) => acc | perm,
+    0,
+  ),
+  [USER_TYPES.DEVELOPER]: ROLE_PERMISSIONS[ROLES.CLIENT_MANAGER].reduce(
+    (acc, perm) => acc | perm,
+    0,
+  ),
 } as const;

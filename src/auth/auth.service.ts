@@ -25,7 +25,7 @@ import { CreateClientDto } from './dto/create-client.dto';
 import {
   AUTH_CONSTANTS,
   AUTH_ERROR_MESSAGES,
-  ROLES,
+  PERMISSIONS,
   USER_TYPES,
   USER_TYPE_PERMISSIONS,
   TOKEN_TYPES,
@@ -108,7 +108,7 @@ export class AuthService {
 
     if (isFirstUser) {
       // First user is always admin
-      permissions = ROLES.ADMIN;
+      permissions = PERMISSIONS.ADMIN_ACCESS;
     } else {
       // Set permissions based on user type
       permissions = USER_TYPE_PERMISSIONS[finalUserType];
