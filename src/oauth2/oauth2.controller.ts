@@ -47,10 +47,11 @@ import { PERMISSIONS, TOKEN_TYPES } from '../constants/auth.constants';
 import type { User } from '../user/user.entity';
 import type { OAuth2JwtPayload } from '../types/oauth2.types';
 import { PermissionUtils, TokenUtils } from '../utils/permission.util';
+import { OAuth2UserInfoBuilder } from './utils/oauth2-userinfo.util';
 import {
   mapExceptionToOAuth2Error,
   createOAuth2Error,
-} from '../utils/oauth2-error.util';
+} from './utils/oauth2-error.util';
 import {
   AuthorizeRequestDto,
   TokenRequestDto,
@@ -257,7 +258,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
   @ApiQuery({
     name: 'scope',
     description: '요청할 권한 스코프 (공백으로 구분)',
-    example: 'openid profile email',
+    example: 'identify email',
     required: false,
   })
   @ApiQuery({
@@ -536,30 +537,8 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
     }
 
     // 토큰의 스코프에 따라 반환할 정보를 결정
-    // OAuth2JwtPayload의 scopes 속성은 string[] 타입
     const userScopes: string[] = req.user.scopes || [];
-
-    const response: {
-      sub: string;
-      email?: string;
-      username?: string;
-      roles?: string[];
-    } = {
-      sub: user.id.toString(), // 기본적으로 항상 포함 (OpenID Connect 표준)
-    };
-
-    // email 스코프가 있을 때만 이메일 반환
-    if (userScopes.includes('email')) {
-      response.email = user.email;
-    }
-
-    // identify 스코프가 있을 때만 프로필 정보 반환
-    if (userScopes.includes('identify')) {
-      response.username = user.username;
-      response.roles = [PermissionUtils.getRoleName(user.permissions)];
-    }
-
-    return response;
+    return OAuth2UserInfoBuilder.buildUserInfo(user, userScopes);
   }
 
   @Get('authorize/info')
@@ -598,7 +577,7 @@ OAuth2 인증 동의 화면에 표시할 클라이언트 및 스코프 정보를
   @ApiQuery({
     name: 'scope',
     description: '요청할 권한 스코프 (공백으로 구분)',
-    example: 'openid profile email',
+    example: 'identify email',
     required: false,
   })
   @ApiResponse({

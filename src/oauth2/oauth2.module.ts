@@ -3,7 +3,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
-import { OAuth2Controller } from './oauth2.controller';
+import { AuthorizationController } from './controllers/authorization.controller';
+import { TokenController } from './controllers/token.controller';
+import { UserInfoController } from './controllers/userinfo.controller';
+import { ConsentController } from './controllers/consent.controller';
+import { ScopeController } from './controllers/scope.controller';
 import { OAuth2Service } from './oauth2.service';
 import { AuthorizationCodeService } from './authorization-code.service';
 import { TokenService } from './token.service';
@@ -38,7 +42,13 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
       inject: [ConfigService],
     }),
   ],
-  controllers: [OAuth2Controller],
+  controllers: [
+    AuthorizationController,
+    TokenController,
+    UserInfoController,
+    ConsentController,
+    ScopeController,
+  ],
   providers: [
     OAuth2Service,
     AuthorizationCodeService,
