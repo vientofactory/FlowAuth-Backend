@@ -4,7 +4,7 @@ import {
   ScopeFieldMapping,
 } from './oauth2-userinfo.util';
 import { User } from '../../user/user.entity';
-import { USER_TYPES } from '../../constants/auth.constants';
+import { USER_TYPES, PERMISSIONS } from '../../constants/auth.constants';
 
 describe('OAuth2UserInfoBuilder', () => {
   let mockUser: User;
@@ -20,7 +20,7 @@ describe('OAuth2UserInfoBuilder', () => {
       lastName: undefined,
       userType: USER_TYPES.REGULAR,
       isEmailVerified: false,
-      permissions: 1, // 기본 권한
+      permissions: PERMISSIONS.READ_USER | PERMISSIONS.READ_DASHBOARD, // 일반 사용자 권한
       lastLoginAt: undefined,
       twoFactorSecret: undefined,
       isTwoFactorEnabled: false,
