@@ -3,18 +3,36 @@ import {
   buildOAuth2UserInfo,
   ScopeFieldMapping,
 } from './oauth2-userinfo.util';
-import { User } from '../user/user.entity';
+import { User } from '../../user/user.entity';
+import { USER_TYPES } from '../../constants/auth.constants';
 
 describe('OAuth2UserInfoBuilder', () => {
   let mockUser: User;
 
   beforeEach(() => {
+    const now = new Date();
     mockUser = {
       id: 1,
-      email: 'test@example.com',
       username: 'testuser',
+      email: 'test@example.com',
+      password: 'hashedpassword',
+      firstName: undefined,
+      lastName: undefined,
+      userType: USER_TYPES.REGULAR,
+      isEmailVerified: false,
       permissions: 1, // 기본 권한
-    } as User;
+      lastLoginAt: undefined,
+      twoFactorSecret: undefined,
+      isTwoFactorEnabled: false,
+      backupCodes: undefined,
+      isActive: true,
+      avatar: undefined,
+      bio: undefined,
+      website: undefined,
+      location: undefined,
+      createdAt: now,
+      updatedAt: now,
+    };
   });
 
   describe('buildUserInfo', () => {
@@ -152,12 +170,29 @@ describe('OAuth2UserInfoBuilder', () => {
 
 describe('buildOAuth2UserInfo', () => {
   it('should delegate to OAuth2UserInfoBuilder.buildUserInfo', () => {
-    const mockUser = {
+    const now = new Date();
+    const mockUser: User = {
       id: 1,
       email: 'test@example.com',
       username: 'testuser',
+      password: 'hashedpassword',
+      firstName: undefined,
+      lastName: undefined,
+      userType: USER_TYPES.REGULAR,
+      isEmailVerified: false,
       permissions: 1,
-    } as User;
+      lastLoginAt: undefined,
+      twoFactorSecret: undefined,
+      isTwoFactorEnabled: false,
+      backupCodes: undefined,
+      isActive: true,
+      avatar: undefined,
+      bio: undefined,
+      website: undefined,
+      location: undefined,
+      createdAt: now,
+      updatedAt: now,
+    };
     const scopes = ['email'];
 
     const result = buildOAuth2UserInfo(mockUser, scopes);
