@@ -11,6 +11,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import type { Request as ExpressRequest, Response } from 'express';
 import { OAuth2Service } from '../oauth2.service';
+import { AuthorizationService } from '../services/authorization.service';
 import { JwtService } from '@nestjs/jwt';
 import { TokenService } from '../token.service';
 import { AuthorizationCodeService } from '../authorization-code.service';
@@ -28,6 +29,7 @@ export class AuthorizationController {
 
   constructor(
     private readonly oauth2Service: OAuth2Service,
+    private readonly authorizationService: AuthorizationService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly tokenService: TokenService,
@@ -386,7 +388,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
     }
 
     const { client, scopes } =
-      await this.oauth2Service.getConsentInfo(authorizeDto);
+      await this.authorizationService.getConsentInfo(authorizeDto);
 
     const clientInfo: ClientInfoDto = {
       id: client.clientId,

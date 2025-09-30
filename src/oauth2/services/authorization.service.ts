@@ -177,4 +177,33 @@ export class AuthorizationService {
       }
     }
   }
+
+  async getConsentInfo(
+    authorizeDto: AuthorizeRequestDto,
+  ): Promise<{ client: Client; scopes: string[] }> {
+    const { client_id, redirect_uri, scope } = authorizeDto;
+
+    // Find and validate client
+    const client = await this.clientRepository.findOne({
+      where: { clientId: client_id, isActive: true },
+    });
+
+    if (!client) {
+      throw new BadRequestException('Invalid client_id');
+    }
+
+    // Validate redirect URI
+    if (!client.redirectUris.includes(redirect_uri)) {
+      throw new BadRequestException('Invalid redirect_uri');
+    }
+
+    // Parse and validate scopes
+    const scopeValue = typeof scope === 'string' ? scope : '';
+    const requestedScopes = scopeValue ? scopeValue.split(' ') : [];
+
+    return {
+      client,
+      scopes: requestedScopes,
+    };
+  }
 }

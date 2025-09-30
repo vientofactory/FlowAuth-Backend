@@ -12,6 +12,7 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import type { Request as ExpressRequest, Response } from 'express';
 import { OAuth2Service } from '../oauth2.service';
+import { AuthorizationService } from '../services/authorization.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { TokenService } from '../token.service';
@@ -31,6 +32,7 @@ export class ConsentController {
 
   constructor(
     private readonly oauth2Service: OAuth2Service,
+    private readonly authorizationService: AuthorizationService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly tokenService: TokenService,
@@ -136,7 +138,10 @@ export class ConsentController {
     res: Response,
   ): Promise<void> {
     try {
-      const result = await this.oauth2Service.authorize(authorizeDto, user);
+      const result = await this.authorizationService.authorize(
+        authorizeDto,
+        user,
+      );
 
       const redirectUrl = new URL(authorizeDto.redirect_uri);
       redirectUrl.searchParams.set('code', result.code);
@@ -246,7 +251,10 @@ export class ConsentController {
 
     // User approved consent, handle the OAuth2 flow
     try {
-      const result = await this.oauth2Service.authorize(authorizeDto, user);
+      const result = await this.authorizationService.authorize(
+        authorizeDto,
+        user,
+      );
 
       const redirectUrl = new URL(authorizeDto.redirect_uri);
       redirectUrl.searchParams.set('code', result.code);

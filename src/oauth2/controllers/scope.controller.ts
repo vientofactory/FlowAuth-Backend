@@ -16,6 +16,8 @@ import {
 import { PERMISSIONS, TOKEN_TYPES } from '../../constants/auth.constants';
 import { OAuth2Service } from '../oauth2.service';
 import { ScopeService } from '../scope.service';
+import { TokenService } from '../token.service';
+import { AuthorizationCodeService } from '../authorization-code.service';
 import { JwtService } from '@nestjs/jwt';
 import { TokenUtils } from '../../utils/permission.util';
 import { PermissionUtils } from '../../utils/permission.util';
@@ -26,6 +28,8 @@ export class ScopeController {
   constructor(
     private readonly oauth2Service: OAuth2Service,
     private readonly scopeService: ScopeService,
+    private readonly tokenService: TokenService,
+    private readonly authorizationCodeService: AuthorizationCodeService,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -175,5 +179,42 @@ export class ScopeController {
     }
 
     return this.scopeService.getCacheInfo();
+  }
+
+  @Post('cleanup')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.MANAGE_SYSTEM)
+  @ApiTags('OAuth2 Management')
+  @ApiOperation({
+    summary: '만료된 OAuth2 데이터 정리',
+    description: `
+시스템에서 만료된 토큰과 인증 코드를 정리합니다.
+
+**권한:** 시스템 관리자 권한 필요
+**용도:** 정기적인 데이터 정리 작업
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '정리 완료 결과',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Cleanup completed' },
+        deletedTokens: { type: 'number', example: 5 },
+        deletedCodes: { type: 'number', example: 3 },
+      },
+    },
+  })
+  async cleanupExpiredData() {
+    const deletedTokens = await this.tokenService.cleanupExpiredTokens();
+    const deletedCodes =
+      await this.authorizationCodeService.cleanupExpiredCodes();
+
+    return {
+      message: 'Cleanup completed',
+      deletedTokens,
+      deletedCodes,
+    };
   }
 }

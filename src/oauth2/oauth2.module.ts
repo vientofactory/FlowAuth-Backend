@@ -9,6 +9,8 @@ import { UserInfoController } from './controllers/userinfo.controller';
 import { ConsentController } from './controllers/consent.controller';
 import { ScopeController } from './controllers/scope.controller';
 import { OAuth2Service } from './oauth2.service';
+import { AuthorizationService } from './services/authorization.service';
+import { TokenGrantService } from './services/token-grant.service';
 import { AuthorizationCodeService } from './authorization-code.service';
 import { TokenService } from './token.service';
 import { ScopeService } from './scope.service';
@@ -51,6 +53,8 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
   ],
   providers: [
     OAuth2Service,
+    AuthorizationService,
+    TokenGrantService,
     AuthorizationCodeService,
     TokenService,
     ScopeService,

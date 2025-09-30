@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { OAuth2Service } from '../oauth2.service';
+import { TokenGrantService } from '../services/token-grant.service';
 import { TokenRequestDto, TokenResponseDto } from '../dto/oauth2.dto';
 import { ErrorResponseDto } from '../../common/dto/response.dto';
 import {
@@ -19,7 +20,10 @@ import {
 export class TokenController {
   private readonly logger = new Logger(TokenController.name);
 
-  constructor(private readonly oauth2Service: OAuth2Service) {}
+  constructor(
+    private readonly oauth2Service: OAuth2Service,
+    private readonly tokenGrantService: TokenGrantService,
+  ) {}
 
   @Post('token')
   @ApiOperation({
@@ -63,7 +67,7 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
         };
       }
 
-      return await this.oauth2Service.token(tokenDto);
+      return await this.tokenGrantService.token(tokenDto);
     } catch (error) {
       // Convert exceptions to OAuth2 standard error responses
       if (error instanceof BadRequestException) {
