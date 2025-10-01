@@ -9,7 +9,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
-import { User } from '../user/user.entity';
+import { User } from '../auth/user.entity';
 
 @Entity()
 @Index(['clientId'], { unique: true })

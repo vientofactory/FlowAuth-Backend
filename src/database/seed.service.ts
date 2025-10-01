@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Scope } from '../scope/scope.entity';
-import { Client } from '../client/client.entity';
-import { User } from '../user/user.entity';
+import { Scope } from '../oauth2/scope.entity';
+import { Client } from '../oauth2/client.entity';
+import { User } from '../auth/user.entity';
 import { snowflakeGenerator } from '../utils/snowflake-id.util';
 import {
   OAUTH2_SCOPES,

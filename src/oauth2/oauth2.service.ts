@@ -1,8 +1,8 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../user/user.entity';
-import { Client } from '../client/client.entity';
+import { User } from '../auth/user.entity';
+import { Client } from './client.entity';
 
 @Injectable()
 export class OAuth2Service {
@@ -23,25 +23,5 @@ export class OAuth2Service {
     }
 
     return user;
-  }
-
-  private async validateClient(
-    clientId: string,
-    clientSecret?: string,
-  ): Promise<Client> {
-    const client = await this.clientRepository.findOne({
-      where: { clientId, isActive: true },
-    });
-
-    if (!client) {
-      throw new BadRequestException('Invalid client');
-    }
-
-    // Validate client secret if provided
-    if (clientSecret && client.clientSecret !== clientSecret) {
-      throw new BadRequestException('Invalid client credentials');
-    }
-
-    return client;
   }
 }

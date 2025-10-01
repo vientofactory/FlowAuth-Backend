@@ -1,4 +1,4 @@
-import type { User } from '../../user/user.entity';
+import type { User } from '../../auth/user.entity';
 import { PermissionUtils } from '../../utils/permission.util';
 
 /**

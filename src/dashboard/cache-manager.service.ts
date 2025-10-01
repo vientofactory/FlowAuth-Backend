@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
-import { User } from '../user/user.entity';
+import { User } from '../auth/user.entity';
 import { CACHE_KEYS, DASHBOARD_CONFIG } from './dashboard.constants';
 
 // Redis 클라이언트 인터페이스 정의

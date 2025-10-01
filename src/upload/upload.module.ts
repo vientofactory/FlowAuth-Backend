@@ -8,8 +8,8 @@ import { ImageProcessingService } from './image-processing.service';
 import { UploadController } from './upload.controller';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtStrategy } from '../auth/jwt.strategy';
-import { User } from '../user/user.entity';
-import { Token } from '../token/token.entity';
+import { User } from '../auth/user.entity';
+import { Token } from '../oauth2/token.entity';
 import { JWT_CONSTANTS } from '../constants/auth.constants';
 import { UtilsModule } from '../utils/utils.module';
 

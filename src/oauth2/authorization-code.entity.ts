@@ -7,8 +7,8 @@ import {
   CreateDateColumn,
   Index,
 } from 'typeorm';
-import { User } from '../user/user.entity';
-import { Client } from '../client/client.entity';
+import { User } from '../auth/user.entity';
+import { Client } from './client.entity';
 
 @Entity()
 @Index(['code'], { unique: true })

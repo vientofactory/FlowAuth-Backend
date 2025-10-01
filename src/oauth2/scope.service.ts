@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
-import { Scope } from '../scope/scope.entity';
+import { Scope } from './scope.entity';
 
 @Injectable()
 export class ScopeService implements OnApplicationBootstrap {

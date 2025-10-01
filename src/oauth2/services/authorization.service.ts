@@ -1,8 +1,8 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../../user/user.entity';
-import { Client } from '../../client/client.entity';
+import { User } from '../../auth/user.entity';
+import { Client } from '../client.entity';
 import { AuthorizationCodeService } from '../authorization-code.service';
 import { ScopeService } from '../scope.service';
 import { AuthorizeRequestDto, AuthorizeResponseDto } from '../dto/oauth2.dto';

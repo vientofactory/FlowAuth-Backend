@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
-import { Client } from '../client/client.entity';
-import { User } from '../user/user.entity';
-import { Token } from '../token/token.entity';
+import { Client } from '../oauth2/client.entity';
+import { User } from '../auth/user.entity';
+import { Token } from '../oauth2/token.entity';
 import { TokenService } from '../oauth2/token.service';
 import { TOKEN_TYPES } from '../constants/auth.constants';
 import { CacheManagerService } from './cache-manager.service';

@@ -4,8 +4,8 @@ import { PassportStrategy } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Strategy, ExtractJwt, StrategyOptions } from 'passport-jwt';
-import { User } from '../user/user.entity';
-import { Token } from '../token/token.entity';
+import { User } from './user.entity';
+import { Token } from '../oauth2/token.entity';
 import { AUTH_ERROR_MESSAGES, TOKEN_TYPES } from '../constants/auth.constants';
 import { JwtPayload } from '../types/auth.types';
 

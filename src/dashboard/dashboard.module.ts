@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Client } from '../client/client.entity';
-import { User } from '../user/user.entity';
-import { Token } from '../token/token.entity';
+import { Client } from '../oauth2/client.entity';
+import { User } from '../auth/user.entity';
+import { Token } from '../oauth2/token.entity';
 import { OAuth2Module } from '../oauth2/oauth2.module';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';

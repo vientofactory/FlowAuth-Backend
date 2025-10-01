@@ -23,7 +23,7 @@ import { AuthorizeConsentDto } from '../dto/request.dto';
 import { RedirectUrlResponseDto } from '../../common/dto/response.dto';
 import { TOKEN_TYPES } from '../../constants/auth.constants';
 import { TokenUtils } from '../../utils/permission.util';
-import type { User } from '../../user/user.entity';
+import type { User } from '../../auth/user.entity';
 
 @Controller('oauth2')
 @ApiTags('OAuth2 Consent')

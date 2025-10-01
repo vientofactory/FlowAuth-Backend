@@ -3,9 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
-import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
-import { User } from '../user/user.entity';
-import { Client } from '../client/client.entity';
+import { AuthorizationCode } from './authorization-code.entity';
+import { User } from '../auth/user.entity';
+import { Client } from './client.entity';
 import {
   OAUTH2_ERROR_MESSAGES,
   OAUTH2_CONSTANTS,

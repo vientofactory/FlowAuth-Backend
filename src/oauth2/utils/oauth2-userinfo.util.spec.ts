@@ -3,7 +3,7 @@ import {
   buildOAuth2UserInfo,
   ScopeFieldMapping,
 } from './oauth2-userinfo.util';
-import { User } from '../../user/user.entity';
+import { User } from '../../auth/user.entity';
 import { USER_TYPES, PERMISSIONS } from '../../constants/auth.constants';
 
 describe('OAuth2UserInfoBuilder', () => {

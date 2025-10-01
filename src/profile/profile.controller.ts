@@ -23,7 +23,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ProfileService } from './profile.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../types/auth.types';
-import { User } from '../user/user.entity';
+import { User } from '../auth/user.entity';
 
 @Controller('profile')
 @ApiTags('Profile')

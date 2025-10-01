@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
-import { User } from '../user/user.entity';
+import { User } from './user.entity';
 import { PermissionUtils } from '../utils/permission.util';
 import { ROLE_PERMISSIONS, CACHE_CONSTANTS } from '../constants/auth.constants';
 

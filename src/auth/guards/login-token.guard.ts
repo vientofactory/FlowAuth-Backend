@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
-import type { User } from '../../user/user.entity';
+import type { User } from '../user.entity';
 
 @Injectable()
 export class LoginTokenGuard extends AuthGuard('jwt') {

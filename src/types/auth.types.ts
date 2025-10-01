@@ -1,4 +1,4 @@
-import { User } from '../user/user.entity';
+import { User } from '../auth/user.entity';
 import { TokenType } from '../constants/auth.constants';
 
 // 인증 관련 타입 정의들

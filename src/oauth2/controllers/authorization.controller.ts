@@ -20,7 +20,7 @@ import { AuthorizeRequestDto } from '../dto/oauth2.dto';
 import { AuthorizeInfoResponseDto, ClientInfoDto } from '../dto/response.dto';
 import { TOKEN_TYPES } from '../../constants/auth.constants';
 import { TokenUtils } from '../../utils/permission.util';
-import type { User } from '../../user/user.entity';
+import type { User } from '../../auth/user.entity';
 
 @Controller('oauth2')
 @ApiTags('OAuth2 Authorization')
