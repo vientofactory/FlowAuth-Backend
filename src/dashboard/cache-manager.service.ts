@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -26,6 +26,8 @@ interface CacheStore {
 
 @Injectable()
 export class CacheManagerService {
+  private readonly logger = new Logger(CacheManagerService.name);
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
@@ -41,7 +43,7 @@ export class CacheManagerService {
       const cacheKey = CACHE_KEYS.stats(userId);
       await this.cacheManager.del(cacheKey);
     } catch (error) {
-      console.warn('Failed to invalidate user stats cache:', error);
+      this.logger.warn('Failed to invalidate user stats cache:', error);
     }
   }
 
@@ -58,7 +60,7 @@ export class CacheManagerService {
         ),
       );
     } catch (error) {
-      console.warn('Failed to invalidate user activities cache:', error);
+      this.logger.warn('Failed to invalidate user activities cache:', error);
     }
   }
 
@@ -70,7 +72,7 @@ export class CacheManagerService {
       const cacheKey = CACHE_KEYS.user(userId);
       await this.cacheManager.del(cacheKey);
     } catch (error) {
-      console.warn('Failed to invalidate user profile cache:', error);
+      this.logger.warn('Failed to invalidate user profile cache:', error);
     }
   }
 
@@ -82,7 +84,7 @@ export class CacheManagerService {
       const cacheKey = CACHE_KEYS.permissions(userId);
       await this.cacheManager.del(cacheKey);
     } catch (error) {
-      console.warn('Failed to invalidate user permissions cache:', error);
+      this.logger.warn('Failed to invalidate user permissions cache:', error);
     }
   }
 
@@ -117,7 +119,7 @@ export class CacheManagerService {
         await this.deleteKeysByPattern(pattern);
       }
     } catch (error) {
-      console.error('Failed to invalidate all users cache:', error);
+      this.logger.error('Failed to invalidate all users cache:', error);
       // SCAN 실패 시 폴백으로 기존 방식 사용
       this.invalidateAllUsersCacheFallback();
     }
@@ -134,7 +136,9 @@ export class CacheManagerService {
       ).store;
 
       if (!cacheStore?.client) {
-        console.warn('Redis client not available, skipping pattern deletion');
+        this.logger.warn(
+          'Redis client not available, skipping pattern deletion',
+        );
         return;
       }
 
@@ -170,7 +174,7 @@ export class CacheManagerService {
                     if (delErr) {
                       reject(delErr);
                     } else {
-                      console.log(
+                      this.logger.log(
                         `Deleted ${keysToDelete.length} cache keys with pattern: ${pattern}`,
                       );
                       resolve();
@@ -190,7 +194,7 @@ export class CacheManagerService {
         scanAndDelete();
       });
     } catch (error) {
-      console.warn(`Failed to delete keys with pattern ${pattern}:`, error);
+      this.logger.warn(`Failed to delete keys with pattern ${pattern}:`, error);
       // SCAN 실패 시 조용히 무시
     }
   }
@@ -199,7 +203,7 @@ export class CacheManagerService {
    * 폴백 방식: 데이터베이스에서 모든 사용자 조회 후 개별 삭제
    */
   private invalidateAllUsersCacheFallback(): void {
-    console.log('Using fallback cache invalidation method');
+    this.logger.log('Using fallback cache invalidation method');
 
     this.userRepository
       .find({
@@ -217,11 +221,11 @@ export class CacheManagerService {
         });
 
         Promise.all(cacheDeletePromises).catch((error) => {
-          console.warn('Failed to invalidate some caches:', error);
+          this.logger.warn('Failed to invalidate some caches:', error);
         });
       })
       .catch((error) => {
-        console.error('Failed to get users for cache invalidation:', error);
+        this.logger.error('Failed to get users for cache invalidation:', error);
       });
   }
 
@@ -255,7 +259,7 @@ export class CacheManagerService {
     try {
       await this.cacheManager.set(key, value, ttl);
     } catch {
-      console.warn('Failed to set cache value');
+      this.logger.warn('Failed to set cache value');
     }
   }
 }
