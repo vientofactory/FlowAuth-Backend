@@ -269,6 +269,7 @@ export class ConsentController {
       state: consentDto.state!,
       code_challenge: consentDto.code_challenge,
       code_challenge_method: consentDto.code_challenge_method,
+      nonce: consentDto.nonce,
     };
 
     // Validate required fields
