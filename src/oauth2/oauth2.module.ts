@@ -13,6 +13,7 @@ import { JwksController } from './controllers/jwks.controller';
 import { OAuth2Service } from './oauth2.service';
 import { AuthorizationService } from './services/authorization.service';
 import { TokenGrantService } from './services/token-grant.service';
+import { TokenIntrospectionService } from './services/token-introspection.service';
 import { AuthorizationCodeService } from './authorization-code.service';
 import { TokenService } from './token.service';
 import { ScopeService } from './scope.service';
@@ -59,6 +60,7 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
     OAuth2Service,
     AuthorizationService,
     TokenGrantService,
+    TokenIntrospectionService,
     AuthorizationCodeService,
     TokenService,
     ScopeService,
@@ -68,6 +70,12 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
     OAuth2Strategy,
     AppConfigService,
   ],
-  exports: [OAuth2Service, TokenService, OAuth2BearerGuard, OAuth2ScopeGuard],
+  exports: [
+    OAuth2Service,
+    TokenService,
+    TokenIntrospectionService,
+    OAuth2BearerGuard,
+    OAuth2ScopeGuard,
+  ],
 })
 export class OAuth2Module {}

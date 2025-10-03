@@ -161,8 +161,14 @@ export class AuthorizationController {
   private validateBasicAuthorizeParameters(
     authorizeDto: AuthorizeRequestDto,
   ): void {
-    if (!authorizeDto.response_type || authorizeDto.response_type !== 'code') {
-      throw new BadRequestException('Response type must be "code"');
+    const supportedResponseTypes = ['code', 'id_token', 'code id_token'];
+    if (
+      !authorizeDto.response_type ||
+      !supportedResponseTypes.includes(authorizeDto.response_type)
+    ) {
+      throw new BadRequestException(
+        `Response type must be one of: ${supportedResponseTypes.join(', ')}`,
+      );
     }
   }
 
@@ -181,7 +187,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
   })
   @ApiQuery({
     name: 'response_type',
-    description: '응답 타입 (현재 "code"만 지원)',
+    description: '응답 타입 (code, id_token, code id_token 지원)',
     example: 'code',
     required: true,
   })

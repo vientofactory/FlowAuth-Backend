@@ -4,10 +4,13 @@ import {
   Body,
   Logger,
   BadRequestException,
+  Headers,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { OAuth2Service } from '../oauth2.service';
 import { TokenGrantService } from '../services/token-grant.service';
+import { TokenService } from '../token.service';
+import { TokenIntrospectionService } from '../services/token-introspection.service';
 import { TokenRequestDto, TokenResponseDto } from '../dto/oauth2.dto';
 import { ErrorResponseDto } from '../../common/dto/response.dto';
 import {
@@ -23,6 +26,8 @@ export class TokenController {
   constructor(
     private readonly oauth2Service: OAuth2Service,
     private readonly tokenGrantService: TokenGrantService,
+    private readonly tokenService: TokenService,
+    private readonly tokenIntrospectionService: TokenIntrospectionService,
   ) {}
 
   @Post('token')
@@ -77,6 +82,80 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
       // For unexpected errors
       this.logger.error('Unexpected error in token endpoint', error);
       return createOAuth2Error('server_error', 'An unexpected error occurred');
+    }
+  }
+
+  @Post('introspect')
+  @ApiOperation({
+    summary: '토큰 인트로스펙션',
+    description: `
+토큰의 유효성을 검사하고 메타데이터를 반환합니다.
+
+**지원되는 토큰 타입:**
+- access_token: 액세스 토큰 검증
+- id_token: ID 토큰 검증 (OIDC)
+- refresh_token: 리프레시 토큰 검증
+
+**인증 요구사항:**
+- Basic Authentication (Client ID/Secret)
+- Bearer Token Authentication
+
+**반환 정보:**
+- active: 토큰 유효성
+- client_id: 클라이언트 ID
+- exp: 만료 시간
+- iat: 발급 시간
+- sub: 사용자 ID (액세스 토큰의 경우)
+- scope: 권한 범위
+- token_type: 토큰 타입
+    `,
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        token: {
+          type: 'string',
+          description: '검증할 토큰',
+        },
+        token_type_hint: {
+          type: 'string',
+          enum: ['access_token', 'id_token', 'refresh_token'],
+          description: '토큰 타입 힌트 (선택사항)',
+        },
+      },
+      required: ['token'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      type: 'object',
+      properties: {
+        active: { type: 'boolean' },
+        client_id: { type: 'string' },
+        exp: { type: 'number' },
+        iat: { type: 'number' },
+        sub: { type: 'string' },
+        scope: { type: 'string' },
+        token_type: { type: 'string' },
+        username: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 실패',
+  })
+  async introspect(@Body() body: { token: string; token_type_hint?: string }) {
+    try {
+      return await this.tokenIntrospectionService.introspectToken(
+        body.token,
+        body.token_type_hint,
+      );
+    } catch (error) {
+      this.logger.error('Token introspection failed', error);
+      return { active: false };
     }
   }
 }

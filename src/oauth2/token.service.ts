@@ -6,14 +6,16 @@ import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import * as jwt from 'jsonwebtoken';
+import * as crypto from 'crypto';
+import axios from 'axios';
 import { AppConfigService } from '../config/app-config.service';
 import { Token } from './token.entity';
 import { User } from '../auth/user.entity';
 import { Client } from './client.entity';
 import { OAuth2JwtPayload } from '../types/oauth2.types';
+import { JWT_CONSTANTS, CACHE_CONSTANTS } from '../constants/jwt.constants';
 import { StructuredLogger } from '../logging/structured-logger.service';
 import { TOKEN_TYPES, JWT_TOKEN_EXPIRY } from '../constants/auth.constants';
-import * as crypto from 'crypto';
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -29,6 +31,32 @@ interface ImplicitTokenResponse {
   idToken?: string;
   tokenType: string;
   expiresIn?: number;
+}
+
+interface JWKSKey {
+  kty: string;
+  kid: string;
+  n: string;
+  e: string;
+  alg: string;
+}
+
+interface JWKSResponse {
+  keys: JWKSKey[];
+}
+
+interface IdTokenPayload {
+  iss: string;
+  sub: string;
+  aud: string;
+  exp: number;
+  iat: number;
+  auth_time?: number;
+  nonce?: string;
+  email?: string;
+  email_verified?: boolean;
+  name?: string;
+  preferred_username?: string;
 }
 
 @Injectable()
@@ -58,13 +86,49 @@ export class TokenService {
 
   private getJwtSecret(): string {
     return (
-      this.configService.get<string>('JWT_SECRET') || 'fallback-secret-key'
+      this.configService.get<string>('JWT_SECRET') ||
+      JWT_CONSTANTS.SECRET_KEY_FALLBACK
     );
   }
 
   private signJwt(payload: Record<string, any>): string {
     const secret = this.getJwtSecret();
     return jwt.sign(payload, secret);
+  }
+
+  private signJwtWithRSA(payload: Record<string, any>): string {
+    const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
+
+    if (privateKeyPem) {
+      // RSA 키를 사용하여 서명
+      const privateKey = crypto.createPrivateKey(privateKeyPem);
+
+      // JWKS와 동일한 kid 사용
+      const kid = JWT_CONSTANTS.KEY_IDS.RSA_ENV;
+
+      const options: jwt.SignOptions = {
+        algorithm: JWT_CONSTANTS.ALGORITHMS.RS256,
+        header: {
+          kid,
+          alg: JWT_CONSTANTS.ALGORITHMS.RS256,
+        },
+      };
+
+      return jwt.sign(payload, privateKey, options);
+    } else {
+      // 개발 환경에서는 기존 방식 사용 (kid 추가)
+      const secret = this.getJwtSecret();
+      const kid = JWT_CONSTANTS.KEY_IDS.RSA_DEV;
+
+      const options: jwt.SignOptions = {
+        header: {
+          kid,
+          alg: JWT_CONSTANTS.ALGORITHMS.HS256,
+        },
+      };
+
+      return jwt.sign(payload, secret, options);
+    }
   }
 
   private isDebugMode(): boolean {
@@ -316,7 +380,11 @@ export class TokenService {
       }
 
       // 유효한 토큰을 캐시에 저장 (5분)
-      await this.cacheManager.set(`token:${accessToken}`, decoded, 300000);
+      await this.cacheManager.set(
+        `token:${accessToken}`,
+        decoded,
+        CACHE_CONSTANTS.TOKEN_VALIDATION_TTL,
+      );
 
       return decoded;
     } catch {
@@ -522,7 +590,211 @@ export class TokenService {
       preferred_username: user.username || '',
     };
 
-    return this.signJwt(payload);
+    return this.signJwtWithRSA(payload);
+  }
+
+  /**
+   * JWKS에서 RSA 공개키 가져오기
+   * @param kid Key ID
+   * @returns RSA 공개키
+   */
+  private async getRsaPublicKey(kid: string): Promise<crypto.KeyObject> {
+    const baseUrl =
+      this.configService.get<string>('BACKEND_URL') || 'http://localhost:3000';
+    const jwksUrl = `${baseUrl}${JWT_CONSTANTS.JWKS_PATH}`;
+
+    try {
+      // 캐시에서 JWKS 확인
+      const cacheKey = `jwks:${jwksUrl}`;
+      let jwks: JWKSResponse | undefined =
+        await this.cacheManager.get(cacheKey);
+
+      if (!jwks) {
+        // HTTP 요청으로 JWKS 가져오기
+        const response = await axios.get(jwksUrl);
+        jwks = response.data as JWKSResponse;
+        // 1시간 캐시
+        await this.cacheManager.set(cacheKey, jwks, CACHE_CONSTANTS.JWKS_TTL);
+      }
+
+      const key = jwks.keys.find((k) => k.kid === kid);
+      if (!key) {
+        throw new Error(`Key with kid '${kid}' not found in JWKS`);
+      }
+
+      // JWK를 PEM 형식으로 변환
+      const modulus = Buffer.from(key.n, 'base64url');
+      const exponent = Buffer.from(key.e, 'base64url');
+
+      const publicKeyDer = this.jwkToDer(modulus, exponent);
+      return crypto.createPublicKey({
+        key: publicKeyDer,
+        format: 'der',
+        type: 'spki',
+      });
+    } catch (error) {
+      this.structuredLogger.error(
+        {
+          message: 'Failed to fetch RSA public key',
+          kid,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        'TokenService',
+      );
+      throw new Error('Failed to fetch RSA public key');
+    }
+  } /**
+   * JWK를 DER 형식으로 변환
+   */
+  private jwkToDer(modulus: Buffer, exponent: Buffer): Buffer {
+    // RSA 공개키 DER 인코딩
+    const modulusLength = modulus.length;
+    const exponentLength = exponent.length;
+
+    // DER 시퀀스: SEQUENCE { INTEGER (modulus), INTEGER (exponent) }
+    const totalLength = 4 + modulusLength + 2 + exponentLength;
+    const buffer = Buffer.alloc(totalLength + 2); // +2 for outer sequence
+
+    let offset = 0;
+    buffer.writeUInt8(0x30, offset++); // SEQUENCE
+    buffer.writeUInt8(totalLength, offset++); // Length
+
+    // Modulus
+    buffer.writeUInt8(0x02, offset++); // INTEGER
+    buffer.writeUInt8(modulusLength, offset++); // Length
+    modulus.copy(buffer, offset);
+    offset += modulusLength;
+
+    // Exponent
+    buffer.writeUInt8(0x02, offset++); // INTEGER
+    buffer.writeUInt8(exponentLength, offset++); // Length
+    exponent.copy(buffer, offset);
+
+    return buffer;
+  }
+
+  /**
+   * ID 토큰 검증 (RSA 서명 + 클레임 검증)
+   * @param idToken ID 토큰
+   * @param expectedClientId 예상 클라이언트 ID
+   * @param expectedNonce 예상 nonce (선택사항)
+   * @returns 검증된 토큰 페이로드
+   */
+  async validateIdToken(
+    idToken: string,
+    expectedClientId: string,
+    expectedNonce?: string,
+  ): Promise<IdTokenPayload> {
+    try {
+      // JWT 파싱
+      const parts = idToken.split('.');
+      if (parts.length !== 3) {
+        throw new Error('Invalid JWT format');
+      }
+
+      const header = JSON.parse(
+        Buffer.from(parts[0], 'base64url').toString(),
+      ) as { alg: string; kid?: string };
+      const payload = JSON.parse(
+        Buffer.from(parts[1], 'base64url').toString(),
+      ) as IdTokenPayload;
+      const signature = parts[2];
+
+      // 개발 환경 토큰은 검증 건너뛰기
+      if (header.alg === JWT_CONSTANTS.ALGORITHMS.HS256) {
+        this.structuredLogger.debug(
+          {
+            message:
+              'Development environment token detected, skipping RSA validation',
+          },
+          'TokenService',
+        );
+        return payload;
+      }
+
+      // RSA 서명 검증
+      if (header.alg !== JWT_CONSTANTS.ALGORITHMS.RS256) {
+        throw new Error('Unsupported algorithm');
+      }
+
+      const kid = header.kid;
+      if (!kid) {
+        throw new Error('Key ID (kid) not found in token header');
+      }
+
+      const publicKey = await this.getRsaPublicKey(kid);
+
+      // 서명 검증
+      const data = `${parts[0]}.${parts[1]}`;
+      const signatureBuffer = Buffer.from(signature, 'base64url');
+      const isValidSignature = crypto.verify(
+        'RSA-SHA256',
+        Buffer.from(data),
+        publicKey,
+        signatureBuffer,
+      );
+
+      if (!isValidSignature) {
+        throw new Error('Invalid RSA signature');
+      }
+
+      // 클레임 검증
+      const baseUrl =
+        this.configService.get<string>('BACKEND_URL') ||
+        'http://localhost:3000';
+      const now = Math.floor(Date.now() / 1000);
+
+      // Issuer 검증
+      if (payload.iss !== baseUrl) {
+        throw new Error('Invalid issuer');
+      }
+
+      // Audience 검증
+      if (payload.aud !== expectedClientId) {
+        throw new Error('Invalid audience');
+      }
+
+      // 만료시간 검증
+      if (payload.exp < now) {
+        throw new Error('Token expired');
+      }
+
+      // 발급시간 검증 (미래 발급 불가)
+      if (payload.iat > now) {
+        throw new Error('Token issued in future');
+      }
+
+      // Nonce 검증 (제공된 경우)
+      if (expectedNonce && payload.nonce !== expectedNonce) {
+        throw new Error('Invalid nonce');
+      }
+
+      this.structuredLogger.debug(
+        {
+          message: 'ID token validation successful',
+          sub: payload.sub,
+          aud: payload.aud,
+          exp: new Date(payload.exp * 1000).toISOString(),
+        },
+        'TokenService',
+      );
+
+      return payload;
+    } catch (error) {
+      this.structuredLogger.error(
+        {
+          message: 'ID token validation failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          expectedClientId,
+        },
+        'TokenService',
+      );
+      throw new UnauthorizedException(
+        `ID token validation failed: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      );
+    }
   }
 
   private generateRefreshToken(): string {

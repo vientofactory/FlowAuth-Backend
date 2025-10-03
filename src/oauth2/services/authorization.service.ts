@@ -76,8 +76,11 @@ export class AuthorizationService {
     }
 
     // Validate response type
+    const validResponseTypes = OAUTH2_CONSTANTS.SUPPORTED_RESPONSE_TYPES;
     if (
-      !OAUTH2_CONSTANTS.SUPPORTED_RESPONSE_TYPES.includes(response_type as any)
+      !validResponseTypes.includes(
+        response_type as (typeof validResponseTypes)[number],
+      )
     ) {
       throw new BadRequestException(
         `Unsupported response type: ${response_type}`,
