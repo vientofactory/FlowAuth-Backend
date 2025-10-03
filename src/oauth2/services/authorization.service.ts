@@ -150,6 +150,18 @@ export class AuthorizationService {
         code_challenge_method,
         nonce,
       );
+    } else if (response_type === 'code id_token') {
+      // Hybrid Flow (Authorization Code + ID Token)
+      return this.handleHybridGrant(
+        user,
+        client,
+        requestedScopes,
+        redirect_uri,
+        state,
+        code_challenge,
+        code_challenge_method,
+        nonce,
+      );
     } else if (
       response_type === 'id_token' ||
       response_type === 'token id_token'
@@ -211,6 +223,69 @@ export class AuthorizationService {
 
     return {
       code: authCode.code,
+      state,
+      redirect_uri: redirectUri,
+    };
+  }
+
+  private async handleHybridGrant(
+    user: User,
+    client: Client,
+    requestedScopes: string[],
+    redirectUri: string,
+    state?: string,
+    codeChallenge?: string,
+    codeChallengeMethod?: string,
+    nonce?: string,
+  ): Promise<AuthorizeResponseDto> {
+    // Hybrid Flow에서는 PKCE를 사용할 수 있음
+    if (codeChallenge || codeChallengeMethod) {
+      this.validatePKCEParameters(codeChallenge, codeChallengeMethod);
+    }
+
+    // If only one PKCE parameter is provided, require both
+    if (
+      (codeChallenge && !codeChallengeMethod) ||
+      (!codeChallenge && codeChallengeMethod)
+    ) {
+      throw new BadRequestException(
+        'Both code_challenge and code_challenge_method must be provided together',
+      );
+    }
+
+    // Hybrid Flow에서는 openid scope가 필수
+    if (!requestedScopes.includes('openid')) {
+      throw new BadRequestException(
+        'response_type=code id_token requires openid scope',
+      );
+    }
+
+    // Generate authorization code
+    const authCode = await this.authCodeService.createAuthorizationCode(
+      user,
+      client,
+      redirectUri,
+      requestedScopes,
+      state,
+      codeChallenge,
+      codeChallengeMethod,
+      nonce,
+    );
+    this.logger.log(
+      `Authorization code created for hybrid flow: ${authCode.code}`,
+    );
+
+    // Generate ID token for immediate response
+    const tokens = this.tokenService.createImplicitTokens(
+      user,
+      client,
+      requestedScopes,
+      nonce,
+    );
+
+    return {
+      code: authCode.code,
+      id_token: tokens.idToken,
       state,
       redirect_uri: redirectUri,
     };

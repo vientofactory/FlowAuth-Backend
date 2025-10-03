@@ -1,6 +1,11 @@
 // OAuth2 관련 상수들
 export const OAUTH2_CONSTANTS = {
-  SUPPORTED_RESPONSE_TYPES: ['code', 'id_token', 'token id_token'] as const,
+  SUPPORTED_RESPONSE_TYPES: [
+    'code',
+    'id_token',
+    'code id_token',
+    'token id_token',
+  ] as const,
   SUPPORTED_GRANT_TYPES: [
     'authorization_code',
     'refresh_token',
