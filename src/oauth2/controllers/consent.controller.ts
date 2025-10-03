@@ -154,6 +154,23 @@ export class ConsentController {
         if (authorizeDto.state) {
           redirectUrl.searchParams.set('state', authorizeDto.state);
         }
+      } else if (authorizeDto.response_type === 'code id_token') {
+        // Hybrid Flow: query parameter에 code, fragment에 id_token 포함
+        if (result.code) {
+          redirectUrl.searchParams.set('code', result.code);
+        }
+        if (authorizeDto.state) {
+          redirectUrl.searchParams.set('state', authorizeDto.state);
+        }
+
+        const fragmentParams = new URLSearchParams();
+        if (result.id_token) {
+          fragmentParams.set('id_token', result.id_token);
+        }
+        if (authorizeDto.state) {
+          fragmentParams.set('state', authorizeDto.state);
+        }
+        redirectUrl.hash = fragmentParams.toString();
       } else if (
         authorizeDto.response_type === 'id_token' ||
         authorizeDto.response_type === 'token id_token'
@@ -297,6 +314,23 @@ export class ConsentController {
         if (authorizeDto.state) {
           redirectUrl.searchParams.set('state', authorizeDto.state);
         }
+      } else if (authorizeDto.response_type === 'code id_token') {
+        // Hybrid Flow: query parameter에 code, fragment에 id_token 포함
+        if (result.code) {
+          redirectUrl.searchParams.set('code', result.code);
+        }
+        if (authorizeDto.state) {
+          redirectUrl.searchParams.set('state', authorizeDto.state);
+        }
+
+        const fragmentParams = new URLSearchParams();
+        if (result.id_token) {
+          fragmentParams.set('id_token', result.id_token);
+        }
+        if (authorizeDto.state) {
+          fragmentParams.set('state', authorizeDto.state);
+        }
+        redirectUrl.hash = fragmentParams.toString();
       } else if (
         authorizeDto.response_type === 'id_token' ||
         authorizeDto.response_type === 'token id_token'
