@@ -27,19 +27,19 @@ export class UserInfoController {
 
   @Get('userinfo')
   @UseGuards(OAuth2BearerGuard, OAuth2ScopeGuard)
-  @RequireScopes('identify')
+  @RequireScopes('openid')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '사용자 정보 조회',
     description: `
 OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
 
-**스코프별 반환 정보:**
-- 기본: sub (사용자 식별자)
-- identify 스코프: 사용자명, 역할 정보
-- email 스코프: 이메일 주소
+**OIDC 스코프별 반환 정보:**
+- openid 스코프: sub (사용자 식별자) - 필수
+- profile 스코프: 이름, 사용자명, 프로필 URL, 아바타, 역할 등
+- email 스코프: 이메일 주소 및 검증 상태
 
-**필요한 스코프:** identify
+**필요한 스코프:** openid
     `,
   })
   @ApiResponse({

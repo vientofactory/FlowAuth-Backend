@@ -1,8 +1,10 @@
 #!/bin/bash
 
-# Migration Script: Remove Legacy OAuth2 Scopes
-# This script safely removes 'basic', 'read:user', 'read:profile' scopes from the database
-# Run this script after deploying the code changes that remove legacy scope support
+# Migration Script: Add OIDC Support
+# This script adds OIDC support to the database by:
+# - Adding nonce and authTime columns to authorization_code table
+# - Initializing OIDC scopes (openid, identify, email)
+# Run this script after deploying the OIDC implementation
 
 set -e  # Exit on any error
 
@@ -21,7 +23,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE} OAuth2 Legacy Scopes Removal Migration ${NC}"
+echo -e "${BLUE}     OIDC Support Migration Script     ${NC}"
 echo -e "${BLUE}========================================${NC}"
 
 # Check if mysql client is available
@@ -39,9 +41,29 @@ if ! mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" -e "SELECT 1;" "$
 fi
 echo -e "${GREEN}Database connection successful${NC}"
 
-# Backup warning
-echo -e "${YELLOW}⚠️  IMPORTANT: This migration will permanently remove legacy OAuth2 scopes${NC}"
-echo -e "${YELLOW}   from your database. Make sure you have a backup before proceeding.${NC}"
+# Show current state before migration
+echo -e "${BLUE}Checking current database state...${NC}"
+mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" << 'EOF'
+SELECT 'CURRENT STATE - Authorization Code table structure:' as info;
+DESCRIBE authorization_code;
+
+SELECT 'CURRENT STATE - Existing OIDC scopes:' as info;
+SELECT id, name, description, isActive
+FROM scope
+WHERE name IN ('openid', 'identify', 'email')
+ORDER BY name;
+
+SELECT 'CURRENT STATE - Sample authorization codes:' as info;
+SELECT id, code, scopes, expiresAt, isUsed
+FROM authorization_code
+ORDER BY createdAt DESC
+LIMIT 3;
+EOF
+
+echo ""
+echo -e "${YELLOW}⚠️  IMPORTANT: This migration will add OIDC support to your database.${NC}"
+echo -e "${YELLOW}   It will add 'nonce' and 'authTime' columns to authorization_code table${NC}"
+echo -e "${YELLOW}   and initialize OIDC scopes. Make sure you have a backup before proceeding.${NC}"
 echo ""
 read -p "Do you want to continue? (y/N): " -n 1 -r
 echo ""
@@ -50,79 +72,52 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 0
 fi
 
-# Show current state before migration
-echo -e "${BLUE}Checking current state before migration...${NC}"
-mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" << 'EOF'
-SELECT 'BEFORE MIGRATION - Clients with legacy scopes:' as info;
-SELECT id, clientId, name, scopes
-FROM client
-WHERE scopes IS NOT NULL
-  AND (JSON_CONTAINS(scopes, JSON_QUOTE('basic'))
-       OR JSON_CONTAINS(scopes, JSON_QUOTE('read:user'))
-       OR JSON_CONTAINS(scopes, JSON_QUOTE('read:profile')));
-
-SELECT 'BEFORE MIGRATION - Tokens with legacy scopes:' as info;
-SELECT id, tokenType, scopes, isRevoked
-FROM token
-WHERE scopes IS NOT NULL
-  AND (JSON_CONTAINS(scopes, JSON_QUOTE('basic'))
-       OR JSON_CONTAINS(scopes, JSON_QUOTE('read:user'))
-       OR JSON_CONTAINS(scopes, JSON_QUOTE('read:profile')));
-
-SELECT 'BEFORE MIGRATION - Auth codes with legacy scopes:' as info;
-SELECT id, code, scopes, isUsed
-FROM authorization_code
-WHERE scopes IS NOT NULL
-  AND (JSON_CONTAINS(scopes, JSON_QUOTE('basic'))
-       OR JSON_CONTAINS(scopes, JSON_QUOTE('read:user'))
-       OR JSON_CONTAINS(scopes, JSON_QUOTE('read:profile')));
-EOF
-
-echo ""
-read -p "Proceed with migration? (y/N): " -n 1 -r
-echo ""
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo -e "${BLUE}Migration cancelled by user${NC}"
-    exit 0
-fi
-
 # Run the migration
-echo -e "${BLUE}Running migration...${NC}"
-mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$(dirname "$0")/remove_legacy_oauth2_scopes.sql"
+echo -e "${BLUE}Running OIDC support migration...${NC}"
+mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$(dirname "$0")/add_oidc_support.sql"
 
 echo -e "${GREEN}Migration completed successfully!${NC}"
 
 # Show final verification
 echo -e "${BLUE}Final verification...${NC}"
 mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" << 'EOF'
-SELECT 'AFTER MIGRATION - Verification (should all be 0):' as verification;
-SELECT 'CLIENTS WITH LEGACY SCOPES:' as check_type, COUNT(*) as count
-FROM client
-WHERE scopes IS NOT NULL
-  AND (JSON_CONTAINS(scopes, JSON_QUOTE('basic'))
-       OR JSON_CONTAINS(scopes, JSON_QUOTE('read:user'))
-       OR JSON_CONTAINS(scopes, JSON_QUOTE('read:profile')))
+SELECT 'AFTER MIGRATION - Authorization Code table structure:' as verification;
+DESCRIBE authorization_code;
+
+SELECT 'AFTER MIGRATION - OIDC scopes verification:' as verification;
+SELECT id, name, description, isActive
+FROM scope
+WHERE name IN ('openid', 'identify', 'email')
+ORDER BY name;
+
+SELECT 'AFTER MIGRATION - Column existence check:' as verification;
+SELECT 'nonce column exists:' as check_type,
+       COUNT(*) > 0 as exists_flag
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'authorization_code'
+  AND COLUMN_NAME = 'nonce'
 
 UNION ALL
 
-SELECT 'TOKENS WITH LEGACY SCOPES:' as check_type, COUNT(*) as count
-FROM token
-WHERE scopes IS NOT NULL
-  AND (JSON_CONTAINS(scopes, JSON_QUOTE('basic'))
-       OR JSON_CONTAINS(scopes, JSON_QUOTE('read:user'))
-       OR JSON_CONTAINS(scopes, JSON_QUOTE('read:profile')))
+SELECT 'authTime column exists:' as check_type,
+       COUNT(*) > 0 as exists_flag
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'authorization_code'
+  AND COLUMN_NAME = 'authTime'
 
 UNION ALL
 
-SELECT 'AUTH CODES WITH LEGACY SCOPES:' as check_type, COUNT(*) as count
-FROM authorization_code
-WHERE scopes IS NOT NULL
-  AND (JSON_CONTAINS(scopes, JSON_QUOTE('basic'))
-       OR JSON_CONTAINS(scopes, JSON_QUOTE('read:user'))
-       OR JSON_CONTAINS(scopes, JSON_QUOTE('read:profile')));
+SELECT 'nonce index exists:' as check_type,
+       COUNT(*) > 0 as exists_flag
+FROM information_schema.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'authorization_code'
+  AND INDEX_NAME = 'idx_authorization_code_nonce';
 EOF
 
 echo ""
-echo -e "${GREEN}✅ Migration completed successfully!${NC}"
-echo -e "${GREEN}   Legacy OAuth2 scopes have been removed from your database.${NC}"
-echo -e "${BLUE}   Your OAuth2 system now only uses 'identify' and 'email' scopes.${NC}"
+echo -e "${GREEN}✅ OIDC Support Migration completed successfully!${NC}"
+echo -e "${GREEN}   Your database now supports OIDC authentication flows.${NC}"
+echo -e "${BLUE}   OIDC scopes: openid, identify, email are now available.${NC}"

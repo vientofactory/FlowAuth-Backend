@@ -165,10 +165,19 @@ export class TokenGrantService {
     );
 
     // Generate tokens using the unified createToken method
+    console.log('DEBUG: handleAuthorizationCodeGrant - calling createToken', {
+      userId: authCode.user?.id,
+      clientId: client?.clientId,
+      scopes: authCode.scopes,
+      hasOpenid: (authCode.scopes || []).includes('openid'),
+    });
+
     const tokenResult = await this.tokenService.createToken(
       authCode.user,
       client,
       authCode.scopes || [],
+      authCode.nonce,
+      authCode.authTime,
     );
 
     this.logger.log(
@@ -181,6 +190,7 @@ export class TokenGrantService {
       expires_in: tokenResult.expiresIn,
       refresh_token: tokenResult.refreshToken,
       scope: (authCode.scopes || []).join(' '),
+      id_token: tokenResult.idToken,
     };
   }
 

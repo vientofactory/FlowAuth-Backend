@@ -2,12 +2,23 @@ import type { User } from '../../auth/user.entity';
 import { PermissionUtils } from '../../utils/permission.util';
 
 /**
- * OAuth2 UserInfo 응답 타입
+ * OAuth2 UserInfo 응답 타입 (OIDC 호환)
  */
 export interface OAuth2UserInfoResponse {
   sub: string;
+  name?: string;
+  given_name?: string;
+  family_name?: string;
+  preferred_username?: string;
+  profile?: string;
+  picture?: string;
   email?: string;
-  username?: string;
+  email_verified?: boolean;
+  gender?: string;
+  birthdate?: string;
+  zoneinfo?: string;
+  locale?: string;
+  updated_at?: number;
   roles?: string[];
 }
 
@@ -21,25 +32,50 @@ export interface ScopeFieldMapping {
 }
 
 /**
- * OAuth2 스코프 기반 UserInfo 필드 매핑 설정
+ * OAuth2 스코프 기반 UserInfo 필드 매핑 설정 (OIDC 호환)
  */
 const SCOPE_FIELD_MAPPINGS: ScopeFieldMapping[] = [
   {
-    scope: 'email',
-    fields: ['email'],
+    scope: 'profile',
+    fields: [
+      'name',
+      'given_name',
+      'family_name',
+      'preferred_username',
+      'profile',
+      'picture',
+      'updated_at',
+      'roles',
+    ],
     fieldMapper: (user: User) => ({
-      email: user.email,
-    }),
-  },
-  {
-    scope: 'identify',
-    fields: ['username', 'roles'],
-    fieldMapper: (user: User) => ({
-      username: user.username,
+      name: user.username, // 전체 이름으로 사용자명 사용
+      given_name:
+        user.firstName || user.username.split('_')[0] || user.username,
+      family_name: user.lastName || '',
+      preferred_username: user.username,
+      profile: `${process.env.BACKEND_URL || 'http://localhost:3000'}/users/${user.id}`,
+      picture: user.avatar || undefined,
+      updated_at: Math.floor((user.updatedAt?.getTime() || Date.now()) / 1000),
       roles: [PermissionUtils.getRoleName(user.permissions)],
     }),
   },
-  // 추가 스코프 매핑은 여기에 정의
+  {
+    scope: 'email',
+    fields: ['email', 'email_verified'],
+    fieldMapper: (user: User) => ({
+      email: user.email,
+      email_verified: !!user.isEmailVerified,
+    }),
+  },
+  // 기존 호환성을 위한 스코프
+  {
+    scope: 'identify',
+    fields: ['preferred_username', 'roles'],
+    fieldMapper: (user: User) => ({
+      preferred_username: user.username,
+      roles: [PermissionUtils.getRoleName(user.permissions)],
+    }),
+  },
 ];
 
 /**

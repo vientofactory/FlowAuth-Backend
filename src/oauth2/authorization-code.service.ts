@@ -32,6 +32,7 @@ export class AuthorizationCodeService {
     state?: string,
     codeChallenge?: string,
     codeChallengeMethod?: string,
+    nonce?: string,
   ): Promise<AuthorizationCode> {
     const code = this.generateCode();
 
@@ -46,6 +47,8 @@ export class AuthorizationCodeService {
       state,
       codeChallenge,
       codeChallengeMethod,
+      nonce,
+      authTime: Math.floor(Date.now() / 1000),
       user,
       client,
     });

@@ -144,10 +144,40 @@ export class ConsentController {
       );
 
       const redirectUrl = new URL(authorizeDto.redirect_uri);
-      redirectUrl.searchParams.set('code', result.code);
 
-      if (authorizeDto.state) {
-        redirectUrl.searchParams.set('state', authorizeDto.state);
+      // response_type에 따른 리다이렉트 처리
+      if (authorizeDto.response_type === 'code') {
+        // Authorization Code Grant: query parameter에 code 포함
+        if (result.code) {
+          redirectUrl.searchParams.set('code', result.code);
+        }
+        if (authorizeDto.state) {
+          redirectUrl.searchParams.set('state', authorizeDto.state);
+        }
+      } else if (
+        authorizeDto.response_type === 'id_token' ||
+        authorizeDto.response_type === 'token id_token'
+      ) {
+        // Implicit Grant: fragment에 토큰 포함
+        const fragmentParams = new URLSearchParams();
+
+        if (result.access_token) {
+          fragmentParams.set('access_token', result.access_token);
+        }
+        if (result.id_token) {
+          fragmentParams.set('id_token', result.id_token);
+        }
+        if (result.token_type) {
+          fragmentParams.set('token_type', result.token_type);
+        }
+        if (result.expires_in) {
+          fragmentParams.set('expires_in', result.expires_in.toString());
+        }
+        if (authorizeDto.state) {
+          fragmentParams.set('state', authorizeDto.state);
+        }
+
+        redirectUrl.hash = fragmentParams.toString();
       }
 
       res.redirect(redirectUrl.toString());
@@ -257,10 +287,40 @@ export class ConsentController {
       );
 
       const redirectUrl = new URL(authorizeDto.redirect_uri);
-      redirectUrl.searchParams.set('code', result.code);
 
-      if (authorizeDto.state) {
-        redirectUrl.searchParams.set('state', authorizeDto.state);
+      // response_type에 따른 리다이렉트 URL 구성
+      if (authorizeDto.response_type === 'code') {
+        // Authorization Code Grant: query parameter에 code 포함
+        if (result.code) {
+          redirectUrl.searchParams.set('code', result.code);
+        }
+        if (authorizeDto.state) {
+          redirectUrl.searchParams.set('state', authorizeDto.state);
+        }
+      } else if (
+        authorizeDto.response_type === 'id_token' ||
+        authorizeDto.response_type === 'token id_token'
+      ) {
+        // Implicit Grant: fragment에 토큰 포함
+        const fragmentParams = new URLSearchParams();
+
+        if (result.access_token) {
+          fragmentParams.set('access_token', result.access_token);
+        }
+        if (result.id_token) {
+          fragmentParams.set('id_token', result.id_token);
+        }
+        if (result.token_type) {
+          fragmentParams.set('token_type', result.token_type);
+        }
+        if (result.expires_in) {
+          fragmentParams.set('expires_in', result.expires_in.toString());
+        }
+        if (authorizeDto.state) {
+          fragmentParams.set('state', authorizeDto.state);
+        }
+
+        redirectUrl.hash = fragmentParams.toString();
       }
 
       return { redirect_url: redirectUrl.toString() };

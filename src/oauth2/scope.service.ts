@@ -25,6 +25,10 @@ export class ScopeService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap() {
+    // 기본 스코프들 초기화 (없는 경우에만 생성)
+    await this.initializeDefaultScopes();
+
+    // 캐시 로드
     await this.loadScopesToCache();
   }
 
@@ -262,5 +266,92 @@ export class ScopeService implements OnApplicationBootstrap {
 
     // 캐시에 없으면 메모리 캐시에서 반환
     return this.scopeCache.get(name) || null;
+  }
+
+  /**
+   * 레거시 OAuth2 스코프들을 새로운 스코프들로 변환
+   * @param scopeNames 요청된 스코프 이름들
+   * @returns 변환된 스코프 이름들
+   */
+  normalizeScopes(scopeNames: string[]): string[] {
+    const normalizedScopes: string[] = [];
+    const scopeSet = new Set<string>();
+
+    for (const scopeName of scopeNames) {
+      // 레거시 스코프 매핑
+      const mappedScope = this.mapLegacyScope(scopeName);
+
+      if (!scopeSet.has(mappedScope)) {
+        scopeSet.add(mappedScope);
+        normalizedScopes.push(mappedScope);
+      }
+    }
+
+    return normalizedScopes;
+  }
+
+  /**
+   * 레거시 스코프를 새로운 스코프로 매핑
+   * @param scopeName 원래 스코프 이름
+   * @returns 매핑된 스코프 이름
+   */
+  private mapLegacyScope(scopeName: string): string {
+    // 레거시 스코프 매핑 테이블
+    const legacyScopeMapping: Record<string, string> = {
+      basic: 'identify',
+      'read:user': 'identify',
+      'read:profile': 'profile',
+      email: 'email',
+      openid: 'openid',
+    };
+
+    return legacyScopeMapping[scopeName] || scopeName;
+  }
+
+  /**
+   * 기본 스코프들을 데이터베이스에 초기화 (없는 경우에만)
+   * OIDC 지원을 위해 openid 스코프 추가
+   */
+  async initializeDefaultScopes(): Promise<void> {
+    const defaultScopes = [
+      {
+        name: 'openid',
+        description: 'OpenID Connect 인증을 위한 기본 스코프',
+        isDefault: true,
+        isActive: true,
+      },
+      {
+        name: 'profile',
+        description: '사용자 프로필 정보 (이름, 생년월일, 지역, 사진 등) 접근',
+        isDefault: true,
+        isActive: true,
+      },
+      {
+        name: 'email',
+        description: '사용자 이메일 주소 접근',
+        isDefault: true,
+        isActive: true,
+      },
+      {
+        name: 'identify',
+        description: '사용자 기본 정보 (ID, 이름 등) 접근',
+        isDefault: true,
+        isActive: true,
+      },
+    ];
+
+    for (const scopeData of defaultScopes) {
+      const existingScope = await this.scopeRepository.findOne({
+        where: { name: scopeData.name },
+      });
+
+      if (!existingScope) {
+        await this.scopeRepository.save(scopeData);
+        this.logger.log(`Created default scope: ${scopeData.name}`);
+      }
+    }
+
+    // 캐시 리프레시
+    await this.loadScopesToCache();
   }
 }

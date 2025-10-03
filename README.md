@@ -1,12 +1,13 @@
 # FlowAuth Backend
 
-FlowAuth의 백엔드 API 서버입니다. NestJS와 TypeORM을 기반으로 OAuth2 인증 시스템을 구현합니다.
+FlowAuth의 백엔드 API 서버입니다. NestJS와 TypeORM을 기반으로 OAuth2 및 OpenID Connect 인증 시스템을 구현합니다.
 
 ## 기술 스택
 
 - **Framework**: [NestJS](https://nestjs.com/)
 - **Database**: MariaDB + [TypeORM](https://typeorm.io/)
-- **Authentication**: Passport.js + JWT
+- **Authentication**: Passport.js + JWT + OpenID Connect
+- **OAuth2/OIDC**: Authorization Code Grant + PKCE + OpenID Connect Core 1.0
 - **Validation**: class-validator + class-transformer
 - **Security**: Helmet, CORS, Rate Limiting
 - **Testing**: Jest + Supertest
@@ -353,6 +354,7 @@ FRONTEND_URL=http://localhost:5173
 ## 보안 기능
 
 - **JWT 토큰 기반 인증**
+- **OpenID Connect 지원**: ID 토큰 및 UserInfo 엔드포인트
 - **비밀번호 해싱 (bcrypt)**
 - **헬멧 (Helmet) 보안 헤더**
 - **CORS 설정**
@@ -360,6 +362,7 @@ FRONTEND_URL=http://localhost:5173
 - **PKCE (Proof Key for Code Exchange) 지원**
 - **인가 코드 만료 (기본 10분)**
 - **토큰 만료 관리**
+- **OIDC 스코프 지원**: openid, profile, email
 
 ## 문제 해결
 

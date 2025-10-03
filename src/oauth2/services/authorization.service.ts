@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
 import { AuthorizationCodeService } from '../authorization-code.service';
+import { TokenService } from '../token.service';
 import { ScopeService } from '../scope.service';
 import { AuthorizeRequestDto, AuthorizeResponseDto } from '../dto/oauth2.dto';
 import {
@@ -21,6 +22,7 @@ export class AuthorizationService {
     @InjectRepository(Client)
     private readonly clientRepository: Repository<Client>,
     private readonly authCodeService: AuthorizationCodeService,
+    private readonly tokenService: TokenService,
     private readonly scopeService: ScopeService,
   ) {}
 
@@ -66,8 +68,17 @@ export class AuthorizationService {
       throw new BadRequestException('state parameter is too long');
     }
 
+    // Validate nonce parameter (OIDC)
+    if (authorizeDto.nonce && typeof authorizeDto.nonce === 'string') {
+      if (authorizeDto.nonce.length > OAUTH2_CONSTANTS.NONCE_MAX_LENGTH) {
+        throw new BadRequestException('nonce parameter is too long');
+      }
+    }
+
     // Validate response type
-    if (response_type !== OAUTH2_CONSTANTS.SUPPORTED_RESPONSE_TYPE) {
+    if (
+      !OAUTH2_CONSTANTS.SUPPORTED_RESPONSE_TYPES.includes(response_type as any)
+    ) {
       throw new BadRequestException(
         `Unsupported response type: ${response_type}`,
       );
@@ -100,7 +111,10 @@ export class AuthorizationService {
       }
     }
 
-    return { client, requestedScopes };
+    // 레거시 스코프들을 새로운 스코프들로 정규화
+    const normalizedScopes = this.scopeService.normalizeScopes(requestedScopes);
+
+    return { client, requestedScopes: normalizedScopes };
   }
 
   async authorize(
@@ -111,18 +125,68 @@ export class AuthorizationService {
     const { client, requestedScopes } =
       await this.validateAuthorizationRequest(authorizeDto);
 
-    const { redirect_uri, state, code_challenge, code_challenge_method } =
-      authorizeDto;
+    const {
+      redirect_uri,
+      response_type,
+      state,
+      code_challenge,
+      code_challenge_method,
+      nonce,
+    } = authorizeDto;
 
+    // response_type에 따른 처리
+    if (response_type === 'code') {
+      // Authorization Code Grant
+      return this.handleAuthorizationCodeGrant(
+        user,
+        client,
+        requestedScopes,
+        redirect_uri,
+        state,
+        code_challenge,
+        code_challenge_method,
+        nonce,
+      );
+    } else if (
+      response_type === 'id_token' ||
+      response_type === 'token id_token'
+    ) {
+      // Implicit Grant (OpenID Connect)
+      return this.handleImplicitGrant(
+        user,
+        client,
+        requestedScopes,
+        redirect_uri,
+        response_type,
+        state,
+        nonce,
+      );
+    } else {
+      throw new BadRequestException(
+        `Unsupported response_type: ${response_type}`,
+      );
+    }
+  }
+
+  private async handleAuthorizationCodeGrant(
+    user: User,
+    client: Client,
+    requestedScopes: string[],
+    redirectUri: string,
+    state?: string,
+    codeChallenge?: string,
+    codeChallengeMethod?: string,
+    nonce?: string,
+  ): Promise<AuthorizeResponseDto> {
     // PKCE 파라미터 검증 (OPTIONAL but RECOMMENDED for security)
-    if (code_challenge || code_challenge_method) {
-      this.validatePKCEParameters(code_challenge, code_challenge_method);
+    if (codeChallenge || codeChallengeMethod) {
+      this.validatePKCEParameters(codeChallenge, codeChallengeMethod);
     }
 
     // If only one PKCE parameter is provided, require both
     if (
-      (code_challenge && !code_challenge_method) ||
-      (!code_challenge && code_challenge_method)
+      (codeChallenge && !codeChallengeMethod) ||
+      (!codeChallenge && codeChallengeMethod)
     ) {
       throw new BadRequestException(
         'Both code_challenge and code_challenge_method must be provided together',
@@ -133,21 +197,76 @@ export class AuthorizationService {
     const authCode = await this.authCodeService.createAuthorizationCode(
       user,
       client,
-      redirect_uri,
+      redirectUri,
       requestedScopes,
-      typeof state === 'string' ? state : undefined,
-      typeof code_challenge === 'string' ? code_challenge : undefined,
-      typeof code_challenge_method === 'string'
-        ? code_challenge_method
-        : undefined,
+      state,
+      codeChallenge,
+      codeChallengeMethod,
+      nonce,
     );
     this.logger.log(`Authorization code created: ${authCode.code}`);
 
     return {
       code: authCode.code,
-      state: typeof state === 'string' ? state : undefined,
-      redirect_uri,
+      state,
+      redirect_uri: redirectUri,
     };
+  }
+
+  private handleImplicitGrant(
+    user: User,
+    client: Client,
+    requestedScopes: string[],
+    redirectUri: string,
+    responseType: string,
+    state?: string,
+    nonce?: string,
+  ): AuthorizeResponseDto {
+    // Implicit Grant에서는 PKCE를 사용하지 않음 (보안상의 이유로 권장되지 않음)
+    // OpenID Connect에서는 nonce를 필수로 요구
+
+    if (responseType === 'id_token' && !requestedScopes.includes('openid')) {
+      throw new BadRequestException(
+        'response_type=id_token requires openid scope',
+      );
+    }
+
+    if (
+      responseType === 'token id_token' &&
+      !requestedScopes.includes('openid')
+    ) {
+      throw new BadRequestException(
+        'response_type=token id_token requires openid scope',
+      );
+    }
+
+    // Implicit Grant 토큰 생성
+    const tokens = this.tokenService.createImplicitTokens(
+      user,
+      client,
+      requestedScopes,
+      nonce,
+    );
+
+    const response: AuthorizeResponseDto = {
+      redirect_uri: redirectUri,
+      state,
+    };
+
+    // response_type에 따라 반환할 토큰 결정
+    if (responseType === 'id_token') {
+      response.id_token = tokens.idToken;
+      response.token_type = tokens.tokenType;
+    } else if (responseType === 'token id_token') {
+      response.access_token = tokens.accessToken;
+      response.id_token = tokens.idToken;
+      response.token_type = tokens.tokenType;
+      response.expires_in = tokens.expiresIn;
+    }
+
+    this.logger.log(`Implicit Grant tokens created for user: ${user.id}`);
+
+    return response;
   }
 
   private validatePKCEParameters(

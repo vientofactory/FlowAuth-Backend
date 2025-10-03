@@ -8,6 +8,8 @@ import { TokenController } from './controllers/token.controller';
 import { UserInfoController } from './controllers/userinfo.controller';
 import { ConsentController } from './controllers/consent.controller';
 import { ScopeController } from './controllers/scope.controller';
+import { DiscoveryController } from './controllers/discovery.controller';
+import { JwksController } from './controllers/jwks.controller';
 import { OAuth2Service } from './oauth2.service';
 import { AuthorizationService } from './services/authorization.service';
 import { TokenGrantService } from './services/token-grant.service';
@@ -50,6 +52,8 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
     UserInfoController,
     ConsentController,
     ScopeController,
+    DiscoveryController,
+    JwksController,
   ],
   providers: [
     OAuth2Service,

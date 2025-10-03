@@ -5,6 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
+import * as jwt from 'jsonwebtoken';
 import { AppConfigService } from '../config/app-config.service';
 import { Token } from './token.entity';
 import { User } from '../auth/user.entity';
@@ -20,6 +21,14 @@ interface TokenCreateResponse {
   expiresIn: number;
   scopes: string[];
   tokenType: string;
+  idToken?: string;
+}
+
+interface ImplicitTokenResponse {
+  accessToken?: string;
+  idToken?: string;
+  tokenType: string;
+  expiresIn?: number;
 }
 
 @Injectable()
@@ -47,11 +56,41 @@ export class TokenService {
     return this.getAccessTokenExpiryHours() * 3600;
   }
 
+  private getJwtSecret(): string {
+    return (
+      this.configService.get<string>('JWT_SECRET') || 'fallback-secret-key'
+    );
+  }
+
+  private signJwt(payload: Record<string, any>): string {
+    const secret = this.getJwtSecret();
+    return jwt.sign(payload, secret);
+  }
+
+  private isDebugMode(): boolean {
+    return this.configService.get<string>('NODE_ENV') !== 'production';
+  }
+
   async createToken(
     user: User | null,
     client: Client,
     scopes: string[] = [],
+    nonce?: string,
+    authTime?: number,
   ): Promise<TokenCreateResponse> {
+    if (this.isDebugMode()) {
+      this.structuredLogger.debug(
+        {
+          message: 'createToken called',
+          userId: user?.id,
+          clientId: client?.clientId,
+          scopes,
+          hasOpenid: scopes.includes('openid'),
+        },
+        'TokenService',
+      );
+    }
+
     // Generate initial access token (will be replaced with jti)
     const accessToken = this.generateAccessToken(user, client, scopes);
 
@@ -91,19 +130,59 @@ export class TokenService {
       token.accessToken = finalAccessToken;
       await this.tokenRepository.save(token);
 
-      return {
+      const response: TokenCreateResponse = {
         accessToken: finalAccessToken,
         refreshToken,
         expiresIn: this.getAccessTokenExpirySeconds(),
         scopes: scopes || [],
         tokenType: 'Bearer',
       };
+
+      // Generate ID token if openid scope is requested and user exists
+      if (user && scopes.includes('openid')) {
+        response.idToken = this.generateIdToken(user, client, nonce, authTime);
+      }
+
+      return response;
     } catch (error) {
       this.structuredLogger.logError(error as Error, 'TokenService', {
         operation: 'saveToken',
       });
       throw error;
     }
+  }
+
+  /**
+   * Create tokens for Implicit Grant flow (OpenID Connect)
+   * Implicit Grant에서는 토큰을 데이터베이스에 저장하지 않고 직접 생성하여 반환
+   */
+  createImplicitTokens(
+    user: User,
+    client: Client,
+    scopes: string[],
+    nonce?: string,
+  ): ImplicitTokenResponse {
+    const response: ImplicitTokenResponse = {
+      tokenType: 'Bearer',
+    };
+
+    // 액세스 토큰 생성 (openid 스코프가 있는 경우)
+    if (scopes.includes('openid')) {
+      const accessToken = this.generateAccessToken(user, client, scopes);
+      response.accessToken = accessToken;
+      response.expiresIn = this.getAccessTokenExpirySeconds();
+
+      // ID 토큰 생성
+      const authTime = Math.floor(Date.now() / 1000);
+      response.idToken = this.generateIdToken(user, client, nonce, authTime);
+    } else {
+      // openid 스코프가 없으면 액세스 토큰만 생성
+      const accessToken = this.generateAccessToken(user, client, scopes);
+      response.accessToken = accessToken;
+      response.expiresIn = this.getAccessTokenExpirySeconds();
+    }
+
+    return response;
   }
 
   async refreshToken(
@@ -310,16 +389,56 @@ export class TokenService {
     client: Client | null,
     scopes: string[],
   ): string {
+    if (this.isDebugMode()) {
+      this.structuredLogger.debug(
+        {
+          message: 'generateAccessToken called',
+          userId: user?.id,
+          clientId: client?.clientId,
+          scopes,
+        },
+        'TokenService',
+      );
+    }
+
     const payload: OAuth2JwtPayload = {
       sub: user?.id?.toString() || null,
       client_id: client?.clientId || null,
       scopes,
       token_type: 'Bearer',
+      exp:
+        Math.floor(Date.now() / 1000) + this.getAccessTokenExpiryHours() * 3600,
+      iat: Math.floor(Date.now() / 1000),
     };
 
-    return this.jwtService.sign(payload, {
-      expiresIn: `${this.getAccessTokenExpiryHours()}h`,
-    });
+    if (this.isDebugMode()) {
+      this.structuredLogger.debug(
+        {
+          message: 'Access token payload',
+          payloadKeys: Object.keys(payload),
+          hasExp: 'exp' in payload,
+          hasIat: 'iat' in payload,
+          exp: payload.exp,
+          iat: payload.iat,
+        },
+        'TokenService',
+      );
+    }
+
+    const token = this.signJwt(payload);
+
+    if (this.isDebugMode()) {
+      this.structuredLogger.debug(
+        {
+          message: 'Access token generated',
+          tokenLength: token.length,
+          tokenStart: token.substring(0, 50) + '...',
+        },
+        'TokenService',
+      );
+    }
+
+    return token;
   }
 
   private generateAccessTokenWithJti(
@@ -328,17 +447,82 @@ export class TokenService {
     scopes: string[],
     tokenId: number,
   ): string {
+    if (this.isDebugMode()) {
+      this.structuredLogger.debug(
+        {
+          message: 'generateAccessTokenWithJti called',
+          userId: user?.id,
+          clientId: client?.clientId,
+          scopes,
+          tokenId,
+        },
+        'TokenService',
+      );
+    }
+
     const payload: OAuth2JwtPayload = {
       sub: user?.id?.toString() || null,
       client_id: client?.clientId || null,
       scopes,
       token_type: 'Bearer',
       jti: tokenId.toString(),
+      exp:
+        Math.floor(Date.now() / 1000) + this.getAccessTokenExpiryHours() * 3600,
+      iat: Math.floor(Date.now() / 1000),
     };
 
-    return this.jwtService.sign(payload, {
-      expiresIn: `${this.getAccessTokenExpiryHours()}h`,
-    });
+    if (this.isDebugMode()) {
+      this.structuredLogger.debug(
+        {
+          message: 'Access token with JTI payload',
+          payloadKeys: Object.keys(payload),
+          hasExp: 'exp' in payload,
+          hasIat: 'iat' in payload,
+          hasJti: 'jti' in payload,
+        },
+        'TokenService',
+      );
+    }
+
+    const token = this.signJwt(payload);
+
+    if (this.isDebugMode()) {
+      this.structuredLogger.debug(
+        {
+          message: 'Access token with JTI generated',
+          tokenLength: token.length,
+        },
+        'TokenService',
+      );
+    }
+
+    return token;
+  }
+
+  private generateIdToken(
+    user: User,
+    client: Client,
+    nonce?: string,
+    authTime?: number,
+  ): string {
+    const baseUrl =
+      this.configService.get<string>('BACKEND_URL') || 'http://localhost:3000';
+
+    const payload = {
+      iss: baseUrl,
+      sub: user.id.toString(),
+      aud: client.clientId,
+      exp: Math.floor(Date.now() / 1000) + 3600, // 1시간
+      iat: Math.floor(Date.now() / 1000),
+      auth_time: authTime || Math.floor(Date.now() / 1000),
+      nonce: nonce,
+      email: user.email || '',
+      email_verified: !!user.isEmailVerified,
+      name: user.username || '',
+      preferred_username: user.username || '',
+    };
+
+    return this.signJwt(payload);
   }
 
   private generateRefreshToken(): string {
