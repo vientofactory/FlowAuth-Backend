@@ -23,15 +23,11 @@ echo ""
 # Output in environment variable format (convert newlines to \n)
 echo "# RSA key pair for environment variables:"
 printf "RSA_PRIVATE_KEY=\""
-cat "$PRIVATE_KEY_FILE" | while IFS= read -r line; do
-    printf "%s\\\\n" "$line"
-done | sed 's/\\\\n$//' | tr -d '\n'
+awk '{printf "%s\\n", $0}' "$PRIVATE_KEY_FILE" | sed 's/\\n$//'
 printf "\"\n"
 echo ""
 printf "RSA_PUBLIC_KEY=\""
-cat "$PUBLIC_KEY_FILE" | while IFS= read -r line; do
-    printf "%s\\\\n" "$line"
-done | sed 's/\\\\n$//' | tr -d '\n'
+awk '{printf "%s\\n", $0}' "$PUBLIC_KEY_FILE" | sed 's/\\n$//'
 printf "\"\n"
 echo ""
 
