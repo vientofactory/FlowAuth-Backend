@@ -151,14 +151,14 @@ export class TokenService {
       return cached;
     }
 
-    // 개발 환경용 고정 개인키 (JWKS의 공개키와 쌍을 이룸)
-    // 실제 운영 환경에서는 절대 사용하지 말 것!
-    const privateKeyPem = `-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC9i8X0QWxgzhsg
-7uEjksW1zZ3p0zFrVrBoD1pQXzfC1Ys8XG3wAGaUCmh9K8X1GYTAJwTDFbAgMB
-AAGgY0ANSIwEAQKCAQEAvYvF9EFsYM4bIO7hI5LFtc2d6dMxY1awaA9aUF83wtWL
-PFxt8ABmlAppfSvF9RkEwCcEwxWwIDAQAB
------END PRIVATE KEY-----`;
+    // 환경 변수에서 개발용 RSA 개인키 가져오기
+    const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
+
+    if (!privateKeyPem) {
+      throw new Error(
+        'Development RSA private key not found. Please set RSA_PRIVATE_KEY environment variable.',
+      );
+    }
 
     const kid = JWT_CONSTANTS.KEY_IDS.RSA_DEV;
 
