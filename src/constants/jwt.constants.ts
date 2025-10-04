@@ -20,6 +20,15 @@ export const JWT_CONSTANTS = {
 
   // JWKS 엔드포인트
   JWKS_PATH: '.well-known/jwks.json',
+
+  // 시간 상수들
+  TIME: {
+    ONE_HOUR_SECONDS: 3600, // 1시간 (초)
+    ONE_HOUR_MILLISECONDS: 3600000, // 1시간 (밀리초)
+  } as const,
+
+  // 토큰 타입
+  TOKEN_TYPE: 'Bearer',
 } as const;
 
 // 캐시 관련 상수들

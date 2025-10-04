@@ -81,7 +81,9 @@ export class TokenService {
   }
 
   private getAccessTokenExpirySeconds(): number {
-    return this.getAccessTokenExpiryHours() * 3600;
+    return (
+      this.getAccessTokenExpiryHours() * JWT_CONSTANTS.TIME.ONE_HOUR_SECONDS
+    );
   }
 
   private getJwtSecret(): string {
@@ -96,7 +98,7 @@ export class TokenService {
     return jwt.sign(payload, secret);
   }
 
-  private signJwtWithRSA(payload: Record<string, any>): string {
+  private async signJwtWithRSA(payload: Record<string, any>): Promise<string> {
     const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
 
     if (privateKeyPem) {
@@ -116,19 +118,60 @@ export class TokenService {
 
       return jwt.sign(payload, privateKey, options);
     } else {
-      // 개발 환경에서는 기존 방식 사용 (kid 추가)
-      const secret = this.getJwtSecret();
-      const kid = JWT_CONSTANTS.KEY_IDS.RSA_DEV;
+      // 개발 환경에서도 RSA 키 생성하여 사용 (OIDC 표준 준수)
+      const { privateKey, kid } = await this.getOrCreateDevRsaKey();
 
       const options: jwt.SignOptions = {
+        algorithm: JWT_CONSTANTS.ALGORITHMS.RS256,
         header: {
           kid,
-          alg: JWT_CONSTANTS.ALGORITHMS.HS256,
+          alg: JWT_CONSTANTS.ALGORITHMS.RS256,
         },
       };
 
-      return jwt.sign(payload, secret, options);
+      return jwt.sign(payload, privateKey, options);
     }
+  }
+
+  /**
+   * 개발 환경용 RSA 키 생성 또는 캐시된 키 반환
+   */
+  private async getOrCreateDevRsaKey(): Promise<{
+    privateKey: crypto.KeyObject;
+    kid: string;
+  }> {
+    const cacheKey = 'dev_rsa_key';
+
+    // 캐시에서 키 확인
+    const cached = await this.cacheManager.get<{
+      privateKey: crypto.KeyObject;
+      kid: string;
+    }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // 개발 환경용 고정 개인키 (JWKS의 공개키와 쌍을 이룸)
+    // 실제 운영 환경에서는 절대 사용하지 말 것!
+    const privateKeyPem = `-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC9i8X0QWxgzhsg
+7uEjksW1zZ3p0zFrVrBoD1pQXzfC1Ys8XG3wAGaUCmh9K8X1GYTAJwTDFbAgMB
+AAGgY0ANSIwEAQKCAQEAvYvF9EFsYM4bIO7hI5LFtc2d6dMxY1awaA9aUF83wtWL
+PFxt8ABmlAppfSvF9RkEwCcEwxWwIDAQAB
+-----END PRIVATE KEY-----`;
+
+    const kid = JWT_CONSTANTS.KEY_IDS.RSA_DEV;
+
+    const keyPair = { privateKey: crypto.createPrivateKey(privateKeyPem), kid };
+
+    // 캐시에 저장 (메모리에만 저장)
+    await this.cacheManager.set(
+      cacheKey,
+      keyPair,
+      JWT_CONSTANTS.TIME.ONE_HOUR_MILLISECONDS,
+    ); // 1시간 캐시
+
+    return keyPair;
   }
 
   private isDebugMode(): boolean {
@@ -199,12 +242,17 @@ export class TokenService {
         refreshToken,
         expiresIn: this.getAccessTokenExpirySeconds(),
         scopes: scopes || [],
-        tokenType: 'Bearer',
+        tokenType: JWT_CONSTANTS.TOKEN_TYPE,
       };
 
       // Generate ID token if openid scope is requested and user exists
       if (user && scopes.includes('openid')) {
-        response.idToken = this.generateIdToken(user, client, nonce, authTime);
+        response.idToken = await this.generateIdToken(
+          user,
+          client,
+          nonce,
+          authTime,
+        );
       }
 
       return response;
@@ -220,14 +268,14 @@ export class TokenService {
    * Create tokens for Implicit Grant flow (OpenID Connect)
    * Implicit Grant에서는 토큰을 데이터베이스에 저장하지 않고 직접 생성하여 반환
    */
-  createImplicitTokens(
+  async createImplicitTokens(
     user: User,
     client: Client,
     scopes: string[],
     nonce?: string,
-  ): ImplicitTokenResponse {
+  ): Promise<ImplicitTokenResponse> {
     const response: ImplicitTokenResponse = {
-      tokenType: 'Bearer',
+      tokenType: JWT_CONSTANTS.TOKEN_TYPE,
     };
 
     // 액세스 토큰 생성 (openid 스코프가 있는 경우)
@@ -238,7 +286,12 @@ export class TokenService {
 
       // ID 토큰 생성
       const authTime = Math.floor(Date.now() / 1000);
-      response.idToken = this.generateIdToken(user, client, nonce, authTime);
+      response.idToken = await this.generateIdToken(
+        user,
+        client,
+        nonce,
+        authTime,
+      );
     } else {
       // openid 스코프가 없으면 액세스 토큰만 생성
       const accessToken = this.generateAccessToken(user, client, scopes);
@@ -473,9 +526,10 @@ export class TokenService {
       sub: user?.id?.toString() || null,
       client_id: client?.clientId || null,
       scopes,
-      token_type: 'Bearer',
+      token_type: JWT_CONSTANTS.TOKEN_TYPE,
       exp:
-        Math.floor(Date.now() / 1000) + this.getAccessTokenExpiryHours() * 3600,
+        Math.floor(Date.now() / 1000) +
+        this.getAccessTokenExpiryHours() * JWT_CONSTANTS.TIME.ONE_HOUR_SECONDS,
       iat: Math.floor(Date.now() / 1000),
     };
 
@@ -532,10 +586,11 @@ export class TokenService {
       sub: user?.id?.toString() || null,
       client_id: client?.clientId || null,
       scopes,
-      token_type: 'Bearer',
+      token_type: JWT_CONSTANTS.TOKEN_TYPE,
       jti: tokenId.toString(),
       exp:
-        Math.floor(Date.now() / 1000) + this.getAccessTokenExpiryHours() * 3600,
+        Math.floor(Date.now() / 1000) +
+        this.getAccessTokenExpiryHours() * JWT_CONSTANTS.TIME.ONE_HOUR_SECONDS,
       iat: Math.floor(Date.now() / 1000),
     };
 
@@ -567,12 +622,12 @@ export class TokenService {
     return token;
   }
 
-  private generateIdToken(
+  private async generateIdToken(
     user: User,
     client: Client,
     nonce?: string,
     authTime?: number,
-  ): string {
+  ): Promise<string> {
     const baseUrl =
       this.configService.get<string>('BACKEND_URL') || 'http://localhost:3000';
 
@@ -580,7 +635,7 @@ export class TokenService {
       iss: baseUrl,
       sub: user.id.toString(),
       aud: client.clientId,
-      exp: Math.floor(Date.now() / 1000) + 3600, // 1시간
+      exp: Math.floor(Date.now() / 1000) + JWT_CONSTANTS.TIME.ONE_HOUR_SECONDS, // 1시간
       iat: Math.floor(Date.now() / 1000),
       auth_time: authTime || Math.floor(Date.now() / 1000),
       nonce: nonce,
@@ -590,7 +645,7 @@ export class TokenService {
       preferred_username: user.username || '',
     };
 
-    return this.signJwtWithRSA(payload);
+    return await this.signJwtWithRSA(payload);
   }
 
   /**

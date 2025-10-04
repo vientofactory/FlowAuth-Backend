@@ -275,7 +275,7 @@ export class AuthorizationService {
     );
 
     // Generate ID token for immediate response
-    const tokens = this.tokenService.createImplicitTokens(
+    const tokens = await this.tokenService.createImplicitTokens(
       user,
       client,
       requestedScopes,
@@ -290,7 +290,7 @@ export class AuthorizationService {
     };
   }
 
-  private handleImplicitGrant(
+  private async handleImplicitGrant(
     user: User,
     client: Client,
     requestedScopes: string[],
@@ -298,7 +298,7 @@ export class AuthorizationService {
     responseType: string,
     state?: string,
     nonce?: string,
-  ): AuthorizeResponseDto {
+  ): Promise<AuthorizeResponseDto> {
     // Implicit Grant에서는 PKCE를 사용하지 않음 (보안상의 이유로 권장되지 않음)
     // OpenID Connect에서는 nonce를 필수로 요구
 
@@ -318,7 +318,7 @@ export class AuthorizationService {
     }
 
     // Implicit Grant 토큰 생성
-    const tokens = this.tokenService.createImplicitTokens(
+    const tokens = await this.tokenService.createImplicitTokens(
       user,
       client,
       requestedScopes,

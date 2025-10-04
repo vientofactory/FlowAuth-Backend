@@ -34,16 +34,16 @@ export class JwksController {
         };
       } catch (error) {
         console.error('Failed to load RSA key from environment:', error);
-        this.generateFallbackJWK();
+        this.generateDevJWK();
       }
     } else {
-      // 개발용 키 생성
-      this.generateFallbackJWK();
+      // 개발 환경용 RSA 키 생성
+      this.generateDevJWK();
     }
   }
 
-  private generateFallbackJWK(): void {
-    // 개발 환경용 고정 키 (운영 환경에서는 절대 사용하지 말 것!)
+  private generateDevJWK(): void {
+    // 개발 환경용 고정 키 (항상 동일한 키 사용)
     this.jwk = {
       kty: 'RSA',
       use: 'sig',
