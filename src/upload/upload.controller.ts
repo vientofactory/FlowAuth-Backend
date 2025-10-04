@@ -142,9 +142,10 @@ export class UploadController {
 
     // Log warnings if any
     if (validationResult.warnings.length > 0) {
-      this.logger.warn(
-        `파일 업로드 경고: ${validationResult.warnings.join(', ')}`,
-      );
+      this.logger.warn({
+        message: '파일 업로드 경고',
+        warnings: validationResult.warnings,
+      });
     }
 
     // Process logo image with Sharp for optimization

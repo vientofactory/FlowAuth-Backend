@@ -23,7 +23,10 @@ interface OAuth2AuthenticatedRequest extends Request {
 @Controller('oauth2')
 @ApiTags('OAuth2 User Info')
 export class UserInfoController {
-  constructor(private readonly oauth2Service: OAuth2Service) {}
+  constructor(
+    private readonly oauth2Service: OAuth2Service,
+    private readonly userInfoBuilder: OAuth2UserInfoBuilder,
+  ) {}
 
   @Get('userinfo')
   @UseGuards(OAuth2BearerGuard, OAuth2ScopeGuard)
@@ -70,6 +73,6 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
 
     // 토큰의 스코프에 따라 반환할 정보를 결정
     const userScopes: string[] = req.user.scopes || [];
-    return OAuth2UserInfoBuilder.buildUserInfo(user, userScopes);
+    return this.userInfoBuilder.buildUserInfo(user, userScopes);
   }
 }

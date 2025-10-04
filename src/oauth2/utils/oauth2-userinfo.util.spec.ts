@@ -50,6 +50,7 @@ describe('OAuth2UserInfoBuilder', () => {
       expect(result).toEqual({
         sub: '1',
         email: 'test@example.com',
+        email_verified: false,
       });
     });
 
@@ -60,7 +61,7 @@ describe('OAuth2UserInfoBuilder', () => {
 
       expect(result).toEqual({
         sub: '1',
-        username: 'testuser',
+        preferred_username: 'testuser',
         roles: ['일반 사용자'], // PermissionUtils.getRoleName(1)의 결과
       });
     });
@@ -74,20 +75,22 @@ describe('OAuth2UserInfoBuilder', () => {
       expect(result).toEqual({
         sub: '1',
         email: 'test@example.com',
-        username: 'testuser',
+        email_verified: false,
+        preferred_username: 'testuser',
         roles: ['일반 사용자'],
       });
     });
 
     it('should handle unsupported scopes gracefully', () => {
       const result = OAuth2UserInfoBuilder.buildUserInfo(mockUser, [
-        'unsupported',
         'email',
+        'unsupported',
       ]);
 
       expect(result).toEqual({
         sub: '1',
         email: 'test@example.com',
+        email_verified: false,
       });
     });
   });
@@ -96,11 +99,12 @@ describe('OAuth2UserInfoBuilder', () => {
     it('should return true for supported scopes', () => {
       expect(OAuth2UserInfoBuilder.isScopeSupported('email')).toBe(true);
       expect(OAuth2UserInfoBuilder.isScopeSupported('identify')).toBe(true);
+      expect(OAuth2UserInfoBuilder.isScopeSupported('profile')).toBe(true);
     });
 
     it('should return false for unsupported scopes', () => {
       expect(OAuth2UserInfoBuilder.isScopeSupported('unsupported')).toBe(false);
-      expect(OAuth2UserInfoBuilder.isScopeSupported('profile')).toBe(false);
+      expect(OAuth2UserInfoBuilder.isScopeSupported('invalid')).toBe(false);
     });
   });
 
@@ -110,7 +114,8 @@ describe('OAuth2UserInfoBuilder', () => {
 
       expect(scopes).toContain('email');
       expect(scopes).toContain('identify');
-      expect(scopes).toHaveLength(2);
+      expect(scopes).toContain('profile');
+      expect(scopes).toHaveLength(3);
     });
   });
 
@@ -118,13 +123,13 @@ describe('OAuth2UserInfoBuilder', () => {
     it('should return fields for email scope', () => {
       const fields = OAuth2UserInfoBuilder.getFieldsForScope('email');
 
-      expect(fields).toEqual(['email']);
+      expect(fields).toEqual(['email', 'email_verified']);
     });
 
     it('should return fields for identify scope', () => {
       const fields = OAuth2UserInfoBuilder.getFieldsForScope('identify');
 
-      expect(fields).toEqual(['username', 'roles']);
+      expect(fields).toEqual(['preferred_username', 'roles']);
     });
 
     it('should return empty array for unsupported scope', () => {
@@ -137,20 +142,20 @@ describe('OAuth2UserInfoBuilder', () => {
   describe('registerScopeMapping', () => {
     it('should register new scope mapping', () => {
       const newMapping: ScopeFieldMapping = {
-        scope: 'profile',
-        fields: ['email', 'username'],
+        scope: 'custom',
+        fields: ['email', 'preferred_username'],
         fieldMapper: (user: User) => ({
           email: user.email,
-          username: user.username,
+          preferred_username: user.username,
         }),
       };
 
       OAuth2UserInfoBuilder.registerScopeMapping(newMapping);
 
-      expect(OAuth2UserInfoBuilder.isScopeSupported('profile')).toBe(true);
-      expect(OAuth2UserInfoBuilder.getFieldsForScope('profile')).toEqual([
+      expect(OAuth2UserInfoBuilder.isScopeSupported('custom')).toBe(true);
+      expect(OAuth2UserInfoBuilder.getFieldsForScope('custom')).toEqual([
         'email',
-        'username',
+        'preferred_username',
       ]);
     });
 
@@ -200,6 +205,7 @@ describe('buildOAuth2UserInfo', () => {
     expect(result).toEqual({
       sub: '1',
       email: 'test@example.com',
+      email_verified: false,
     });
   });
 });

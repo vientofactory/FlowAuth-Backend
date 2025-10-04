@@ -26,6 +26,7 @@ import { Client } from './client.entity';
 import { AuthorizationCode } from './authorization-code.entity';
 import { Token } from './token.entity';
 import { Scope } from './scope.entity';
+import { OAuth2UserInfoBuilder } from './utils/oauth2-userinfo.util';
 import { AppConfigService } from '../config/app-config.service';
 import { LoggingModule } from '../logging/logging.module';
 import { CacheConfigModule } from '../cache/cache-config.module';
@@ -69,6 +70,7 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
     OAuth2ScopeGuard,
     OAuth2Strategy,
     AppConfigService,
+    OAuth2UserInfoBuilder,
   ],
   exports: [
     OAuth2Service,
