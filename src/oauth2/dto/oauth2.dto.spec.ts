@@ -47,7 +47,7 @@ describe('AuthorizeRequestDto', () => {
     expect(errors[0].property).toBe('client_id');
   });
 
-  it('should fail validation for empty state', async () => {
+  it('should fail validation for empty state when provided', async () => {
     const dto = new AuthorizeRequestDto();
     dto.response_type = 'code';
     dto.client_id = 'test-client';

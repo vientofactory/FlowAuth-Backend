@@ -60,12 +60,11 @@ export class AuthorizationService {
       throw new BadRequestException('scope parameter is too long');
     }
 
-    // Validate state parameter (REQUIRED for CSRF protection)
-    if (!state || typeof state !== 'string' || state.length === 0) {
-      throw new BadRequestException(OAUTH2_ERROR_MESSAGES.STATE_REQUIRED);
-    }
-    if (state.length > OAUTH2_CONSTANTS.STATE_MAX_LENGTH) {
-      throw new BadRequestException('state parameter is too long');
+    // Validate state parameter (RECOMMENDED for CSRF protection)
+    if (state && typeof state === 'string') {
+      if (state.length > OAUTH2_CONSTANTS.STATE_MAX_LENGTH) {
+        throw new BadRequestException('state parameter is too long');
+      }
     }
 
     // Validate nonce parameter (OIDC)

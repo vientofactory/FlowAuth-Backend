@@ -66,17 +66,17 @@ export class AuthorizeRequestDto {
   scope?: string;
 
   @ApiProperty({
-    description: 'CSRF 방지를 위한 상태 값 (보안상 필수)',
+    description: 'CSRF 방지를 위한 상태 값 (보안상 권장)',
     example: 'xyz789',
-    required: true,
+    required: false,
     maxLength: 256,
   })
   @IsString({ message: 'state must be a string' })
-  @IsNotEmpty({ message: 'state should not be empty' })
+  @IsOptional()
   @Length(1, OAUTH2_CONSTANTS.STATE_MAX_LENGTH, {
     message: `state must be between 1 and ${OAUTH2_CONSTANTS.STATE_MAX_LENGTH} characters`,
   })
-  state: string;
+  state?: string;
 
   @ApiProperty({
     description: 'PKCE 코드 챌린지',
