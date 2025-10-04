@@ -677,16 +677,17 @@ export class TokenService {
         throw new Error(`Key with kid '${kid}' not found in JWKS`);
       }
 
-      // JWK를 PEM 형식으로 변환
-      const modulus = Buffer.from(key.n, 'base64url');
-      const exponent = Buffer.from(key.e, 'base64url');
-
-      const publicKeyDer = this.jwkToDer(modulus, exponent);
-      return crypto.createPublicKey({
-        key: publicKeyDer,
-        format: 'der',
-        type: 'spki',
+      // JWK를 직접 사용하여 공개키 생성
+      const publicKey = crypto.createPublicKey({
+        key: {
+          kty: key.kty,
+          n: key.n,
+          e: key.e,
+        },
+        format: 'jwk',
       });
+
+      return publicKey;
     } catch (error) {
       this.structuredLogger.error(
         {
@@ -698,34 +699,6 @@ export class TokenService {
       );
       throw new Error('Failed to fetch RSA public key');
     }
-  } /**
-   * JWK를 DER 형식으로 변환
-   */
-  private jwkToDer(modulus: Buffer, exponent: Buffer): Buffer {
-    // RSA 공개키 DER 인코딩
-    const modulusLength = modulus.length;
-    const exponentLength = exponent.length;
-
-    // DER 시퀀스: SEQUENCE { INTEGER (modulus), INTEGER (exponent) }
-    const totalLength = 4 + modulusLength + 2 + exponentLength;
-    const buffer = Buffer.alloc(totalLength + 2); // +2 for outer sequence
-
-    let offset = 0;
-    buffer.writeUInt8(0x30, offset++); // SEQUENCE
-    buffer.writeUInt8(totalLength, offset++); // Length
-
-    // Modulus
-    buffer.writeUInt8(0x02, offset++); // INTEGER
-    buffer.writeUInt8(modulusLength, offset++); // Length
-    modulus.copy(buffer, offset);
-    offset += modulusLength;
-
-    // Exponent
-    buffer.writeUInt8(0x02, offset++); // INTEGER
-    buffer.writeUInt8(exponentLength, offset++); // Length
-    exponent.copy(buffer, offset);
-
-    return buffer;
   }
 
   /**
