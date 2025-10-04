@@ -1,11 +1,11 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
-import { Client } from '../client/client.entity';
-import { User } from '../user/user.entity';
-import { Token } from '../token/token.entity';
+import { Client } from '../oauth2/client.entity';
+import { User } from '../auth/user.entity';
+import { Token } from '../oauth2/token.entity';
 import { TokenService } from '../oauth2/token.service';
 import { DashboardStatsService } from './dashboard-stats.service';
 import { DashboardAnalyticsService } from './dashboard-analytics.service';
@@ -21,6 +21,8 @@ import { DASHBOARD_CONFIG, CACHE_KEYS } from './dashboard.constants';
 
 @Injectable()
 export class DashboardService {
+  private readonly logger = new Logger(DashboardService.name);
+
   constructor(
     @InjectRepository(Client)
     private clientRepository: Repository<Client>,
@@ -114,7 +116,7 @@ export class DashboardService {
       await this.cacheManager.set(cacheKey, result, DASHBOARD_CONFIG.CACHE.TTL);
       return result;
     } catch (error) {
-      console.error('Failed to get dashboard stats:', error);
+      this.logger.error('Failed to get dashboard stats:', error);
       // 에러 발생 시 기본값 반환
       return {
         totalClients: 0,
@@ -324,7 +326,7 @@ export class DashboardService {
       await this.cacheManager.set(cacheKey, result, 120000);
       return result;
     } catch (error) {
-      console.error('Failed to get recent activities:', error);
+      this.logger.error('Failed to get recent activities:', error);
       // 에러 발생 시 빈 배열 반환
       return [];
     }

@@ -11,6 +11,48 @@ export class UserinfoResponseDto {
   sub: string;
 
   @ApiProperty({
+    description: '이름 (profile 스코프 필요)',
+    example: 'John Doe',
+    required: false,
+  })
+  name?: string;
+
+  @ApiProperty({
+    description: '이름 (profile 스코프 필요)',
+    example: 'John',
+    required: false,
+  })
+  given_name?: string;
+
+  @ApiProperty({
+    description: '성 (profile 스코프 필요)',
+    example: 'Doe',
+    required: false,
+  })
+  family_name?: string;
+
+  @ApiProperty({
+    description: '사용자명 (profile 스코프 필요)',
+    example: 'john_doe',
+    required: false,
+  })
+  preferred_username?: string;
+
+  @ApiProperty({
+    description: '프로필 URL (profile 스코프 필요)',
+    example: 'https://example.com/users/12345',
+    required: false,
+  })
+  profile?: string;
+
+  @ApiProperty({
+    description: '프로필 이미지 URL (profile 스코프 필요)',
+    example: 'https://example.com/avatars/12345.jpg',
+    required: false,
+  })
+  picture?: string;
+
+  @ApiProperty({
     description: '이메일 주소 (email 스코프 필요)',
     example: 'user@example.com',
     required: false,
@@ -18,11 +60,47 @@ export class UserinfoResponseDto {
   email?: string;
 
   @ApiProperty({
-    description: '사용자명 (profile 스코프 필요)',
-    example: 'john_doe',
+    description: '이메일 검증 여부 (email 스코프 필요)',
+    example: true,
     required: false,
   })
-  username?: string;
+  email_verified?: boolean;
+
+  @ApiProperty({
+    description: '성별 (profile 스코프 필요)',
+    example: 'male',
+    enum: ['male', 'female', 'other'],
+    required: false,
+  })
+  gender?: string;
+
+  @ApiProperty({
+    description: '생년월일 (profile 스코프 필요)',
+    example: '1990-01-01',
+    required: false,
+  })
+  birthdate?: string;
+
+  @ApiProperty({
+    description: '시간대 (profile 스코프 필요)',
+    example: 'Asia/Seoul',
+    required: false,
+  })
+  zoneinfo?: string;
+
+  @ApiProperty({
+    description: '로케일 (profile 스코프 필요)',
+    example: 'ko-KR',
+    required: false,
+  })
+  locale?: string;
+
+  @ApiProperty({
+    description: '마지막 업데이트 시간 (profile 스코프 필요)',
+    example: 1638360000,
+    required: false,
+  })
+  updated_at?: number;
 
   @ApiProperty({
     description: '사용자 역할 (profile 스코프 필요)',

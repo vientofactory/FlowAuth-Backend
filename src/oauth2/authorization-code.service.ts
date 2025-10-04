@@ -3,9 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
-import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
-import { User } from '../user/user.entity';
-import { Client } from '../client/client.entity';
+import { AuthorizationCode } from './authorization-code.entity';
+import { User } from '../auth/user.entity';
+import { Client } from './client.entity';
 import {
   OAUTH2_ERROR_MESSAGES,
   OAUTH2_CONSTANTS,
@@ -32,6 +32,7 @@ export class AuthorizationCodeService {
     state?: string,
     codeChallenge?: string,
     codeChallengeMethod?: string,
+    nonce?: string,
   ): Promise<AuthorizationCode> {
     const code = this.generateCode();
 
@@ -46,6 +47,8 @@ export class AuthorizationCodeService {
       state,
       codeChallenge,
       codeChallengeMethod,
+      nonce,
+      authTime: Math.floor(Date.now() / 1000),
       user,
       client,
     });

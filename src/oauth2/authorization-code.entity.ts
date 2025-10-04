@@ -7,8 +7,8 @@ import {
   CreateDateColumn,
   Index,
 } from 'typeorm';
-import { User } from '../user/user.entity';
-import { Client } from '../client/client.entity';
+import { User } from '../auth/user.entity';
+import { Client } from './client.entity';
 
 @Entity()
 @Index(['code'], { unique: true })
@@ -37,6 +37,12 @@ export class AuthorizationCode {
 
   @Column({ type: 'varchar', length: 10, nullable: true })
   codeChallengeMethod?: string;
+
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  nonce?: string;
+
+  @Column({ type: 'bigint', nullable: true })
+  authTime?: number;
 
   @Column({ type: 'tinyint', default: 0 })
   isUsed: boolean;

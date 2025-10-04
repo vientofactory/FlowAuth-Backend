@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
-import { Client } from '../client/client.entity';
-import { User } from '../user/user.entity';
-import { Token } from '../token/token.entity';
+import { Client } from '../oauth2/client.entity';
+import { User } from '../auth/user.entity';
+import { Token } from '../oauth2/token.entity';
 import { TokenService } from '../oauth2/token.service';
 import { TOKEN_TYPES } from '../constants/auth.constants';
 import { CacheManagerService } from './cache-manager.service';
@@ -68,6 +68,8 @@ export interface ScopeUsageStat {
 
 @Injectable()
 export class DashboardStatsService {
+  private readonly logger = new Logger(DashboardStatsService.name);
+
   constructor(
     @InjectRepository(Client)
     private clientRepository: Repository<Client>,
@@ -153,7 +155,7 @@ export class DashboardStatsService {
 
       return result as T[];
     } catch (error) {
-      console.error('Error getting token issuance stats:', error);
+      this.logger.error('Error getting token issuance stats:', error);
       // 에러 발생 시 빈 결과 반환
       const result: any[] = [];
       for (let i = 0; i < periods; i++) {
@@ -283,7 +285,7 @@ export class DashboardStatsService {
         };
       });
     } catch (error) {
-      console.error('Error getting client usage stats:', error);
+      this.logger.error('Error getting client usage stats:', error);
       return [];
     }
   }
@@ -341,7 +343,7 @@ export class DashboardStatsService {
           }
         } catch (error) {
           // JSON 파싱 실패 시 무시
-          console.warn(
+          this.logger.warn(
             'Failed to parse scopes JSON:',
             (row as { scopes: string }).scopes,
             error,
@@ -363,13 +365,13 @@ export class DashboardStatsService {
 
       return scopeStats;
     } catch (error) {
-      console.error('Error getting scope usage stats:', error);
+      this.logger.error('Error getting scope usage stats:', error);
 
       // 폴백: 기본 스코프 목록으로 제한된 통계 제공
       try {
         return await this.getScopeUsageStatsFallback(userId);
       } catch (fallbackError) {
-        console.error('Fallback scope stats also failed:', fallbackError);
+        this.logger.error('Fallback scope stats also failed:', fallbackError);
         return [];
       }
     }
@@ -416,7 +418,7 @@ export class DashboardStatsService {
                 : 0,
           };
         } catch (error) {
-          console.warn(`Error counting scope '${scope}':`, error);
+          this.logger.warn(`Error counting scope '${scope}':`, error);
           return {
             scope,
             count: 0,

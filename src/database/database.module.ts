@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { User } from '../user/user.entity';
-import { Client } from '../client/client.entity';
-import { Token } from '../token/token.entity';
-import { AuthorizationCode } from '../authorization-code/authorization-code.entity';
-import { Scope } from '../scope/scope.entity';
+import { User } from '../auth/user.entity';
+import { Client } from '../oauth2/client.entity';
+import { Token } from '../oauth2/token.entity';
+import { AuthorizationCode } from '../oauth2/authorization-code.entity';
+import { Scope } from '../oauth2/scope.entity';
 import { SeedService } from './seed.service';
 import { DatabaseInitializationService } from './database-initialization.service';
 

@@ -3,7 +3,7 @@ import {
   mapExceptionToOAuth2Error,
   createOAuth2Error,
   type OAuth2ErrorCode,
-} from '../utils/oauth2-error.util';
+} from '../oauth2/utils/oauth2-error.util';
 
 describe('OAuth2 Error Utils', () => {
   describe('mapExceptionToOAuth2Error', () => {

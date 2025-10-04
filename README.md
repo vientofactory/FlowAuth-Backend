@@ -1,12 +1,13 @@
 # FlowAuth Backend
 
-FlowAuth의 백엔드 API 서버입니다. NestJS와 TypeORM을 기반으로 OAuth2 인증 시스템을 구현합니다.
+FlowAuth의 백엔드 API 서버입니다. NestJS와 TypeORM을 기반으로 OAuth2 및 OpenID Connect 인증 시스템을 구현합니다.
 
 ## 기술 스택
 
 - **Framework**: [NestJS](https://nestjs.com/)
 - **Database**: MariaDB + [TypeORM](https://typeorm.io/)
-- **Authentication**: Passport.js + JWT
+- **Authentication**: Passport.js + JWT + OpenID Connect
+- **OAuth2/OIDC**: Authorization Code Grant + PKCE + OpenID Connect Core 1.0
 - **Validation**: class-validator + class-transformer
 - **Security**: Helmet, CORS, Rate Limiting
 - **Testing**: Jest + Supertest
@@ -340,6 +341,17 @@ OAUTH2_REFRESH_TOKEN_EXPIRY_DAYS=30
 OAUTH2_CODE_EXPIRY_MINUTES=10
 OAUTH2_CODE_LENGTH=32
 
+# OIDC Configuration (RSA 키 쌍)
+# RSA 키 생성 방법:
+# 1. 수동 생성:
+#    openssl genrsa -out private.pem 2048
+#    openssl rsa -in private.pem -pubout -out public.pem
+# 2. 자동 생성 (권장):
+#    ./generate_rsa_keys.sh
+# 생성된 키를 환경변수에 설정
+RSA_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYour RSA Private Key Here\n-----END PRIVATE KEY-----"
+RSA_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\nYour RSA Public Key Here\n-----END PUBLIC KEY-----"
+
 # Cache Configuration
 CACHE_TTL=300000
 
@@ -353,6 +365,8 @@ FRONTEND_URL=http://localhost:5173
 ## 보안 기능
 
 - **JWT 토큰 기반 인증**
+- **RSA 서명**: ID 토큰의 보안 서명 (RS256 알고리즘)
+- **OpenID Connect 지원**: ID 토큰 및 UserInfo 엔드포인트
 - **비밀번호 해싱 (bcrypt)**
 - **헬멧 (Helmet) 보안 헤더**
 - **CORS 설정**
@@ -360,6 +374,7 @@ FRONTEND_URL=http://localhost:5173
 - **PKCE (Proof Key for Code Exchange) 지원**
 - **인가 코드 만료 (기본 10분)**
 - **토큰 만료 관리**
+- **OIDC 스코프 지원**: openid, profile, email
 
 ## 문제 해결
 
@@ -411,6 +426,19 @@ FRONTEND_URL=http://localhost:5173
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📄 라이선스
+## RSA 키 생성 스크립트
+
+프로젝트에는 OIDC를 위한 RSA 키쌍을 자동으로 생성하는 편의 스크립트가 포함되어 있습니다.
+
+### 사용법
+
+```bash
+# backend 디렉토리에서 실행
+./generate_rsa_keys.sh
+```
+
+생성된 키쌍을 `.env` 파일에 복사하여 사용하세요.
+
+## 라이선스
 
 This project is licensed under the MIT License.

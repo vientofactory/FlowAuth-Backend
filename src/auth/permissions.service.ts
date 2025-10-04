@@ -1,14 +1,16 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
-import { User } from '../user/user.entity';
+import { User } from './user.entity';
 import { PermissionUtils } from '../utils/permission.util';
-import { ROLES, CACHE_CONSTANTS } from '../constants/auth.constants';
+import { ROLE_PERMISSIONS, CACHE_CONSTANTS } from '../constants/auth.constants';
 
 @Injectable()
 export class PermissionsService {
+  private readonly logger = new Logger(PermissionsService.name);
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
@@ -51,9 +53,17 @@ export class PermissionsService {
    * 사용자 권한 설정
    */
   async setUserPermissions(userId: number, permissions: number): Promise<void> {
+    const oldPermissions = await this.getUserPermissions(userId);
     await this.userRepository.update(userId, { permissions });
     // 권한 변경 시 캐시 무효화
     await this.cacheManager.del(`permissions:${userId}`);
+
+    // 권한 변경 로그
+    this.logger.log(
+      `User permissions updated - UserID: ${userId}, ` +
+        `Old: ${PermissionUtils.permissionsToHex(oldPermissions)}, ` +
+        `New: ${PermissionUtils.permissionsToHex(permissions)}`,
+    );
   }
 
   /**
@@ -108,8 +118,14 @@ export class PermissionsService {
   /**
    * 사용자 역할 설정
    */
-  async setUserRole(userId: number, role: number): Promise<void> {
-    await this.setUserPermissions(userId, role);
+  async setUserRole(userId: number, role: string): Promise<void> {
+    const rolePermissions =
+      ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS];
+    if (!rolePermissions) {
+      throw new Error('유효하지 않은 역할입니다.');
+    }
+    const permissions = rolePermissions.reduce((acc, perm) => acc | perm, 0);
+    await this.setUserPermissions(userId, permissions);
   }
 
   /**
@@ -129,9 +145,19 @@ export class PermissionsService {
   }
 
   /**
+   * 사용자 권한 캐시 무효화
+   */
+  async invalidateUserCache(userId: number): Promise<void> {
+    await this.cacheManager.del(`permissions:${userId}`);
+  }
+
+  /**
    * 기본 권한으로 초기화
    */
   async resetUserToDefaultPermissions(userId: number): Promise<void> {
-    await this.setUserPermissions(userId, ROLES.USER);
+    await this.setUserPermissions(
+      userId,
+      PermissionUtils.getDefaultPermissions(),
+    );
   }
 }

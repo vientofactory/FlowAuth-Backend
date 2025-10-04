@@ -28,7 +28,7 @@ import { CreateClientDto } from './dto/create-client.dto';
 import { TokenDto } from './dto/response.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard, RequirePermissions } from './permissions.guard';
-import { User } from '../user/user.entity';
+import { User } from './user.entity';
 import type { AuthenticatedRequest } from '../types/auth.types';
 import {
   PERMISSIONS,

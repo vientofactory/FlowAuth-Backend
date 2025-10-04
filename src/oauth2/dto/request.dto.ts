@@ -51,12 +51,12 @@ export class AuthorizeConsentDto {
   @ApiProperty({
     description: '응답 타입',
     example: 'code',
-    enum: ['code', 'token'],
+    enum: ['code', 'token', 'id_token', 'code id_token', 'token id_token'],
   })
   @IsString({ message: 'response_type must be a string' })
   @IsOptional()
-  @IsIn(['code', 'token'], {
-    message: 'response_type must be one of the following values: code, token',
+  @IsIn(['code', 'token', 'id_token', 'code id_token', 'token id_token'], {
+    message: 'Invalid response_type',
   })
   response_type?: string;
 
@@ -116,4 +116,19 @@ export class AuthorizeConsentDto {
       'code_challenge_method must be one of the following values: plain, S256',
   })
   code_challenge_method?: string;
+
+  @ApiProperty({
+    description: 'OIDC nonce 값',
+    example: 'n-0S6_WzA2Mj',
+    required: false,
+    maxLength: 256,
+  })
+  @IsString({ message: 'nonce must be a string' })
+  @IsOptional()
+  @Length(0, OAUTH2_CONSTANTS.NONCE_MAX_LENGTH, {
+    message: `nonce must not exceed ${OAUTH2_CONSTANTS.NONCE_MAX_LENGTH} characters`,
+  })
+  @Trim()
+  @Escape()
+  nonce?: string;
 }

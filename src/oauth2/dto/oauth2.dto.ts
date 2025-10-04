@@ -40,11 +40,12 @@ export class AuthorizeRequestDto {
   @ApiProperty({
     description: '응답 타입',
     example: 'code',
-    enum: ['code', 'token'],
+    enum: ['code', 'token', 'id_token', 'code id_token', 'token id_token'],
   })
   @IsString({ message: 'response_type must be a string' })
-  @IsIn(['code', 'token'], {
-    message: 'response_type must be one of the following values: code, token',
+  @IsIn(['code', 'token', 'id_token', 'code id_token', 'token id_token'], {
+    message:
+      'response_type must be one of: code, token, id_token, code id_token, token id_token',
   })
   response_type: string;
 
@@ -59,20 +60,23 @@ export class AuthorizeRequestDto {
   @Length(0, OAUTH2_CONSTANTS.SCOPE_MAX_LENGTH, {
     message: `scope must not exceed ${OAUTH2_CONSTANTS.SCOPE_MAX_LENGTH} characters`,
   })
+  @Matches(/^(openid\s+)?(.*)$/, {
+    message: 'OpenID Connect requests must include openid scope',
+  })
   scope?: string;
 
   @ApiProperty({
-    description: 'CSRF 방지를 위한 상태 값 (보안상 필수)',
+    description: 'CSRF 방지를 위한 상태 값 (보안상 권장)',
     example: 'xyz789',
-    required: true,
+    required: false,
     maxLength: 256,
   })
   @IsString({ message: 'state must be a string' })
-  @IsNotEmpty({ message: 'state should not be empty' })
+  @IsOptional()
   @Length(1, OAUTH2_CONSTANTS.STATE_MAX_LENGTH, {
     message: `state must be between 1 and ${OAUTH2_CONSTANTS.STATE_MAX_LENGTH} characters`,
   })
-  state: string;
+  state?: string;
 
   @ApiProperty({
     description: 'PKCE 코드 챌린지',
@@ -101,6 +105,19 @@ export class AuthorizeRequestDto {
       'code_challenge_method must be one of the following values: plain, S256',
   })
   code_challenge_method?: string;
+
+  @ApiProperty({
+    description: 'OIDC nonce 값 (ID Token 재사용 방지)',
+    example: 'n-0S6_WzA2Mj',
+    required: false,
+    maxLength: 256,
+  })
+  @IsString({ message: 'nonce must be a string' })
+  @IsOptional()
+  @Length(1, OAUTH2_CONSTANTS.NONCE_MAX_LENGTH, {
+    message: `nonce must be between 1 and ${OAUTH2_CONSTANTS.NONCE_MAX_LENGTH} characters`,
+  })
+  nonce?: string;
 }
 
 export class AuthorizeConsentQueryDto {
@@ -285,10 +302,39 @@ export class TokenRequestDto {
 
 export class AuthorizeResponseDto {
   @ApiProperty({
-    description: '인증 코드',
+    description: '인증 코드 (Authorization Code Grant)',
     example: 'auth_code_123',
+    required: false,
   })
-  code: string;
+  code?: string;
+
+  @ApiProperty({
+    description: '액세스 토큰 (Implicit Grant)',
+    example: 'access_token_123',
+    required: false,
+  })
+  access_token?: string;
+
+  @ApiProperty({
+    description: 'ID 토큰 (Implicit Grant)',
+    example: 'id_token_123',
+    required: false,
+  })
+  id_token?: string;
+
+  @ApiProperty({
+    description: '토큰 타입 (Implicit Grant)',
+    example: 'Bearer',
+    required: false,
+  })
+  token_type?: string;
+
+  @ApiProperty({
+    description: '토큰 만료 시간 (초) (Implicit Grant)',
+    example: 3600,
+    required: false,
+  })
+  expires_in?: number;
 
   @ApiProperty({
     description: '상태 값',
@@ -336,6 +382,13 @@ export class TokenResponseDto {
     required: false,
   })
   scope?: string;
+
+  @ApiProperty({
+    description: 'ID 토큰 (OpenID Connect)',
+    example: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...',
+    required: false,
+  })
+  id_token?: string;
 }
 
 export class ErrorResponseDto {

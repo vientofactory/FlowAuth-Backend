@@ -9,7 +9,7 @@ import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
-import { User } from '../user/user.entity';
+import { User } from '../auth/user.entity';
 import { UserManagementService } from '../auth/services/user-management.service';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
 

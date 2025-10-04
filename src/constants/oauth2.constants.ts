@@ -1,6 +1,11 @@
 // OAuth2 관련 상수들
 export const OAUTH2_CONSTANTS = {
-  SUPPORTED_RESPONSE_TYPE: 'code',
+  SUPPORTED_RESPONSE_TYPES: [
+    'code',
+    'id_token',
+    'code id_token',
+    'token id_token',
+  ] as const,
   SUPPORTED_GRANT_TYPES: [
     'authorization_code',
     'refresh_token',
@@ -18,6 +23,7 @@ export const OAUTH2_CONSTANTS = {
   CODE_VERIFIER_MAX_LENGTH: 128,
   AUTHORIZATION_CODE_MAX_LENGTH: 100,
   REFRESH_TOKEN_MAX_LENGTH: 500,
+  NONCE_MAX_LENGTH: 256,
   // 정규표현식 패턴
   PKCE_UNRESERVED_CHAR_PATTERN: /^[A-Za-z0-9_~-]+$/,
   CODE_CHALLENGE_S256_PATTERN: /^[A-Za-z0-9_-]{43}$/,

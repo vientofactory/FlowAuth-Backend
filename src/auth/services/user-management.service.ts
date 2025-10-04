@@ -11,7 +11,7 @@ import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
-import { User } from '../../user/user.entity';
+import { User } from '../user.entity';
 import { CreateUserDto } from '../dto/create-user.dto';
 import {
   AUTH_CONSTANTS,

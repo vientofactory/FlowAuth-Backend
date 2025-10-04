@@ -7,6 +7,7 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -66,6 +67,8 @@ function getLogoUploadInfo() {
 @Controller('uploads')
 @ApiTags('File Upload')
 export class UploadController {
+  private readonly logger = new Logger(UploadController.name);
+
   constructor(private readonly fileUploadService: FileUploadService) {}
 
   @Post('logo')
@@ -139,7 +142,10 @@ export class UploadController {
 
     // Log warnings if any
     if (validationResult.warnings.length > 0) {
-      console.warn(`파일 업로드 경고: ${validationResult.warnings.join(', ')}`);
+      this.logger.warn({
+        message: '파일 업로드 경고',
+        warnings: validationResult.warnings,
+      });
     }
 
     // Process logo image with Sharp for optimization
