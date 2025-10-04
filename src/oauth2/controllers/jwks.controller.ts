@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -6,6 +6,7 @@ import * as crypto from 'crypto';
 @ApiTags('OpenID Connect JWKS')
 @Controller('.well-known')
 export class JwksController {
+  private readonly logger = new Logger(JwksController.name);
   private jwk: any;
 
   constructor(private readonly configService: ConfigService) {
@@ -14,14 +15,14 @@ export class JwksController {
   }
 
   private initializeJWK(): void {
-    // 환경 변수에서 RSA 공개키 확인
-    const publicKeyPem = this.configService.get<string>('RSA_PUBLIC_KEY');
+    // 환경 변수에서 RSA 개인키 확인
     const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
 
-    if (publicKeyPem && privateKeyPem) {
-      // 환경 변수에서 키 로드
+    if (privateKeyPem) {
       try {
-        const publicKey = crypto.createPublicKey(publicKeyPem);
+        // RSA 개인키에서 공개키 추출하여 JWK 생성
+        const privateKey = crypto.createPrivateKey(privateKeyPem);
+        const publicKey = crypto.createPublicKey(privateKey);
         const jwk = publicKey.export({ format: 'jwk' });
 
         this.jwk = {
@@ -33,26 +34,23 @@ export class JwksController {
           alg: 'RS256',
         };
       } catch (error) {
-        console.error('Failed to load RSA key from environment:', error);
-        this.generateDevJWK();
+        this.logger.error(
+          'Failed to initialize JWK from RSA_PRIVATE_KEY',
+          error,
+        );
+        throw new Error(
+          'Invalid RSA_PRIVATE_KEY configuration. Please ensure it contains a valid RSA private key.',
+        );
       }
     } else {
-      // 개발 환경용 RSA 키 생성
-      this.generateDevJWK();
+      throw new Error(
+        'RSA_PRIVATE_KEY environment variable is required. ' +
+          'Run ./generate_rsa_keys.sh to generate a key pair and add RSA_PRIVATE_KEY to your .env file. ' +
+          'NEVER commit private keys to version control.',
+      );
     }
   }
 
-  private generateDevJWK(): void {
-    // 개발 환경용 고정 키 (항상 동일한 키 사용)
-    this.jwk = {
-      kty: 'RSA',
-      use: 'sig',
-      kid: 'rsa-key-dev',
-      n: '0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtmUAmh9K8X1GYTAJwTDFb',
-      e: 'AQAB',
-      alg: 'RS256',
-    };
-  }
   @Get('jwks.json')
   @ApiOperation({
     summary: 'JSON Web Key Set',

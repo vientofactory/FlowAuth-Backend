@@ -164,14 +164,6 @@ export class TokenGrantService {
       code_verifier,
     );
 
-    // Generate tokens using the unified createToken method
-    console.log('DEBUG: handleAuthorizationCodeGrant - calling createToken', {
-      userId: authCode.user?.id,
-      clientId: client?.clientId,
-      scopes: authCode.scopes,
-      hasOpenid: (authCode.scopes || []).includes('openid'),
-    });
-
     const tokenResult = await this.tokenService.createToken(
       authCode.user,
       client,
