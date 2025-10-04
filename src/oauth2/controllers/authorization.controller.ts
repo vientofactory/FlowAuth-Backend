@@ -121,6 +121,9 @@ export class AuthorizationController {
         authorizeParams.code_challenge_method,
       );
     }
+    if (authorizeParams.nonce) {
+      params.set('nonce', authorizeParams.nonce);
+    }
 
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
@@ -152,6 +155,9 @@ export class AuthorizationController {
         authorizeParams.code_challenge_method,
       );
     }
+    if (authorizeParams.nonce) {
+      params.set('nonce', authorizeParams.nonce);
+    }
 
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
@@ -161,7 +167,13 @@ export class AuthorizationController {
   private validateBasicAuthorizeParameters(
     authorizeDto: AuthorizeRequestDto,
   ): void {
-    const supportedResponseTypes = ['code', 'id_token', 'code id_token'];
+    const supportedResponseTypes = [
+      'code',
+      'token',
+      'id_token',
+      'code id_token',
+      'token id_token',
+    ];
     if (
       !authorizeDto.response_type ||
       !supportedResponseTypes.includes(authorizeDto.response_type)

@@ -40,12 +40,12 @@ export class AuthorizeRequestDto {
   @ApiProperty({
     description: '응답 타입',
     example: 'code',
-    enum: ['code', 'token', 'id_token', 'code id_token'],
+    enum: ['code', 'token', 'id_token', 'code id_token', 'token id_token'],
   })
   @IsString({ message: 'response_type must be a string' })
-  @IsIn(['code', 'token', 'id_token', 'code id_token'], {
+  @IsIn(['code', 'token', 'id_token', 'code id_token', 'token id_token'], {
     message:
-      'response_type must be one of: code, token, id_token, code id_token',
+      'response_type must be one of: code, token, id_token, code id_token, token id_token',
   })
   response_type: string;
 
