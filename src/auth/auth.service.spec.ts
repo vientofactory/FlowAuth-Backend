@@ -11,6 +11,9 @@ import { AuthorizationCode } from '../oauth2/authorization-code.entity';
 import { TwoFactorService } from './two-factor.service';
 import { FileUploadService } from '../upload/file-upload.service';
 import { RecaptchaService } from '../utils/recaptcha.util';
+import { UserAuthService } from './services/user-auth.service';
+import { ClientAuthService } from './services/client-auth.service';
+import { TwoFactorAuthService } from './services/two-factor-auth.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -82,6 +85,28 @@ describe('AuthService', () => {
           provide: RecaptchaService,
           useValue: {
             verify: jest.fn(),
+          },
+        },
+        {
+          provide: UserAuthService,
+          useValue: {
+            register: jest.fn(),
+            login: jest.fn(),
+          },
+        },
+        {
+          provide: ClientAuthService,
+          useValue: {
+            createClient: jest.fn(),
+            getClients: jest.fn(),
+            getClientById: jest.fn(),
+          },
+        },
+        {
+          provide: TwoFactorAuthService,
+          useValue: {
+            verifyTwoFactorToken: jest.fn(),
+            verifyBackupCode: jest.fn(),
           },
         },
         {

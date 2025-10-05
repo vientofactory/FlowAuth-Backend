@@ -18,6 +18,9 @@ import { LoggingModule } from '../logging/logging.module';
 import { UtilsModule } from '../utils/utils.module';
 import { JWT_CONSTANTS } from '../constants/auth.constants';
 import { UserManagementService } from './services/user-management.service';
+import { UserAuthService } from './services/user-auth.service';
+import { ClientAuthService } from './services/client-auth.service';
+import { TwoFactorAuthService } from './services/two-factor-auth.service';
 import { UploadModule } from '../upload/upload.module';
 
 @Module({
@@ -43,8 +46,16 @@ import { UploadModule } from '../upload/upload.module';
     JwtAuthGuard,
     PermissionsGuard,
     UserManagementService,
+    UserAuthService,
+    ClientAuthService,
+    TwoFactorAuthService,
   ],
   controllers: [AuthController, TwoFactorController],
-  exports: [JwtAuthGuard, UserManagementService],
+  exports: [
+    JwtAuthGuard,
+    UserManagementService,
+    UserAuthService,
+    ClientAuthService,
+  ],
 })
 export class AuthModule {}

@@ -5,6 +5,7 @@ import {
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
+  UpdateDateColumn,
   Index,
 } from 'typeorm';
 import { User } from '../auth/user.entity';
@@ -59,4 +60,7 @@ export class Token {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }
