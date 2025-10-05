@@ -315,7 +315,8 @@ export class OAuth2TokenService {
   ): Promise<string> {
     const payload = {
       iss:
-        this.configService.get<string>('BASE_URL') || 'http://localhost:3000',
+        this.configService.get<string>('BACKEND_URL') ||
+        'http://localhost:3000',
       sub: user.id.toString(),
       aud: client.clientId,
       exp: Math.floor(Date.now() / 1000) + this.getAccessTokenExpirySeconds(),
