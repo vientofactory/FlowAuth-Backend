@@ -50,45 +50,47 @@ export class OAuth2TokenService {
     nonce?: string,
     authTime?: number,
   ): Promise<TokenCreateResponse> {
-    if (this.isDebugMode()) {
-      this.structuredLogger.debug(
-        {
-          message: 'createToken called',
-          userId: user?.id,
-          clientId: client?.clientId,
-          scopes,
-          hasOpenid: scopes.includes('openid'),
-        },
-        'OAuth2TokenService',
+    return this.tokenRepository.manager.transaction(async (manager) => {
+      if (this.isDebugMode()) {
+        this.structuredLogger.debug(
+          {
+            message: 'createToken called',
+            userId: user?.id,
+            clientId: client?.clientId,
+            scopes,
+            hasOpenid: scopes.includes('openid'),
+          },
+          'OAuth2TokenService',
+        );
+      }
+
+      // Generate initial access token (will be replaced with jti)
+      const accessToken = this.generateAccessToken(user, client, scopes);
+
+      const refreshToken = this.generateRefreshToken();
+
+      const expiresAt = new Date();
+      expiresAt.setHours(
+        expiresAt.getHours() + this.getAccessTokenExpiryHours(),
       );
-    }
 
-    // Generate initial access token (will be replaced with jti)
-    const accessToken = this.generateAccessToken(user, client, scopes);
+      const refreshExpiresAt = new Date();
+      refreshExpiresAt.setDate(
+        refreshExpiresAt.getDate() + this.getRefreshTokenExpiryDays(),
+      );
 
-    const refreshToken = this.generateRefreshToken();
+      const token = manager.create(Token, {
+        accessToken,
+        refreshToken,
+        expiresAt,
+        refreshExpiresAt,
+        scopes,
+        user: user || undefined,
+        client,
+        tokenType: TOKEN_TYPES.OAUTH2,
+      });
 
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + this.getAccessTokenExpiryHours());
-
-    const refreshExpiresAt = new Date();
-    refreshExpiresAt.setDate(
-      refreshExpiresAt.getDate() + this.getRefreshTokenExpiryDays(),
-    );
-
-    const token = this.tokenRepository.create({
-      accessToken,
-      refreshToken,
-      expiresAt,
-      refreshExpiresAt,
-      scopes,
-      user: user || undefined,
-      client,
-      tokenType: TOKEN_TYPES.OAUTH2,
-    });
-
-    try {
-      await this.tokenRepository.save(token);
+      await manager.save(Token, token);
 
       // Regenerate access token with jti for revocation capability
       const finalAccessToken = this.generateAccessTokenWithJti(
@@ -100,7 +102,7 @@ export class OAuth2TokenService {
 
       // Update token with final access token
       token.accessToken = finalAccessToken;
-      await this.tokenRepository.save(token);
+      await manager.save(Token, token);
 
       const response: TokenCreateResponse = {
         accessToken: finalAccessToken,
@@ -112,21 +114,25 @@ export class OAuth2TokenService {
 
       // Generate ID token if openid scope is requested and user exists
       if (user && scopes.includes('openid')) {
-        response.idToken = await this.generateIdToken(
-          user,
-          client,
-          nonce,
-          authTime,
-        );
+        try {
+          response.idToken = await this.generateIdToken(
+            user,
+            client,
+            nonce,
+            authTime,
+          );
+        } catch (error) {
+          this.structuredLogger.logError(error as Error, 'OAuth2TokenService', {
+            operation: 'generateIdToken',
+            userId: user.id,
+            clientId: client.clientId,
+          });
+          // ID 토큰 생성 실패해도 액세스 토큰은 유지
+        }
       }
 
       return response;
-    } catch (error) {
-      this.structuredLogger.logError(error as Error, 'OAuth2TokenService', {
-        operation: 'saveToken',
-      });
-      throw error;
-    }
+    });
   }
 
   /**

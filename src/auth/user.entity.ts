@@ -49,23 +49,23 @@ export class User {
   @Column({ type: 'tinyint', default: 0 })
   isTwoFactorEnabled: boolean;
 
-  @Column({ type: 'json', nullable: true })
+  @Column({ type: 'text', nullable: true })
   @Exclude()
   backupCodes?: string[];
 
   @Column({ type: 'tinyint', default: 1 })
   isActive: boolean;
 
-  @Column({ type: 'varchar', length: 500, nullable: true })
+  @Column({ type: 'text', nullable: true })
   avatar?: string | null;
 
   @Column({ type: 'text', nullable: true })
   bio?: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ type: 'text', nullable: true })
   website?: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ type: 'text', nullable: true })
   location?: string;
 
   @CreateDateColumn()

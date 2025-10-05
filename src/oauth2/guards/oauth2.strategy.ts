@@ -30,18 +30,8 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
 
   async validate(payload: OAuth2JwtPayload): Promise<OAuth2JwtPayload> {
     try {
-      this.logger.debug('Validating OAuth2 token payload', {
-        sub: payload.sub,
-        client_id: payload.client_id,
-        scopes: payload.scopes,
-        token_type: payload.token_type,
-        hasJti: !!payload.jti,
-      });
-
       // If jti is present, verify token exists in database (for revocation check)
       if (payload.jti) {
-        this.logger.debug('Checking jti in database', { jti: payload.jti });
-
         // Validate that jti is a valid numeric string
         if (typeof payload.jti !== 'string' || isNaN(Number(payload.jti))) {
           this.logger.warn('Invalid jti format in OAuth2 payload', {
@@ -90,10 +80,10 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
-        this.logger.debug('JTI validation passed', { jti: payload.jti });
+        // Add scopes from token to payload for scope validation
+        payload.scopes = token.scopes || [];
       }
 
-      this.logger.debug('OAuth2 token validation passed');
       return payload;
     } catch (error: unknown) {
       if (error instanceof UnauthorizedException) {

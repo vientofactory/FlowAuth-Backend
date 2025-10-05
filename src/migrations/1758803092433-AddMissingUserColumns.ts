@@ -18,19 +18,19 @@ export class AddMissingUserColumns1758803092433 implements MigrationInterface {
     );
     await queryRunner.query(`ALTER TABLE \`user\` DROP COLUMN \`backupCodes\``);
     await queryRunner.query(
-      `ALTER TABLE \`user\` ADD \`backupCodes\` json NULL`,
+      `ALTER TABLE \`user\` ADD \`backupCodes\` text NULL`,
     );
     await queryRunner.query(
-      `ALTER TABLE \`user\` CHANGE \`avatar\` \`avatar\` varchar(500) NULL`,
+      `ALTER TABLE \`user\` CHANGE \`avatar\` \`avatar\` text NULL`,
     );
     await queryRunner.query(
       `ALTER TABLE \`user\` CHANGE \`bio\` \`bio\` text NULL`,
     );
     await queryRunner.query(
-      `ALTER TABLE \`user\` CHANGE \`website\` \`website\` varchar(255) NULL`,
+      `ALTER TABLE \`user\` CHANGE \`website\` \`website\` text NULL`,
     );
     await queryRunner.query(
-      `ALTER TABLE \`user\` CHANGE \`location\` \`location\` varchar(255) NULL`,
+      `ALTER TABLE \`user\` CHANGE \`location\` \`location\` text NULL`,
     );
     await queryRunner.query(
       `ALTER TABLE \`client\` CHANGE \`clientSecret\` \`clientSecret\` varchar(255) NULL`,
