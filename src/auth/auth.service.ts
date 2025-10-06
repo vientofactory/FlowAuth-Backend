@@ -1,19 +1,10 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  Logger,
-  Inject,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { JwtService } from '@nestjs/jwt';
 import { User } from './user.entity';
 import { Client } from '../oauth2/client.entity';
 import { Token } from '../oauth2/token.entity';
-import { AuthorizationCode } from '../oauth2/authorization-code.entity';
 import { TokenDto } from './dto/response.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateClientDto } from './dto/create-client.dto';
@@ -24,9 +15,6 @@ import {
 } from '../constants/auth.constants';
 import { JwtPayload, LoginResponse } from '../types/auth.types';
 import { PermissionUtils } from '../utils/permission.util';
-import { TwoFactorService } from './two-factor.service';
-import { FileUploadService } from '../upload/file-upload.service';
-import { RecaptchaService } from '../utils/recaptcha.util';
 import { UserAuthService } from './services/user-auth.service';
 import { ClientAuthService } from './services/client-auth.service';
 import { TwoFactorAuthService } from './services/two-factor-auth.service';
@@ -42,18 +30,10 @@ export class AuthService {
     private clientRepository: Repository<Client>,
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
-    @InjectRepository(AuthorizationCode)
-    private authorizationCodeRepository: Repository<AuthorizationCode>,
     private jwtService: JwtService,
-    private configService: ConfigService,
-    private fileUploadService: FileUploadService,
-    private twoFactorService: TwoFactorService,
-    private recaptchaService: RecaptchaService,
     private userAuthService: UserAuthService,
     private clientAuthService: ClientAuthService,
     private twoFactorAuthService: TwoFactorAuthService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {

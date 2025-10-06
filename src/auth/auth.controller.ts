@@ -25,7 +25,11 @@ import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { CreateClientDto } from './dto/create-client.dto';
-import { TokenDto } from './dto/response.dto';
+import {
+  TokenDto,
+  LoginResponseDto,
+  ClientCreateResponseDto,
+} from './dto/response.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard, RequirePermissions } from './permissions.guard';
 import { User } from './user.entity';
@@ -35,8 +39,9 @@ import {
   TOKEN_TYPES,
   type TokenType,
 } from '../constants/auth.constants';
-import { LoginResponseDto, ClientCreateResponseDto } from './dto/response.dto';
 import { ConfigService } from '@nestjs/config';
+
+import { ValidationHelpers } from './validation.helpers';
 
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
@@ -120,11 +125,24 @@ export class AuthController {
   ): Promise<LoginResponseDto> {
     const { email, token } = body;
 
-    if (!email || !token) {
-      throw new BadRequestException('이메일과 2FA 토큰이 필요합니다.');
+    // 입력 검증 강화
+    if (!email || typeof email !== 'string') {
+      throw new BadRequestException('이메일이 필요합니다.');
+    }
+    if (!token || typeof token !== 'string') {
+      throw new BadRequestException('2FA 토큰이 필요합니다.');
     }
 
-    const result = await this.authService.verifyTwoFactorToken(email, token);
+    // 이메일 형식 검증
+    ValidationHelpers.validateEmail(email.trim());
+
+    // 2FA 토큰 형식 검증
+    ValidationHelpers.validateTwoFactorToken(token.trim());
+
+    const result = await this.authService.verifyTwoFactorToken(
+      email.trim(),
+      token.trim(),
+    );
 
     // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {
@@ -150,12 +168,7 @@ export class AuthController {
     description: '인증되지 않은 요청',
   })
   logout(@Request() req: ExpressRequest) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new BadRequestException('토큰이 필요합니다.');
-    }
-
-    const token = authHeader.substring(7);
+    const token = ValidationHelpers.extractBearerToken(req);
     return this.authService.logout(token);
   }
 
@@ -173,12 +186,7 @@ export class AuthController {
     description: '유효하지 않은 토큰',
   })
   refresh(@Request() req: ExpressRequest) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new BadRequestException('토큰이 필요합니다.');
-    }
-
-    const token = authHeader.substring(7);
+    const token = ValidationHelpers.extractBearerToken(req);
     return this.authService.refreshToken(token);
   }
 
@@ -209,11 +217,24 @@ export class AuthController {
   ): Promise<LoginResponseDto> {
     const { email, backupCode } = body;
 
-    if (!email || !backupCode) {
-      throw new BadRequestException('이메일과 백업 코드가 필요합니다.');
+    // 입력 검증 강화
+    if (!email || typeof email !== 'string') {
+      throw new BadRequestException('이메일이 필요합니다.');
+    }
+    if (!backupCode || typeof backupCode !== 'string') {
+      throw new BadRequestException('백업 코드가 필요합니다.');
     }
 
-    const result = await this.authService.verifyBackupCode(email, backupCode);
+    // 이메일 형식 검증
+    ValidationHelpers.validateEmail(email.trim());
+
+    // 백업 코드 형식 검증
+    ValidationHelpers.validateBackupCode(backupCode.trim());
+
+    const result = await this.authService.verifyBackupCode(
+      email.trim(),
+      backupCode.trim(),
+    );
 
     // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {
@@ -292,7 +313,8 @@ export class AuthController {
     status: 403,
     description: '권한이 없음',
   })
-  async getClients(@Request() req: AuthenticatedRequest) {
+  async getClients(@Request() req: any) {
+    ValidationHelpers.validateAuthenticatedRequest(req);
     const clients = await this.authService.getClients(req.user.id);
     return clients.map((client) => ({
       id: client.id,
@@ -333,7 +355,7 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
   ) {
     const client = await this.authService.getClientById(
-      parseInt(id),
+      ValidationHelpers.parseIdParam(id),
       req.user.id,
     );
     return {
@@ -384,7 +406,7 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.authService.updateClientStatus(
-      parseInt(id),
+      ValidationHelpers.parseIdParam(id),
       body.isActive,
       req.user.id,
     );
@@ -431,7 +453,59 @@ export class AuthController {
     @Body() updateData: Partial<CreateClientDto>,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.authService.updateClient(parseInt(id), updateData, req.user.id);
+    // 요청 본문 검증 강화
+    if (!updateData || typeof updateData !== 'object') {
+      throw new BadRequestException('업데이트 데이터가 필요합니다.');
+    }
+
+    // redirectUris 검증
+    if (updateData.redirectUris !== undefined) {
+      if (!Array.isArray(updateData.redirectUris)) {
+        throw new BadRequestException('redirectUris는 배열이어야 합니다.');
+      }
+      for (const uri of updateData.redirectUris) {
+        if (typeof uri !== 'string' || !uri.trim()) {
+          throw new BadRequestException(
+            'redirectUris의 각 항목은 비어있지 않은 문자열이어야 합니다.',
+          );
+        }
+        // 간단한 URL 형식 검증
+        try {
+          new URL(uri.trim());
+        } catch {
+          throw new BadRequestException(`잘못된 URL 형식: ${uri}`);
+        }
+      }
+    }
+
+    // scopes 검증
+    if (updateData.scopes !== undefined) {
+      if (!Array.isArray(updateData.scopes)) {
+        throw new BadRequestException('scopes는 배열이어야 합니다.');
+      }
+      for (const scope of updateData.scopes) {
+        if (typeof scope !== 'string' || !scope.trim()) {
+          throw new BadRequestException(
+            'scopes의 각 항목은 비어있지 않은 문자열이어야 합니다.',
+          );
+        }
+      }
+    }
+
+    // name 검증
+    if (updateData.name !== undefined) {
+      if (typeof updateData.name !== 'string' || !updateData.name.trim()) {
+        throw new BadRequestException(
+          'name은 비어있지 않은 문자열이어야 합니다.',
+        );
+      }
+    }
+
+    return this.authService.updateClient(
+      ValidationHelpers.parseIdParam(id),
+      updateData,
+      req.user.id,
+    );
   }
 
   @Put('clients/:id/reset-secret')
@@ -475,7 +549,7 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
   ) {
     const client = await this.authService.resetClientSecret(
-      parseInt(id),
+      ValidationHelpers.parseIdParam(id),
       req.user.id,
     );
     return {
@@ -532,7 +606,10 @@ export class AuthController {
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.authService.removeClientLogo(parseInt(id), req.user.id);
+    return this.authService.removeClientLogo(
+      ValidationHelpers.parseIdParam(id),
+      req.user.id,
+    );
   }
 
   @Delete('clients/:id')
@@ -553,7 +630,7 @@ export class AuthController {
     description: '권한이 없음',
   })
   async deleteClient(@Param('id') id: string) {
-    await this.authService.deleteClient(parseInt(id));
+    await this.authService.deleteClient(ValidationHelpers.parseIdParam(id));
     return { message: 'Client deleted successfully' };
   }
 
@@ -592,7 +669,10 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
     @Param('id') tokenId: string,
   ) {
-    await this.authService.revokeToken(req.user.id, parseInt(tokenId));
+    await this.authService.revokeToken(
+      req.user.id,
+      ValidationHelpers.parseIdParam(tokenId),
+    );
     return { message: 'Token revoked successfully' };
   }
 
@@ -635,15 +715,25 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
     @Param('tokenType') tokenType: string,
   ) {
-    // 토큰 타입 검증
-    if (!Object.values(TOKEN_TYPES).includes(tokenType as any)) {
-      throw new BadRequestException('Invalid token type');
+    // 토큰 타입 검증 강화
+    if (!tokenType || typeof tokenType !== 'string') {
+      throw new BadRequestException('토큰 타입이 필요합니다.');
+    }
+
+    const trimmedTokenType = tokenType.trim();
+    if (!trimmedTokenType) {
+      throw new BadRequestException('토큰 타입이 비어있을 수 없습니다.');
+    }
+
+    // 허용된 토큰 타입인지 검증
+    if (!Object.values(TOKEN_TYPES).includes(trimmedTokenType as TokenType)) {
+      throw new BadRequestException('잘못된 토큰 타입입니다.');
     }
 
     await this.authService.revokeAllTokensForType(
       req.user.id,
-      tokenType as TokenType,
+      trimmedTokenType as TokenType,
     );
-    return { message: `${tokenType} tokens revoked successfully` };
+    return { message: `${trimmedTokenType} tokens revoked successfully` };
   }
 }

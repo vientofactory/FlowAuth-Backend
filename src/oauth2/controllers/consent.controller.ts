@@ -15,9 +15,6 @@ import { OAuth2Service } from '../oauth2.service';
 import { AuthorizationService } from '../services/authorization.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { TokenService } from '../token.service';
-import { AuthorizationCodeService } from '../authorization-code.service';
-import { ScopeService } from '../scope.service';
 import { AuthorizeRequestDto } from '../dto/oauth2.dto';
 import { AuthorizeConsentDto } from '../dto/request.dto';
 import { RedirectUrlResponseDto } from '../../common/dto/response.dto';
@@ -35,9 +32,6 @@ export class ConsentController {
     private readonly authorizationService: AuthorizationService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly tokenService: TokenService,
-    private readonly authorizationCodeService: AuthorizationCodeService,
-    private readonly scopeService: ScopeService,
   ) {}
 
   private async getAuthenticatedUserFromCookie(

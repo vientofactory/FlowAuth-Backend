@@ -4,7 +4,6 @@ import {
   Query,
   Request,
   Res,
-  Logger,
   BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
@@ -13,9 +12,6 @@ import type { Request as ExpressRequest, Response } from 'express';
 import { OAuth2Service } from '../oauth2.service';
 import { AuthorizationService } from '../services/authorization.service';
 import { JwtService } from '@nestjs/jwt';
-import { TokenService } from '../token.service';
-import { AuthorizationCodeService } from '../authorization-code.service';
-import { ScopeService } from '../scope.service';
 import { AuthorizeRequestDto } from '../dto/oauth2.dto';
 import { AuthorizeInfoResponseDto, ClientInfoDto } from '../dto/response.dto';
 import { TOKEN_TYPES } from '../../constants/auth.constants';
@@ -25,16 +21,11 @@ import type { User } from '../../auth/user.entity';
 @Controller('oauth2')
 @ApiTags('OAuth2 Authorization')
 export class AuthorizationController {
-  private readonly logger = new Logger(AuthorizationController.name);
-
   constructor(
     private readonly oauth2Service: OAuth2Service,
     private readonly authorizationService: AuthorizationService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly tokenService: TokenService,
-    private readonly authorizationCodeService: AuthorizationCodeService,
-    private readonly scopeService: ScopeService,
   ) {}
 
   private async getAuthenticatedUserFromCookie(

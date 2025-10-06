@@ -2,18 +2,15 @@ import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
-import { AppConfigService } from '../config/app-config.service';
 import { Token } from './token.entity';
 import { User } from '../auth/user.entity';
 import { Client } from './client.entity';
 import { OAuth2JwtPayload } from '../types/oauth2.types';
-import { JWT_CONSTANTS, CACHE_CONSTANTS } from '../constants/jwt.constants';
+import { CACHE_CONSTANTS } from '../constants/jwt.constants';
 import { StructuredLogger } from '../logging/structured-logger.service';
-import { TOKEN_TYPES, JWT_TOKEN_EXPIRY } from '../constants/auth.constants';
-import { JwtTokenService } from './services/jwt-token.service';
+import { TOKEN_TYPES } from '../constants/auth.constants';
 import { OAuth2TokenService } from './services/oauth2-token.service';
 import { TokenRevocationService } from './services/token-revocation.service';
 import { IdTokenService } from './services/id-token.service';
@@ -40,42 +37,13 @@ export class TokenService {
     @InjectRepository(Token)
     private readonly tokenRepository: Repository<Token>,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
-    private readonly appConfigService: AppConfigService,
     private readonly structuredLogger: StructuredLogger,
-    private readonly jwtTokenService: JwtTokenService,
     private readonly oauth2TokenService: OAuth2TokenService,
     private readonly tokenRevocationService: TokenRevocationService,
     private readonly idTokenService: IdTokenService,
   ) {}
-
-  private getAccessTokenExpiryHours(): number {
-    return JWT_TOKEN_EXPIRY.OAUTH2_HOURS;
-  }
-
-  private getRefreshTokenExpiryDays(): number {
-    return this.appConfigService.refreshTokenExpiryDays;
-  }
-
-  private getAccessTokenExpirySeconds(): number {
-    return (
-      this.getAccessTokenExpiryHours() * JWT_CONSTANTS.TIME.ONE_HOUR_SECONDS
-    );
-  }
-
-  private getJwtSecret(): string {
-    return (
-      this.configService.get<string>('JWT_SECRET') ||
-      JWT_CONSTANTS.SECRET_KEY_FALLBACK
-    );
-  }
-
-  private isDebugMode(): boolean {
-    return this.configService.get<string>('NODE_ENV') !== 'production';
-  }
-
   async createToken(
     user: User | null,
     client: Client,
