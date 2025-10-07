@@ -30,10 +30,21 @@ interface IdTokenPayload {
   iat: number;
   auth_time: number;
   nonce?: string;
-  email: string;
-  email_verified: boolean;
-  name: string;
-  preferred_username: string;
+  // profile 스코프 클레임
+  name?: string;
+  preferred_username?: string;
+  given_name?: string;
+  family_name?: string;
+  picture?: string;
+  updated_at?: number;
+  // email 스코프 클레임
+  email?: string;
+  email_verified?: boolean;
+  // phone 스코프 클레임
+  phone_number?: string;
+  phone_number_verified?: boolean;
+  // address 스코프 클레임
+  address?: any;
 }
 
 @Injectable()
@@ -49,27 +60,61 @@ export class IdTokenService {
   async generateIdToken(
     user: User,
     client: Client,
+    scopes: string[] = [],
     nonce?: string,
     authTime?: number,
   ): Promise<string> {
     const baseUrl =
       this.configService.get<string>('BACKEND_URL') || 'http://localhost:3000';
 
-    const payload = {
+    // 기본 클레임 (항상 포함)
+    const payload: IdTokenPayload = {
       iss: baseUrl,
       sub: user.id.toString(),
       aud: client.clientId,
       exp: Math.floor(Date.now() / 1000) + JWT_CONSTANTS.TIME.ONE_HOUR_SECONDS, // 1시간
       iat: Math.floor(Date.now() / 1000),
       auth_time: authTime || Math.floor(Date.now() / 1000),
-      nonce: nonce,
-      email: user.email || '',
-      email_verified: !!user.isEmailVerified,
-      name: user.username || '',
-      preferred_username: user.username || '',
     };
 
-    return await this.jwtTokenService.signJwtWithRSA(payload);
+    // nonce가 있으면 추가 (OpenID Connect 요구사항)
+    if (nonce) {
+      payload.nonce = nonce;
+    }
+
+    // 스코프에 따른 클레임 추가
+    this.addClaimsBasedOnScopes(payload, user, scopes);
+
+    return await this.jwtTokenService.signJwtWithRSA(
+      payload as Record<string, any>,
+    );
+  }
+
+  /**
+   * 스코프에 따라 클레임을 추가하는 메서드
+   */
+  private addClaimsBasedOnScopes(
+    payload: IdTokenPayload,
+    user: User,
+    scopes: string[],
+  ) {
+    // profile 스코프: 프로필 정보
+    if (scopes.includes('profile')) {
+      payload.name = user.username || '';
+      payload.preferred_username = user.username || '';
+      payload.given_name = user.firstName || '';
+      payload.family_name = user.lastName || '';
+      payload.picture = user.avatar || '';
+      payload.updated_at = user.updatedAt
+        ? Math.floor(user.updatedAt.getTime() / 1000)
+        : undefined;
+    }
+
+    // email 스코프: 이메일 정보
+    if (scopes.includes('email')) {
+      payload.email = user.email || '';
+      payload.email_verified = !!user.isEmailVerified;
+    }
   }
 
   /**

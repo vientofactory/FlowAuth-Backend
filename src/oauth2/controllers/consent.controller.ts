@@ -170,6 +170,7 @@ export class ConsentController {
         }
         redirectUrl.hash = fragmentParams.toString();
       } else if (
+        authorizeDto.response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN ||
         authorizeDto.response_type ===
           OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
         authorizeDto.response_type ===
@@ -339,6 +340,7 @@ export class ConsentController {
         }
         redirectUrl.hash = fragmentParams.toString();
       } else if (
+        authorizeDto.response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN ||
         authorizeDto.response_type ===
           OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
         authorizeDto.response_type ===

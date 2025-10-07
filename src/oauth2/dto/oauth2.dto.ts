@@ -147,8 +147,9 @@ export class AuthorizeConsentQueryDto {
   })
   @IsString({ message: 'response_type must be a string' })
   @IsOptional()
-  @IsIn(['code', 'token'], {
-    message: 'response_type must be one of the following values: code, token',
+  @IsIn(['code', 'token', 'id_token', 'code id_token', 'token id_token'], {
+    message:
+      'response_type must be one of: code, token, id_token, code id_token, token id_token',
   })
   response_type?: string;
 

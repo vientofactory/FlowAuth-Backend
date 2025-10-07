@@ -147,10 +147,17 @@ export class TokenService {
   async generateIdToken(
     user: User,
     client: Client,
+    scopes: string[] = [],
     nonce?: string,
     authTime?: number,
   ): Promise<string> {
-    return this.idTokenService.generateIdToken(user, client, nonce, authTime);
+    return this.idTokenService.generateIdToken(
+      user,
+      client,
+      scopes,
+      nonce,
+      authTime,
+    );
   }
 
   /**

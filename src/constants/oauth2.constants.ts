@@ -2,6 +2,7 @@
 export const OAUTH2_CONSTANTS = {
   SUPPORTED_RESPONSE_TYPES: [
     'code',
+    'token',
     'id_token',
     'code id_token',
     'token id_token',
@@ -23,21 +24,51 @@ export const OAUTH2_CONSTANTS = {
   TOKEN_TYPES: {
     BEARER: 'Bearer',
   } as const,
-  // OAuth2 Error 상수들
+  // OAuth2 Error 상수들 (RFC 6749 표준)
   ERRORS: {
-    ACCESS_DENIED: 'access_denied',
-    SERVER_ERROR: 'server_error',
+    // Authorization endpoint errors
     INVALID_REQUEST: 'invalid_request',
     UNAUTHORIZED_CLIENT: 'unauthorized_client',
+    ACCESS_DENIED: 'access_denied',
     UNSUPPORTED_RESPONSE_TYPE: 'unsupported_response_type',
+    INVALID_SCOPE: 'invalid_scope',
+    SERVER_ERROR: 'server_error',
+    TEMPORARILY_UNAVAILABLE: 'temporarily_unavailable',
+
+    // Token endpoint errors
+    INVALID_CLIENT: 'invalid_client',
+    INVALID_GRANT: 'invalid_grant',
+    UNSUPPORTED_GRANT_TYPE: 'unsupported_grant_type',
+
+    // Additional security errors
+    INVALID_TOKEN: 'invalid_token',
+    INSUFFICIENT_SCOPE: 'insufficient_scope',
   } as const,
   // OAuth2 Error Description 상수들
   ERROR_DESCRIPTIONS: {
-    ACCESS_DENIED: 'User denied the request',
-    SERVER_ERROR: 'Internal server error',
-    INVALID_REQUEST: 'Invalid request',
-    UNAUTHORIZED_CLIENT: 'Unauthorized client',
-    UNSUPPORTED_RESPONSE_TYPE: 'Unsupported response type',
+    INVALID_REQUEST:
+      'The request is missing a required parameter, includes an invalid parameter value, includes a parameter more than once, or is otherwise malformed.',
+    UNAUTHORIZED_CLIENT:
+      'The client is not authorized to request an authorization code using this method.',
+    ACCESS_DENIED:
+      'The resource owner or authorization server denied the request.',
+    UNSUPPORTED_RESPONSE_TYPE:
+      'The authorization server does not support obtaining an authorization code using this method.',
+    INVALID_SCOPE: 'The requested scope is invalid, unknown, or malformed.',
+    SERVER_ERROR:
+      'The authorization server encountered an unexpected condition that prevented it from fulfilling the request.',
+    TEMPORARILY_UNAVAILABLE:
+      'The authorization server is currently unable to handle the request due to a temporary overloading or maintenance of the server.',
+    INVALID_CLIENT:
+      'Client authentication failed (e.g., unknown client, no client authentication included, or unsupported authentication method).',
+    INVALID_GRANT:
+      'The provided authorization grant (e.g., authorization code, resource owner credentials) or refresh token is invalid, expired, revoked, does not match the redirection URI used in the authorization request, or was issued to another client.',
+    UNSUPPORTED_GRANT_TYPE:
+      'The authorization grant type is not supported by the authorization server.',
+    INVALID_TOKEN:
+      'The access token provided is expired, revoked, malformed, or invalid for other reasons.',
+    INSUFFICIENT_SCOPE:
+      'The request requires higher privileges than provided by the access token.',
   } as const,
   PKCE_METHODS: ['plain', 'S256'] as const,
   CODE_CHALLENGE_S256_LENGTH: 43,

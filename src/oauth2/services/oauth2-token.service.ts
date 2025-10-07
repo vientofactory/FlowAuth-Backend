@@ -13,6 +13,7 @@ import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { TOKEN_TYPES } from '../../constants/auth.constants';
 import { StructuredLogger } from '../../logging/structured-logger.service';
 import { JwtTokenService } from './jwt-token.service';
+import { IdTokenService } from './id-token.service';
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -39,6 +40,7 @@ export class OAuth2TokenService {
     private configService: ConfigService,
     private structuredLogger: StructuredLogger,
     private jwtTokenService: JwtTokenService,
+    private idTokenService: IdTokenService,
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
   ) {}
@@ -79,6 +81,9 @@ export class OAuth2TokenService {
         refreshExpiresAt.getDate() + this.getRefreshTokenExpiryDays(),
       );
 
+      // Generate token family ID for rotation tracking
+      const tokenFamily = crypto.randomUUID();
+
       const token = manager.create(Token, {
         accessToken,
         refreshToken,
@@ -88,6 +93,8 @@ export class OAuth2TokenService {
         user: user || undefined,
         client,
         tokenType: TOKEN_TYPES.OAUTH2,
+        tokenFamily,
+        rotationGeneration: 1,
       });
 
       await manager.save(Token, token);
@@ -118,6 +125,7 @@ export class OAuth2TokenService {
           response.idToken = await this.generateIdToken(
             user,
             client,
+            scopes,
             nonce,
             authTime,
           );
@@ -160,6 +168,7 @@ export class OAuth2TokenService {
       response.idToken = await this.generateIdToken(
         user,
         client,
+        scopes,
         nonce,
         authTime,
       );
@@ -204,10 +213,17 @@ export class OAuth2TokenService {
 
       // Check if refresh token was already used
       if (token.isRefreshTokenUsed) {
-        // Security: revoke all user tokens if refresh token reuse detected
-        if (token.user) {
-          await this.revokeAllUserTokens(token.user.id);
-        }
+        // Enhanced Security: revoke entire token family if refresh token reuse detected
+        await this.revokeTokenFamily(token.tokenFamily, 'refresh_token_reuse');
+
+        this.structuredLogger.logSecurity('refresh_token_reuse_detected', {
+          tokenFamily: token.tokenFamily,
+          generation: token.rotationGeneration,
+          clientId: token.client.clientId,
+          userId: token.user?.id,
+          ip: null, // Should be passed from request context
+        });
+
         return null;
       }
 
@@ -234,7 +250,7 @@ export class OAuth2TokenService {
         newRefreshExpiresAt.getDate() + this.getRefreshTokenExpiryDays(),
       );
 
-      // Create new token
+      // Create new token with updated family generation
       const newToken = manager.create(Token, {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
@@ -244,6 +260,8 @@ export class OAuth2TokenService {
         user: token.user || undefined,
         client: token.client,
         tokenType: TOKEN_TYPES.OAUTH2,
+        tokenFamily: token.tokenFamily,
+        rotationGeneration: (token.rotationGeneration || 1) + 1,
         isRefreshTokenUsed: false,
       });
 
@@ -310,36 +328,78 @@ export class OAuth2TokenService {
   private async generateIdToken(
     user: User,
     client: Client,
+    scopes: string[] = [],
     nonce?: string,
     authTime?: number,
   ): Promise<string> {
-    const payload = {
-      iss:
-        this.configService.get<string>('BACKEND_URL') ||
-        'http://localhost:3000',
-      sub: user.id.toString(),
-      aud: client.clientId,
-      exp: Math.floor(Date.now() / 1000) + this.getAccessTokenExpirySeconds(),
-      iat: Math.floor(Date.now() / 1000),
-      auth_time: authTime || Math.floor(Date.now() / 1000),
+    return this.idTokenService.generateIdToken(
+      user,
+      client,
+      scopes,
       nonce,
-      email: user.email,
-      email_verified: true,
-      name: `${user.firstName} ${user.lastName}`.trim(),
-      given_name: user.firstName,
-      family_name: user.lastName,
-      preferred_username: user.username,
-      avatar: user.avatar,
-    };
-
-    return await this.jwtTokenService.signJwtWithRSA(payload);
+      authTime,
+    );
   }
 
   private async revokeAllUserTokens(userId: number): Promise<void> {
     await this.tokenRepository.update(
       { user: { id: userId } },
-      { accessToken: 'REVOKED', isRefreshTokenUsed: true },
+      {
+        accessToken: 'REVOKED',
+        isRefreshTokenUsed: true,
+        revokedReason: 'user_tokens_revoked',
+        revokedAt: new Date(),
+      },
     );
+  }
+
+  /**
+   * Revoke entire token family when refresh token reuse is detected
+   */
+  private async revokeTokenFamily(
+    tokenFamily: string | undefined,
+    reason: string,
+  ): Promise<void> {
+    if (!tokenFamily) return;
+
+    // Get all tokens in family before revoking
+    const tokensInFamily = await this.tokenRepository.find({
+      where: { tokenFamily },
+      select: ['id'],
+    });
+
+    await this.tokenRepository.update(
+      { tokenFamily },
+      {
+        isRevoked: true,
+        revokedAt: new Date(),
+        revokedReason: reason,
+        accessToken: 'REVOKED',
+        isRefreshTokenUsed: true,
+      },
+    );
+
+    // Remove all tokens from cache
+    for (const token of tokensInFamily) {
+      await this.cacheManager.del(`oauth2_token:${token.id}`);
+    }
+
+    this.structuredLogger.logSecurity('token_family_revoked', {
+      tokenFamily,
+      reason,
+      revokedTokens: tokensInFamily.length,
+    });
+  }
+
+  /**
+   * Get all tokens in a family for debugging
+   */
+  async getTokenFamily(tokenFamily: string): Promise<Token[]> {
+    return this.tokenRepository.find({
+      where: { tokenFamily },
+      relations: ['user', 'client'],
+      order: { createdAt: 'ASC' },
+    });
   }
 
   private isDebugMode(): boolean {

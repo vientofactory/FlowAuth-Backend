@@ -164,10 +164,11 @@ export class AuthorizationService {
         nonce,
       );
     } else if (
+      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN ||
       response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
       response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
     ) {
-      // Implicit Grant (OpenID Connect)
+      // Implicit Grant (OAuth2 및 OpenID Connect)
       return this.handleImplicitGrant(
         user,
         client,
@@ -296,34 +297,13 @@ export class AuthorizationService {
     user: User,
     client: Client,
     requestedScopes: string[],
-    redirectUri: string,
-    responseType: string,
+    redirect_uri: string,
+    response_type: string,
     state?: string,
     nonce?: string,
   ): Promise<AuthorizeResponseDto> {
-    // Implicit Grant에서는 PKCE를 사용하지 않음 (보안상의 이유로 권장되지 않음)
-    // OpenID Connect에서는 nonce를 필수로 요구
-
-    if (
-      responseType === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN &&
-      !requestedScopes.includes('openid')
-    ) {
-      throw new BadRequestException(
-        'response_type=id_token requires openid scope',
-      );
-    }
-
-    if (
-      responseType === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN &&
-      !requestedScopes.includes('openid')
-    ) {
-      throw new BadRequestException(
-        'response_type=token id_token requires openid scope',
-      );
-    }
-
-    // Implicit Grant 토큰 생성
-    const tokens = await this.tokenService.createImplicitTokens(
+    // Implicit Grant을 위한 토큰 생성
+    const implicitTokens = await this.tokenService.createImplicitTokens(
       user,
       client,
       requestedScopes,
@@ -331,24 +311,34 @@ export class AuthorizationService {
     );
 
     const response: AuthorizeResponseDto = {
-      redirect_uri: redirectUri,
-      state,
+      redirect_uri,
     };
 
-    // response_type에 따라 반환할 토큰 결정
-    if (responseType === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN) {
-      response.id_token = tokens.idToken;
-      response.token_type = tokens.tokenType;
-    } else if (
-      responseType === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
+    // response_type에 따라 토큰 결정
+    if (
+      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN ||
+      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
     ) {
-      response.access_token = tokens.accessToken;
-      response.id_token = tokens.idToken;
-      response.token_type = tokens.tokenType;
-      response.expires_in = tokens.expiresIn;
+      response.access_token = implicitTokens.accessToken;
+      response.token_type = implicitTokens.tokenType;
+      response.expires_in = implicitTokens.expiresIn;
     }
 
-    this.logger.log(`Implicit Grant tokens created for user: ${user.id}`);
+    if (
+      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
+      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
+    ) {
+      if (!nonce) {
+        throw new BadRequestException(
+          'nonce is required for OpenID Connect implicit flow',
+        );
+      }
+      response.id_token = implicitTokens.idToken;
+    }
+
+    if (state) {
+      response.state = state;
+    }
 
     return response;
   }

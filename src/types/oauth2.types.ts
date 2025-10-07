@@ -3,6 +3,7 @@ export interface OAuth2JwtPayload {
   sub: string | null; // 사용자 ID (client credentials grant에서는 null) - OpenID Connect 표준에 따라 문자열
   client_id: string | null; // 클라이언트 ID (일반 로그인에서는 null)
   scopes: string[]; // 허용된 스코프 목록
+  scope?: string; // 스코프 문자열 (JWT 표준에 따라)
   token_type: 'Bearer'; // 토큰 타입 (항상 Bearer)
   jti?: string; // JWT ID for token revocation
   iat?: number; // 발급 시간
