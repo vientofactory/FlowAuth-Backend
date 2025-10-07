@@ -39,7 +39,7 @@ export class SeedService {
     {
       name: OAUTH2_SCOPES.IDENTIFY,
       description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.IDENTIFY],
-      isDefault: true,
+      isDefault: false,
     },
   ] as const;
 
