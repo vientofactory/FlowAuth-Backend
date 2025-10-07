@@ -137,7 +137,7 @@ export class AuthorizationService {
     } = authorizeDto;
 
     // response_type에 따른 처리
-    if (response_type === 'code') {
+    if (response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE) {
       // Authorization Code Grant
       return this.handleAuthorizationCodeGrant(
         user,
@@ -149,7 +149,9 @@ export class AuthorizationService {
         code_challenge_method,
         nonce,
       );
-    } else if (response_type === 'code id_token') {
+    } else if (
+      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN
+    ) {
       // Hybrid Flow (Authorization Code + ID Token)
       return this.handleHybridGrant(
         user,
@@ -162,8 +164,8 @@ export class AuthorizationService {
         nonce,
       );
     } else if (
-      response_type === 'id_token' ||
-      response_type === 'token id_token'
+      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
+      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
     ) {
       // Implicit Grant (OpenID Connect)
       return this.handleImplicitGrant(
@@ -302,14 +304,17 @@ export class AuthorizationService {
     // Implicit Grant에서는 PKCE를 사용하지 않음 (보안상의 이유로 권장되지 않음)
     // OpenID Connect에서는 nonce를 필수로 요구
 
-    if (responseType === 'id_token' && !requestedScopes.includes('openid')) {
+    if (
+      responseType === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN &&
+      !requestedScopes.includes('openid')
+    ) {
       throw new BadRequestException(
         'response_type=id_token requires openid scope',
       );
     }
 
     if (
-      responseType === 'token id_token' &&
+      responseType === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN &&
       !requestedScopes.includes('openid')
     ) {
       throw new BadRequestException(
@@ -331,10 +336,12 @@ export class AuthorizationService {
     };
 
     // response_type에 따라 반환할 토큰 결정
-    if (responseType === 'id_token') {
+    if (responseType === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN) {
       response.id_token = tokens.idToken;
       response.token_type = tokens.tokenType;
-    } else if (responseType === 'token id_token') {
+    } else if (
+      responseType === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
+    ) {
       response.access_token = tokens.accessToken;
       response.id_token = tokens.idToken;
       response.token_type = tokens.tokenType;

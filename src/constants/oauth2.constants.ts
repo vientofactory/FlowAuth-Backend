@@ -11,6 +11,34 @@ export const OAUTH2_CONSTANTS = {
     'refresh_token',
     'client_credentials',
   ] as const,
+  // Response Type 상수들
+  RESPONSE_TYPES: {
+    CODE: 'code',
+    TOKEN: 'token',
+    ID_TOKEN: 'id_token',
+    CODE_ID_TOKEN: 'code id_token',
+    TOKEN_ID_TOKEN: 'token id_token',
+  } as const,
+  // Token Type 상수들
+  TOKEN_TYPES: {
+    BEARER: 'Bearer',
+  } as const,
+  // OAuth2 Error 상수들
+  ERRORS: {
+    ACCESS_DENIED: 'access_denied',
+    SERVER_ERROR: 'server_error',
+    INVALID_REQUEST: 'invalid_request',
+    UNAUTHORIZED_CLIENT: 'unauthorized_client',
+    UNSUPPORTED_RESPONSE_TYPE: 'unsupported_response_type',
+  } as const,
+  // OAuth2 Error Description 상수들
+  ERROR_DESCRIPTIONS: {
+    ACCESS_DENIED: 'User denied the request',
+    SERVER_ERROR: 'Internal server error',
+    INVALID_REQUEST: 'Invalid request',
+    UNAUTHORIZED_CLIENT: 'Unauthorized client',
+    UNSUPPORTED_RESPONSE_TYPE: 'Unsupported response type',
+  } as const,
   PKCE_METHODS: ['plain', 'S256'] as const,
   CODE_CHALLENGE_S256_LENGTH: 43,
   CODE_CHALLENGE_PLAIN_MIN_LENGTH: 43,
@@ -84,17 +112,22 @@ export const OAUTH2_LOG_MESSAGES = {
 
 // OAuth2 스코프 상수들
 export const OAUTH2_SCOPES = {
-  // 계정 기본 정보 스코프 (Discord 스타일)
-  IDENTIFY: 'identify',
-
-  // 이메일 주소 스코프
+  // OpenID Connect
+  OPENID: 'openid',
+  PROFILE: 'profile',
   EMAIL: 'email',
+
+  // 계정 기본 정보 (레거시 호환성)
+  IDENTIFY: 'identify',
 } as const;
 
 // 스코프 설명
 export const SCOPE_DESCRIPTIONS = {
-  [OAUTH2_SCOPES.IDENTIFY]: '계정의 기본 정보 읽기 (사용자 ID, 이름 등)',
   [OAUTH2_SCOPES.EMAIL]: '사용자 이메일 주소 읽기',
+  [OAUTH2_SCOPES.OPENID]: 'OpenID Connect 인증 및 기본 프로필 정보 읽기',
+  [OAUTH2_SCOPES.PROFILE]:
+    '사용자 프로필 정보 읽기 (이름, 생년월일, 지역, 사진 등)',
+  [OAUTH2_SCOPES.IDENTIFY]: '계정의 기본 정보 읽기 (사용자 ID, 이름 등)',
 } as const;
 
 // 기본 스코프 목록

@@ -15,6 +15,7 @@ import { JwtService } from '@nestjs/jwt';
 import { AuthorizeRequestDto } from '../dto/oauth2.dto';
 import { AuthorizeInfoResponseDto, ClientInfoDto } from '../dto/response.dto';
 import { TOKEN_TYPES } from '../../constants/auth.constants';
+import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
 import { TokenUtils } from '../../utils/permission.util';
 import type { User } from '../../auth/user.entity';
 
@@ -158,16 +159,12 @@ export class AuthorizationController {
   private validateBasicAuthorizeParameters(
     authorizeDto: AuthorizeRequestDto,
   ): void {
-    const supportedResponseTypes = [
-      'code',
-      'token',
-      'id_token',
-      'code id_token',
-      'token id_token',
-    ];
+    const supportedResponseTypes = Object.values(
+      OAUTH2_CONSTANTS.RESPONSE_TYPES,
+    );
     if (
       !authorizeDto.response_type ||
-      !supportedResponseTypes.includes(authorizeDto.response_type)
+      !(supportedResponseTypes as string[]).includes(authorizeDto.response_type)
     ) {
       throw new BadRequestException(
         `Response type must be one of: ${supportedResponseTypes.join(', ')}`,
@@ -265,8 +262,8 @@ OAuth2 Authorization Code Flow의 시작점입니다.
       this.handleAuthorizeError(
         res,
         authorizeDto.redirect_uri,
-        'server_error',
-        'Internal server error',
+        OAUTH2_CONSTANTS.ERRORS.SERVER_ERROR,
+        OAUTH2_CONSTANTS.ERROR_DESCRIPTIONS.SERVER_ERROR,
         authorizeDto.state,
       );
     }
@@ -295,13 +292,13 @@ OAuth2 Authorization Code Flow의 시작점입니다.
 
       // Only allow safe error parameters
       const safeErrors = [
-        'invalid_request',
+        OAUTH2_CONSTANTS.ERRORS.INVALID_REQUEST,
         'unauthorized_client',
-        'access_denied',
-        'unsupported_response_type',
+        OAUTH2_CONSTANTS.ERRORS.ACCESS_DENIED,
+        OAUTH2_CONSTANTS.ERRORS.UNSUPPORTED_RESPONSE_TYPE,
         'invalid_scope',
         'invalid_grant',
-        'server_error',
+        OAUTH2_CONSTANTS.ERRORS.SERVER_ERROR,
         'temporarily_unavailable',
       ];
 
@@ -313,7 +310,10 @@ OAuth2 Authorization Code Flow의 시작점입니다.
         redirectUrl.searchParams.set('error_description', sanitizedDescription);
       } else {
         // Unknown error - use generic message
-        redirectUrl.searchParams.set('error', 'server_error');
+        redirectUrl.searchParams.set(
+          'error',
+          OAUTH2_CONSTANTS.ERRORS.SERVER_ERROR,
+        );
         redirectUrl.searchParams.set('error_description', 'An error occurred');
       }
 

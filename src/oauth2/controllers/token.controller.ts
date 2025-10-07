@@ -17,6 +17,7 @@ import {
   mapExceptionToOAuth2Error,
   createOAuth2Error,
 } from '../utils/oauth2-error.util';
+import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
 
 @Controller('oauth2')
 @ApiTags('OAuth2 Token')
@@ -81,7 +82,10 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
 
       // For unexpected errors
       this.logger.error('Unexpected error in token endpoint', error);
-      return createOAuth2Error('server_error', 'An unexpected error occurred');
+      return createOAuth2Error(
+        OAUTH2_CONSTANTS.ERRORS.SERVER_ERROR,
+        'An unexpected error occurred',
+      );
     }
   }
 

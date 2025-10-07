@@ -19,6 +19,7 @@ import { AuthorizeRequestDto } from '../dto/oauth2.dto';
 import { AuthorizeConsentDto } from '../dto/request.dto';
 import { RedirectUrlResponseDto } from '../../common/dto/response.dto';
 import { TOKEN_TYPES } from '../../constants/auth.constants';
+import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
 import { TokenUtils } from '../../utils/permission.util';
 import type { User } from '../../auth/user.entity';
 
@@ -140,7 +141,7 @@ export class ConsentController {
       const redirectUrl = new URL(authorizeDto.redirect_uri);
 
       // response_type에 따른 리다이렉트 처리
-      if (authorizeDto.response_type === 'code') {
+      if (authorizeDto.response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE) {
         // Authorization Code Grant: query parameter에 code 포함
         if (result.code) {
           redirectUrl.searchParams.set('code', result.code);
@@ -148,7 +149,10 @@ export class ConsentController {
         if (authorizeDto.state) {
           redirectUrl.searchParams.set('state', authorizeDto.state);
         }
-      } else if (authorizeDto.response_type === 'code id_token') {
+      } else if (
+        authorizeDto.response_type ===
+        OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN
+      ) {
         // Hybrid Flow: query parameter에 code, fragment에 id_token 포함
         if (result.code) {
           redirectUrl.searchParams.set('code', result.code);
@@ -166,8 +170,10 @@ export class ConsentController {
         }
         redirectUrl.hash = fragmentParams.toString();
       } else if (
-        authorizeDto.response_type === 'id_token' ||
-        authorizeDto.response_type === 'token id_token'
+        authorizeDto.response_type ===
+          OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
+        authorizeDto.response_type ===
+          OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
       ) {
         // Implicit Grant: fragment에 토큰 포함
         const fragmentParams = new URLSearchParams();
@@ -278,10 +284,13 @@ export class ConsentController {
     if (!consentDto.approved) {
       // User denied consent
       const redirectUrl = new URL(authorizeDto.redirect_uri);
-      redirectUrl.searchParams.set('error', 'access_denied');
+      redirectUrl.searchParams.set(
+        'error',
+        OAUTH2_CONSTANTS.ERRORS.ACCESS_DENIED,
+      );
       redirectUrl.searchParams.set(
         'error_description',
-        'User denied the request',
+        OAUTH2_CONSTANTS.ERROR_DESCRIPTIONS.ACCESS_DENIED,
       );
 
       if (authorizeDto.state) {
@@ -301,7 +310,7 @@ export class ConsentController {
       const redirectUrl = new URL(authorizeDto.redirect_uri);
 
       // response_type에 따른 리다이렉트 URL 구성
-      if (authorizeDto.response_type === 'code') {
+      if (authorizeDto.response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE) {
         // Authorization Code Grant: query parameter에 code 포함
         if (result.code) {
           redirectUrl.searchParams.set('code', result.code);
@@ -309,7 +318,10 @@ export class ConsentController {
         if (authorizeDto.state) {
           redirectUrl.searchParams.set('state', authorizeDto.state);
         }
-      } else if (authorizeDto.response_type === 'code id_token') {
+      } else if (
+        authorizeDto.response_type ===
+        OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN
+      ) {
         // Hybrid Flow: query parameter에 code, fragment에 id_token 포함
         if (result.code) {
           redirectUrl.searchParams.set('code', result.code);
@@ -327,8 +339,10 @@ export class ConsentController {
         }
         redirectUrl.hash = fragmentParams.toString();
       } else if (
-        authorizeDto.response_type === 'id_token' ||
-        authorizeDto.response_type === 'token id_token'
+        authorizeDto.response_type ===
+          OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
+        authorizeDto.response_type ===
+          OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
       ) {
         // Implicit Grant: fragment에 토큰 포함
         const fragmentParams = new URLSearchParams();
