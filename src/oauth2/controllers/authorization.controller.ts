@@ -82,12 +82,30 @@ export class AuthorizationController {
       // Check cookie first
       const userFromCookie = await this.getAuthenticatedUserFromCookie(req);
       if (userFromCookie) {
+        console.log(
+          'OAuth2 Authorization: User authenticated via cookie:',
+          userFromCookie.id,
+        );
         return userFromCookie;
       }
 
       // Check Authorization header
-      return await this.getAuthenticatedUserFromHeader(req);
-    } catch {
+      const userFromHeader = await this.getAuthenticatedUserFromHeader(req);
+      if (userFromHeader) {
+        console.log(
+          'OAuth2 Authorization: User authenticated via header:',
+          userFromHeader.id,
+        );
+        return userFromHeader;
+      }
+
+      console.log('OAuth2 Authorization: No authenticated user found');
+      return null;
+    } catch (error) {
+      console.error(
+        'OAuth2 Authorization: Error getting authenticated user:',
+        error,
+      );
       return null;
     }
   }

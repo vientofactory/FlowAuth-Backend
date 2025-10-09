@@ -167,9 +167,21 @@ export class AuthController {
     status: 401,
     description: '인증되지 않은 요청',
   })
-  logout(@Request() req: ExpressRequest) {
+  async logout(
+    @Request() req: ExpressRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const token = ValidationHelpers.extractBearerToken(req);
-    return this.authService.logout(token);
+    const result = await this.authService.logout(token);
+
+    // 쿠키 제거
+    res.clearCookie('token', {
+      httpOnly: false,
+      secure: this.configService.get('NODE_ENV') === 'production',
+      sameSite: 'lax',
+    });
+
+    return result;
   }
 
   @Post('refresh')
