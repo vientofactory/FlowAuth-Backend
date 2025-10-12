@@ -31,11 +31,7 @@ import {
   ClientCreateResponseDto,
 } from './dto/response.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import {
-  PermissionsGuard,
-  RequirePermissions,
-  RequireAnyPermissions,
-} from './permissions.guard';
+import { PermissionsGuard, RequirePermissions } from './permissions.guard';
 import { User } from './user.entity';
 import type { AuthenticatedRequest } from '../types/auth.types';
 import {
@@ -426,14 +422,25 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'OAuth2 클라이언트 상태 업데이트' })
+  @ApiOperation({
+    summary: 'OAuth2 클라이언트 상태 업데이트 (소유자 또는 관리자)',
+    description: `
+클라이언트의 활성화 상태를 변경합니다.
+
+**권한 모델:**
+- 자신이 생성한 클라이언트만 상태 변경 가능
+- 관리자는 모든 클라이언트 상태 변경 가능
+
+**필요 권한:** write:client
+    `,
+  })
   @ApiResponse({
     status: 200,
     description: '클라이언트 상태가 성공적으로 업데이트됨',
   })
   @ApiResponse({
     status: 404,
-    description: '클라이언트를 찾을 수 없음',
+    description: '클라이언트를 찾을 수 없음 또는 소유권이 없음',
   })
   @ApiResponse({
     status: 403,
@@ -463,14 +470,31 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'OAuth2 클라이언트 정보 업데이트' })
+  @ApiOperation({
+    summary: 'OAuth2 클라이언트 정보 업데이트 (소유자 또는 관리자)',
+    description: `
+클라이언트의 기본 정보를 업데이트합니다.
+
+**권한 모델:**
+- 자신이 생성한 클라이언트만 정보 수정 가능
+- 관리자는 모든 클라이언트 정보 수정 가능
+
+**업데이트 가능 필드:**
+- name: 클라이언트 이름
+- description: 클라이언트 설명
+- redirectUris: 리다이렉트 URI 목록
+- scopes: 사용 가능한 스코프 목록
+
+**필요 권한:** write:client
+    `,
+  })
   @ApiResponse({
     status: 200,
     description: '클라이언트 정보가 성공적으로 업데이트됨',
   })
   @ApiResponse({
     status: 404,
-    description: '클라이언트를 찾을 수 없음',
+    description: '클라이언트를 찾을 수 없음 또는 소유권이 없음',
   })
   @ApiResponse({
     status: 403,
@@ -560,7 +584,23 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'OAuth2 클라이언트 시크릿 재설정' })
+  @ApiOperation({
+    summary: 'OAuth2 클라이언트 시크릿 재설정 (소유자 또는 관리자)',
+    description: `
+클라이언트의 시크릿 키를 새로 생성합니다.
+
+**보안 주의사항:**
+- 기존 시크릿은 즉시 무효화됩니다
+- 새 시크릿을 안전한 곳에 저장하세요
+- 이 작업은 되돌릴 수 없습니다
+
+**권한 모델:**
+- 자신이 생성한 클라이언트만 시크릿 재설정 가능
+- 관리자는 모든 클라이언트 시크릿 재설정 가능
+
+**필요 권한:** write:client
+    `,
+  })
   @ApiResponse({
     status: 200,
     description: '클라이언트 시크릿이 성공적으로 재설정됨',
@@ -586,11 +626,15 @@ export class AuthController {
   })
   @ApiResponse({
     status: 404,
-    description: '클라이언트를 찾을 수 없음',
+    description: '클라이언트를 찾을 수 없음 또는 소유권이 없음',
   })
   @ApiResponse({
     status: 403,
     description: '권한이 없음',
+  })
+  @ApiResponse({
+    status: 429,
+    description: '요청 제한 초과 (보안 작업)',
   })
   async resetClientSecret(
     @Param('id') id: string,
@@ -662,16 +706,18 @@ export class AuthController {
 
   @Delete('clients/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequireAnyPermissions(PERMISSIONS.DELETE_CLIENT, PERMISSIONS.WRITE_CLIENT)
+  @RequirePermissions(PERMISSIONS.DELETE_CLIENT)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'OAuth2 클라이언트 삭제',
+    summary: 'OAuth2 클라이언트 삭제 (관리자 권한)',
     description: `
-OAuth2 클라이언트를 삭제합니다. 
-- 관리자: 모든 클라이언트 삭제 가능
-- 일반 사용자: 자신이 생성한 클라이언트만 삭제 가능
+OAuth2 클라이언트를 삭제합니다.
 
-**필요 권한:** delete:client 또는 write:client (자신의 클라이언트만)
+**권한 모델:**
+- **관리자 (delete:client 권한)**: 모든 클라이언트 삭제 가능
+- **일반 사용자**: /clients/:id/delete-own 엔드포인트 사용 (자신의 클라이언트만)
+
+**필요 권한:** delete:client (관리자 전용)
     `,
   })
   @ApiResponse({
@@ -684,12 +730,53 @@ OAuth2 클라이언트를 삭제합니다.
   })
   @ApiResponse({
     status: 403,
-    description: '권한이 없음 또는 다른 사용자의 클라이언트',
+    description: '관리자 권한이 필요함',
   })
   async deleteClient(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ) {
+    // 관리자 권한으로 모든 클라이언트 삭제 가능
+    await this.authService.deleteClient(
+      ValidationHelpers.parseIdParam(id),
+      req.user.id,
+    );
+    return { message: 'Client deleted successfully' };
+  }
+
+  @Delete('clients/:id/delete-own')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '자신의 OAuth2 클라이언트 삭제',
+    description: `
+현재 사용자가 소유한 OAuth2 클라이언트를 삭제합니다.
+
+**권한 모델:**
+- **일반 사용자 (write:client 권한)**: 자신이 생성한 클라이언트만 삭제 가능
+- 소유권 검증이 자동으로 수행됩니다
+
+**필요 권한:** write:client
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '클라이언트가 성공적으로 삭제됨',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '클라이언트를 찾을 수 없음 또는 소유권이 없음',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
+  })
+  async deleteOwnClient(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    // 일반 사용자는 자신의 클라이언트만 삭제 가능
     await this.authService.deleteClient(
       ValidationHelpers.parseIdParam(id),
       req.user.id,
