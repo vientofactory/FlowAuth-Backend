@@ -5,6 +5,7 @@ import {
   Request,
   Res,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
@@ -18,8 +19,14 @@ import { TOKEN_TYPES } from '../../constants/auth.constants';
 import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
 import { TokenUtils } from '../../utils/permission.util';
 import type { User } from '../../auth/user.entity';
+import {
+  AdvancedRateLimitGuard,
+  RateLimit,
+} from '../../common/guards/advanced-rate-limit.guard';
+import { RATE_LIMIT_CONFIGS } from '../../constants/security.constants';
 
 @Controller('oauth2')
+@UseGuards(AdvancedRateLimitGuard)
 @ApiTags('OAuth2 Authorization')
 export class AuthorizationController {
   constructor(
@@ -82,30 +89,17 @@ export class AuthorizationController {
       // Check cookie first
       const userFromCookie = await this.getAuthenticatedUserFromCookie(req);
       if (userFromCookie) {
-        console.log(
-          'OAuth2 Authorization: User authenticated via cookie:',
-          userFromCookie.id,
-        );
         return userFromCookie;
       }
 
       // Check Authorization header
       const userFromHeader = await this.getAuthenticatedUserFromHeader(req);
       if (userFromHeader) {
-        console.log(
-          'OAuth2 Authorization: User authenticated via header:',
-          userFromHeader.id,
-        );
         return userFromHeader;
       }
 
-      console.log('OAuth2 Authorization: No authenticated user found');
       return null;
-    } catch (error) {
-      console.error(
-        'OAuth2 Authorization: Error getting authenticated user:',
-        error,
-      );
+    } catch {
       return null;
     }
   }
@@ -191,6 +185,7 @@ export class AuthorizationController {
   }
 
   @Get('authorize')
+  @RateLimit(RATE_LIMIT_CONFIGS.OAUTH2_AUTHORIZE)
   @ApiOperation({
     summary: 'OAuth2 인증 시작',
     description: `
@@ -374,6 +369,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
   }
 
   @Get('authorize/info')
+  @RateLimit(RATE_LIMIT_CONFIGS.OAUTH2_AUTHORIZE)
   @ApiOperation({
     summary: '인가 요청 정보 조회',
     description:

@@ -19,7 +19,7 @@ import {
   ApiBody,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Response, Request as ExpressRequest } from 'express';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -42,9 +42,22 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 import { ValidationHelpers } from './validation.helpers';
+import {
+  AdvancedRateLimitGuard,
+  RateLimit,
+} from '../common/guards/advanced-rate-limit.guard';
+import {
+  FieldSizeLimitPipe,
+  DefaultFieldSizeLimitPipe,
+} from '../common/middleware/size-limit.middleware';
+import {
+  RATE_LIMIT_CONFIGS,
+  SIZE_LIMIT_CONFIGS,
+  KEY_GENERATORS,
+} from '../constants/security.constants';
 
 @Controller('auth')
-@UseGuards(ThrottlerGuard)
+@UseGuards(ThrottlerGuard, AdvancedRateLimitGuard)
 @ApiTags('Authentication')
 export class AuthController {
   constructor(
@@ -53,7 +66,8 @@ export class AuthController {
   ) {}
 
   @Post('register')
-  @ApiOperation({ summary: '사용자 등록' })
+  @RateLimit(RATE_LIMIT_CONFIGS.AUTH_REGISTER)
+  @ApiOperation({ summary: '사용자 등록 (보안 강화)' })
   @ApiResponse({
     status: 201,
     description: '사용자가 성공적으로 등록됨',
@@ -62,15 +76,25 @@ export class AuthController {
     status: 400,
     description: '잘못된 요청 데이터',
   })
+  @ApiResponse({
+    status: 429,
+    description: '요청 제한 초과 (1시간에 3회)',
+  })
   @ApiBody({ type: CreateUserDto })
-  async register(@Body() createUserDto: CreateUserDto): Promise<User> {
+  async register(
+    @Body(new FieldSizeLimitPipe(SIZE_LIMIT_CONFIGS.AUTH.maxFieldLength))
+    createUserDto: CreateUserDto,
+  ): Promise<User> {
     const user = await this.authService.register(createUserDto);
     return user;
   }
 
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 1분에 5번 로그인 시도 제한
-  @ApiOperation({ summary: '사용자 로그인' })
+  @RateLimit({
+    ...RATE_LIMIT_CONFIGS.AUTH_LOGIN,
+    keyGenerator: KEY_GENERATORS.IP_USER_AGENT,
+  })
+  @ApiOperation({ summary: '사용자 로그인 (고급 보안)' })
   @ApiResponse({
     status: 200,
     description: '로그인 성공',
@@ -80,9 +104,14 @@ export class AuthController {
     status: 401,
     description: '인증 실패',
   })
+  @ApiResponse({
+    status: 429,
+    description: '로그인 시도 제한 초과 (15분에 5회, 봇 탐지)',
+  })
   @ApiBody({ type: LoginDto })
   async login(
-    @Body() loginDto: LoginDto,
+    @Body(new FieldSizeLimitPipe(SIZE_LIMIT_CONFIGS.AUTH.maxFieldLength))
+    loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponseDto> {
     const result = await this.authService.login(loginDto);
@@ -99,6 +128,7 @@ export class AuthController {
   }
 
   @Post('verify-2fa')
+  @RateLimit(RATE_LIMIT_CONFIGS.AUTH_2FA_VERIFY)
   @ApiOperation({ summary: '2FA 토큰 검증 및 로그인 완료' })
   @ApiResponse({
     status: 200,
@@ -120,7 +150,7 @@ export class AuthController {
     },
   })
   async verifyTwoFactorLogin(
-    @Body() body: { email: string; token: string },
+    @Body(DefaultFieldSizeLimitPipe) body: { email: string; token: string },
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponseDto> {
     const { email, token } = body;
@@ -203,6 +233,7 @@ export class AuthController {
   }
 
   @Post('verify-backup-code')
+  @RateLimit(RATE_LIMIT_CONFIGS.AUTH_BACKUP_CODE)
   @ApiOperation({ summary: '백업 코드 검증 및 로그인 완료' })
   @ApiResponse({
     status: 200,
@@ -224,7 +255,8 @@ export class AuthController {
     },
   })
   async verifyBackupCodeLogin(
-    @Body() body: { email: string; backupCode: string },
+    @Body(DefaultFieldSizeLimitPipe)
+    body: { email: string; backupCode: string },
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponseDto> {
     const { email, backupCode } = body;
@@ -521,6 +553,7 @@ export class AuthController {
   }
 
   @Put('clients/:id/reset-secret')
+  @RateLimit(RATE_LIMIT_CONFIGS.AUTH_PASSWORD_RESET)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
   @ApiBearerAuth()
