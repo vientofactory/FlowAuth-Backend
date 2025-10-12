@@ -24,6 +24,7 @@ export const RequireAnyPermissions = (...permissions: number[]) =>
 
 interface RequestWithUser {
   user?: {
+    id?: number;
     permissions?: number;
   };
 }

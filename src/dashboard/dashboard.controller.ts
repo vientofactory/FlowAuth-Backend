@@ -122,11 +122,16 @@ export class DashboardController {
   }
 
   @Delete('connected-apps/:clientId')
-  @RequirePermissions(PERMISSIONS.WRITE_DASHBOARD)
+  @RequirePermissions(PERMISSIONS.DELETE_TOKEN)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '앱 연결 해제',
-    description: '특정 클라이언트와의 연결을 해제하고 관련 토큰을 취소합니다.',
+    description: `
+특정 클라이언트와의 연결을 해제하고 관련 토큰을 취소합니다.
+사용자는 자신이 연결한 앱의 연결만 해제할 수 있습니다.
+
+**필요 권한:** delete:token
+    `,
   })
   @ApiResponse({
     status: 200,

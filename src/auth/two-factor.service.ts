@@ -17,34 +17,6 @@ import {
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
-// 타입 선언 추가
-interface SpeakeasySecret {
-  base32: string;
-  otpauth_url: string;
-}
-
-interface SpeakeasyTotp {
-  verify(options: {
-    secret: string;
-    encoding: string;
-    token: string;
-    window: number;
-  }): boolean;
-}
-
-interface SpeakeasyTotpModule {
-  totp: SpeakeasyTotp;
-  generateSecret(options: {
-    name: string;
-    issuer: string;
-    length: number;
-  }): SpeakeasySecret;
-}
-
-interface QRCodeModule {
-  toDataURL(text: string): Promise<string>;
-}
-
 @Injectable()
 export class TwoFactorService {
   private readonly logger = new Logger(TwoFactorService.name);
@@ -69,8 +41,7 @@ export class TwoFactorService {
     }
 
     // 새로운 시크릿 생성
-    const speakeasyModule = speakeasy as unknown as SpeakeasyTotpModule;
-    const secret = speakeasyModule.generateSecret({
+    const secret = speakeasy.generateSecret({
       name: `FlowAuth:${user.username}`,
       issuer: 'FlowAuth',
       length: TWO_FACTOR_CONSTANTS.SECRET_LENGTH,
@@ -80,8 +51,7 @@ export class TwoFactorService {
     const backupCodes = this.generateBackupCodes();
 
     // QR 코드 URL 생성
-    const qrCodeModule = QRCode as unknown as QRCodeModule;
-    const qrCodeUrl = await qrCodeModule.toDataURL(secret.otpauth_url);
+    const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
 
     return {
       secret: secret.base32,
@@ -110,8 +80,7 @@ export class TwoFactorService {
     }
 
     // 토큰 검증
-    const speakeasyModule = speakeasy as unknown as SpeakeasyTotpModule;
-    const isValid = speakeasyModule.totp.verify({
+    const isValid = speakeasy.totp.verify({
       secret: secret,
       encoding: 'base32',
       token: token,
@@ -154,8 +123,7 @@ export class TwoFactorService {
       );
     }
 
-    const speakeasyModule = speakeasy as unknown as SpeakeasyTotpModule;
-    return speakeasyModule.totp.verify({
+    return speakeasy.totp.verify({
       secret: user.twoFactorSecret,
       encoding: 'base32',
       token: token,

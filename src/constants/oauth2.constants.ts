@@ -2,6 +2,7 @@
 export const OAUTH2_CONSTANTS = {
   SUPPORTED_RESPONSE_TYPES: [
     'code',
+    'token',
     'id_token',
     'code id_token',
     'token id_token',
@@ -11,6 +12,64 @@ export const OAUTH2_CONSTANTS = {
     'refresh_token',
     'client_credentials',
   ] as const,
+  // Response Type 상수들
+  RESPONSE_TYPES: {
+    CODE: 'code',
+    TOKEN: 'token',
+    ID_TOKEN: 'id_token',
+    CODE_ID_TOKEN: 'code id_token',
+    TOKEN_ID_TOKEN: 'token id_token',
+  } as const,
+  // Token Type 상수들
+  TOKEN_TYPES: {
+    BEARER: 'Bearer',
+  } as const,
+  // OAuth2 Error 상수들 (RFC 6749 표준)
+  ERRORS: {
+    // Authorization endpoint errors
+    INVALID_REQUEST: 'invalid_request',
+    UNAUTHORIZED_CLIENT: 'unauthorized_client',
+    ACCESS_DENIED: 'access_denied',
+    UNSUPPORTED_RESPONSE_TYPE: 'unsupported_response_type',
+    INVALID_SCOPE: 'invalid_scope',
+    SERVER_ERROR: 'server_error',
+    TEMPORARILY_UNAVAILABLE: 'temporarily_unavailable',
+
+    // Token endpoint errors
+    INVALID_CLIENT: 'invalid_client',
+    INVALID_GRANT: 'invalid_grant',
+    UNSUPPORTED_GRANT_TYPE: 'unsupported_grant_type',
+
+    // Additional security errors
+    INVALID_TOKEN: 'invalid_token',
+    INSUFFICIENT_SCOPE: 'insufficient_scope',
+  } as const,
+  // OAuth2 Error Description 상수들
+  ERROR_DESCRIPTIONS: {
+    INVALID_REQUEST:
+      'The request is missing a required parameter, includes an invalid parameter value, includes a parameter more than once, or is otherwise malformed.',
+    UNAUTHORIZED_CLIENT:
+      'The client is not authorized to request an authorization code using this method.',
+    ACCESS_DENIED:
+      'The resource owner or authorization server denied the request.',
+    UNSUPPORTED_RESPONSE_TYPE:
+      'The authorization server does not support obtaining an authorization code using this method.',
+    INVALID_SCOPE: 'The requested scope is invalid, unknown, or malformed.',
+    SERVER_ERROR:
+      'The authorization server encountered an unexpected condition that prevented it from fulfilling the request.',
+    TEMPORARILY_UNAVAILABLE:
+      'The authorization server is currently unable to handle the request due to a temporary overloading or maintenance of the server.',
+    INVALID_CLIENT:
+      'Client authentication failed (e.g., unknown client, no client authentication included, or unsupported authentication method).',
+    INVALID_GRANT:
+      'The provided authorization grant (e.g., authorization code, resource owner credentials) or refresh token is invalid, expired, revoked, does not match the redirection URI used in the authorization request, or was issued to another client.',
+    UNSUPPORTED_GRANT_TYPE:
+      'The authorization grant type is not supported by the authorization server.',
+    INVALID_TOKEN:
+      'The access token provided is expired, revoked, malformed, or invalid for other reasons.',
+    INSUFFICIENT_SCOPE:
+      'The request requires higher privileges than provided by the access token.',
+  } as const,
   PKCE_METHODS: ['plain', 'S256'] as const,
   CODE_CHALLENGE_S256_LENGTH: 43,
   CODE_CHALLENGE_PLAIN_MIN_LENGTH: 43,
@@ -84,17 +143,22 @@ export const OAUTH2_LOG_MESSAGES = {
 
 // OAuth2 스코프 상수들
 export const OAUTH2_SCOPES = {
-  // 계정 기본 정보 스코프 (Discord 스타일)
-  IDENTIFY: 'identify',
-
-  // 이메일 주소 스코프
+  // OpenID Connect
+  OPENID: 'openid',
+  PROFILE: 'profile',
   EMAIL: 'email',
+
+  // 계정 기본 정보 (레거시 호환성)
+  IDENTIFY: 'identify',
 } as const;
 
 // 스코프 설명
 export const SCOPE_DESCRIPTIONS = {
-  [OAUTH2_SCOPES.IDENTIFY]: '계정의 기본 정보 읽기 (사용자 ID, 이름 등)',
   [OAUTH2_SCOPES.EMAIL]: '사용자 이메일 주소 읽기',
+  [OAUTH2_SCOPES.OPENID]: 'OpenID Connect 인증 및 기본 프로필 정보 읽기',
+  [OAUTH2_SCOPES.PROFILE]:
+    '사용자 프로필 정보 읽기 (이름, 생년월일, 지역, 사진 등)',
+  [OAUTH2_SCOPES.IDENTIFY]: '계정의 기본 정보 읽기 (사용자 ID, 이름 등)',
 } as const;
 
 // 기본 스코프 목록

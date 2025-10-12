@@ -117,6 +117,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           'username',
           'firstName',
           'lastName',
+          'userType',
           'permissions',
           'avatar', // Avatar 컬럼이 존재하므로 다시 추가
         ],

@@ -4,8 +4,8 @@ import {
   Query,
   Request,
   Res,
-  Logger,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
@@ -13,28 +13,27 @@ import type { Request as ExpressRequest, Response } from 'express';
 import { OAuth2Service } from '../oauth2.service';
 import { AuthorizationService } from '../services/authorization.service';
 import { JwtService } from '@nestjs/jwt';
-import { TokenService } from '../token.service';
-import { AuthorizationCodeService } from '../authorization-code.service';
-import { ScopeService } from '../scope.service';
 import { AuthorizeRequestDto } from '../dto/oauth2.dto';
 import { AuthorizeInfoResponseDto, ClientInfoDto } from '../dto/response.dto';
 import { TOKEN_TYPES } from '../../constants/auth.constants';
+import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
 import { TokenUtils } from '../../utils/permission.util';
 import type { User } from '../../auth/user.entity';
+import {
+  AdvancedRateLimitGuard,
+  RateLimit,
+} from '../../common/guards/advanced-rate-limit.guard';
+import { RATE_LIMIT_CONFIGS } from '../../constants/security.constants';
 
 @Controller('oauth2')
+@UseGuards(AdvancedRateLimitGuard)
 @ApiTags('OAuth2 Authorization')
 export class AuthorizationController {
-  private readonly logger = new Logger(AuthorizationController.name);
-
   constructor(
     private readonly oauth2Service: OAuth2Service,
     private readonly authorizationService: AuthorizationService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly tokenService: TokenService,
-    private readonly authorizationCodeService: AuthorizationCodeService,
-    private readonly scopeService: ScopeService,
   ) {}
 
   private async getAuthenticatedUserFromCookie(
@@ -94,7 +93,12 @@ export class AuthorizationController {
       }
 
       // Check Authorization header
-      return await this.getAuthenticatedUserFromHeader(req);
+      const userFromHeader = await this.getAuthenticatedUserFromHeader(req);
+      if (userFromHeader) {
+        return userFromHeader;
+      }
+
+      return null;
     } catch {
       return null;
     }
@@ -167,16 +171,12 @@ export class AuthorizationController {
   private validateBasicAuthorizeParameters(
     authorizeDto: AuthorizeRequestDto,
   ): void {
-    const supportedResponseTypes = [
-      'code',
-      'token',
-      'id_token',
-      'code id_token',
-      'token id_token',
-    ];
+    const supportedResponseTypes = Object.values(
+      OAUTH2_CONSTANTS.RESPONSE_TYPES,
+    );
     if (
       !authorizeDto.response_type ||
-      !supportedResponseTypes.includes(authorizeDto.response_type)
+      !(supportedResponseTypes as string[]).includes(authorizeDto.response_type)
     ) {
       throw new BadRequestException(
         `Response type must be one of: ${supportedResponseTypes.join(', ')}`,
@@ -185,6 +185,7 @@ export class AuthorizationController {
   }
 
   @Get('authorize')
+  @RateLimit(RATE_LIMIT_CONFIGS.OAUTH2_AUTHORIZE)
   @ApiOperation({
     summary: 'OAuth2 인증 시작',
     description: `
@@ -274,8 +275,8 @@ OAuth2 Authorization Code Flow의 시작점입니다.
       this.handleAuthorizeError(
         res,
         authorizeDto.redirect_uri,
-        'server_error',
-        'Internal server error',
+        OAUTH2_CONSTANTS.ERRORS.SERVER_ERROR,
+        OAUTH2_CONSTANTS.ERROR_DESCRIPTIONS.SERVER_ERROR,
         authorizeDto.state,
       );
     }
@@ -304,13 +305,13 @@ OAuth2 Authorization Code Flow의 시작점입니다.
 
       // Only allow safe error parameters
       const safeErrors = [
-        'invalid_request',
+        OAUTH2_CONSTANTS.ERRORS.INVALID_REQUEST,
         'unauthorized_client',
-        'access_denied',
-        'unsupported_response_type',
+        OAUTH2_CONSTANTS.ERRORS.ACCESS_DENIED,
+        OAUTH2_CONSTANTS.ERRORS.UNSUPPORTED_RESPONSE_TYPE,
         'invalid_scope',
         'invalid_grant',
-        'server_error',
+        OAUTH2_CONSTANTS.ERRORS.SERVER_ERROR,
         'temporarily_unavailable',
       ];
 
@@ -322,7 +323,10 @@ OAuth2 Authorization Code Flow의 시작점입니다.
         redirectUrl.searchParams.set('error_description', sanitizedDescription);
       } else {
         // Unknown error - use generic message
-        redirectUrl.searchParams.set('error', 'server_error');
+        redirectUrl.searchParams.set(
+          'error',
+          OAUTH2_CONSTANTS.ERRORS.SERVER_ERROR,
+        );
         redirectUrl.searchParams.set('error_description', 'An error occurred');
       }
 
@@ -365,6 +369,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
   }
 
   @Get('authorize/info')
+  @RateLimit(RATE_LIMIT_CONFIGS.OAUTH2_AUTHORIZE)
   @ApiOperation({
     summary: '인가 요청 정보 조회',
     description:

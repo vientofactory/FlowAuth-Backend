@@ -71,6 +71,17 @@ export class ProfileController {
         firstName: { type: 'string', example: 'John' },
         lastName: { type: 'string', example: 'Doe' },
         username: { type: 'string', example: 'john_doe' },
+        bio: {
+          type: 'string',
+          example: 'Hello, World!',
+          maxLength: 500,
+        },
+        website: {
+          type: 'string',
+          example: 'https://example.com',
+          maxLength: 255,
+        },
+        location: { type: 'string', example: '서울, 대한민국', maxLength: 100 },
       },
     },
   })
@@ -81,6 +92,9 @@ export class ProfileController {
       firstName: string;
       lastName: string;
       username: string;
+      bio: string;
+      website: string;
+      location: string;
     }>,
   ): Promise<User> {
     return this.profileService.updateProfile(req.user.id, updateData);

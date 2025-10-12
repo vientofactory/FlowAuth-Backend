@@ -19,13 +19,17 @@ import {
   ApiBody,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Response, Request as ExpressRequest } from 'express';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { CreateClientDto } from './dto/create-client.dto';
-import { TokenDto } from './dto/response.dto';
+import {
+  TokenDto,
+  LoginResponseDto,
+  ClientCreateResponseDto,
+} from './dto/response.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard, RequirePermissions } from './permissions.guard';
 import { User } from './user.entity';
@@ -35,11 +39,24 @@ import {
   TOKEN_TYPES,
   type TokenType,
 } from '../constants/auth.constants';
-import { LoginResponseDto, ClientCreateResponseDto } from './dto/response.dto';
 import { ConfigService } from '@nestjs/config';
 
+import { ValidationHelpers } from './validation.helpers';
+import {
+  AdvancedRateLimitGuard,
+  RateLimit,
+} from '../common/guards/advanced-rate-limit.guard';
+import {
+  DefaultFieldSizeLimitPipe,
+  RecaptchaFieldSizeLimitPipe,
+} from '../common/middleware/size-limit.middleware';
+import {
+  RATE_LIMIT_CONFIGS,
+  KEY_GENERATORS,
+} from '../constants/security.constants';
+
 @Controller('auth')
-@UseGuards(ThrottlerGuard)
+@UseGuards(ThrottlerGuard, AdvancedRateLimitGuard)
 @ApiTags('Authentication')
 export class AuthController {
   constructor(
@@ -48,7 +65,8 @@ export class AuthController {
   ) {}
 
   @Post('register')
-  @ApiOperation({ summary: '사용자 등록' })
+  @RateLimit(RATE_LIMIT_CONFIGS.AUTH_REGISTER)
+  @ApiOperation({ summary: '사용자 등록 (보안 강화)' })
   @ApiResponse({
     status: 201,
     description: '사용자가 성공적으로 등록됨',
@@ -57,15 +75,25 @@ export class AuthController {
     status: 400,
     description: '잘못된 요청 데이터',
   })
+  @ApiResponse({
+    status: 429,
+    description: '요청 제한 초과 (1시간에 3회)',
+  })
   @ApiBody({ type: CreateUserDto })
-  async register(@Body() createUserDto: CreateUserDto): Promise<User> {
+  async register(
+    @Body(RecaptchaFieldSizeLimitPipe)
+    createUserDto: CreateUserDto,
+  ): Promise<User> {
     const user = await this.authService.register(createUserDto);
     return user;
   }
 
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 1분에 5번 로그인 시도 제한
-  @ApiOperation({ summary: '사용자 로그인' })
+  @RateLimit({
+    ...RATE_LIMIT_CONFIGS.AUTH_LOGIN,
+    keyGenerator: KEY_GENERATORS.IP_USER_AGENT,
+  })
+  @ApiOperation({ summary: '사용자 로그인 (고급 보안)' })
   @ApiResponse({
     status: 200,
     description: '로그인 성공',
@@ -75,9 +103,14 @@ export class AuthController {
     status: 401,
     description: '인증 실패',
   })
+  @ApiResponse({
+    status: 429,
+    description: '로그인 시도 제한 초과 (15분에 5회, 봇 탐지)',
+  })
   @ApiBody({ type: LoginDto })
   async login(
-    @Body() loginDto: LoginDto,
+    @Body(RecaptchaFieldSizeLimitPipe)
+    loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponseDto> {
     const result = await this.authService.login(loginDto);
@@ -94,6 +127,7 @@ export class AuthController {
   }
 
   @Post('verify-2fa')
+  @RateLimit(RATE_LIMIT_CONFIGS.AUTH_2FA_VERIFY)
   @ApiOperation({ summary: '2FA 토큰 검증 및 로그인 완료' })
   @ApiResponse({
     status: 200,
@@ -115,16 +149,29 @@ export class AuthController {
     },
   })
   async verifyTwoFactorLogin(
-    @Body() body: { email: string; token: string },
+    @Body(DefaultFieldSizeLimitPipe) body: { email: string; token: string },
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponseDto> {
     const { email, token } = body;
 
-    if (!email || !token) {
-      throw new BadRequestException('이메일과 2FA 토큰이 필요합니다.');
+    // 입력 검증 강화
+    if (!email || typeof email !== 'string') {
+      throw new BadRequestException('이메일이 필요합니다.');
+    }
+    if (!token || typeof token !== 'string') {
+      throw new BadRequestException('2FA 토큰이 필요합니다.');
     }
 
-    const result = await this.authService.verifyTwoFactorToken(email, token);
+    // 이메일 형식 검증
+    ValidationHelpers.validateEmail(email.trim());
+
+    // 2FA 토큰 형식 검증
+    ValidationHelpers.validateTwoFactorToken(token.trim());
+
+    const result = await this.authService.verifyTwoFactorToken(
+      email.trim(),
+      token.trim(),
+    );
 
     // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {
@@ -149,14 +196,21 @@ export class AuthController {
     status: 401,
     description: '인증되지 않은 요청',
   })
-  logout(@Request() req: ExpressRequest) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new BadRequestException('토큰이 필요합니다.');
-    }
+  logout(
+    @Request() req: ExpressRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const token = ValidationHelpers.extractBearerToken(req);
+    const result = this.authService.logout(token);
 
-    const token = authHeader.substring(7);
-    return this.authService.logout(token);
+    // 쿠키 제거
+    res.clearCookie('token', {
+      httpOnly: false,
+      secure: this.configService.get('NODE_ENV') === 'production',
+      sameSite: 'lax',
+    });
+
+    return result;
   }
 
   @Post('refresh')
@@ -173,16 +227,12 @@ export class AuthController {
     description: '유효하지 않은 토큰',
   })
   refresh(@Request() req: ExpressRequest) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new BadRequestException('토큰이 필요합니다.');
-    }
-
-    const token = authHeader.substring(7);
+    const token = ValidationHelpers.extractBearerToken(req);
     return this.authService.refreshToken(token);
   }
 
   @Post('verify-backup-code')
+  @RateLimit(RATE_LIMIT_CONFIGS.AUTH_BACKUP_CODE)
   @ApiOperation({ summary: '백업 코드 검증 및 로그인 완료' })
   @ApiResponse({
     status: 200,
@@ -204,16 +254,30 @@ export class AuthController {
     },
   })
   async verifyBackupCodeLogin(
-    @Body() body: { email: string; backupCode: string },
+    @Body(DefaultFieldSizeLimitPipe)
+    body: { email: string; backupCode: string },
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponseDto> {
     const { email, backupCode } = body;
 
-    if (!email || !backupCode) {
-      throw new BadRequestException('이메일과 백업 코드가 필요합니다.');
+    // 입력 검증 강화
+    if (!email || typeof email !== 'string') {
+      throw new BadRequestException('이메일이 필요합니다.');
+    }
+    if (!backupCode || typeof backupCode !== 'string') {
+      throw new BadRequestException('백업 코드가 필요합니다.');
     }
 
-    const result = await this.authService.verifyBackupCode(email, backupCode);
+    // 이메일 형식 검증
+    ValidationHelpers.validateEmail(email.trim());
+
+    // 백업 코드 형식 검증
+    ValidationHelpers.validateBackupCode(backupCode.trim());
+
+    const result = await this.authService.verifyBackupCode(
+      email.trim(),
+      backupCode.trim(),
+    );
 
     // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {
@@ -254,7 +318,7 @@ export class AuthController {
   })
   @ApiBody({ type: CreateClientDto })
   async createClient(
-    @Body() createClientDto: CreateClientDto,
+    @Body(RecaptchaFieldSizeLimitPipe) createClientDto: CreateClientDto,
     @Request() req: AuthenticatedRequest,
   ): Promise<ClientCreateResponseDto> {
     const client = await this.authService.createClient(
@@ -292,7 +356,8 @@ export class AuthController {
     status: 403,
     description: '권한이 없음',
   })
-  async getClients(@Request() req: AuthenticatedRequest) {
+  async getClients(@Request() req: any) {
+    ValidationHelpers.validateAuthenticatedRequest(req);
     const clients = await this.authService.getClients(req.user.id);
     return clients.map((client) => ({
       id: client.id,
@@ -333,7 +398,7 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
   ) {
     const client = await this.authService.getClientById(
-      parseInt(id),
+      ValidationHelpers.parseIdParam(id),
       req.user.id,
     );
     return {
@@ -357,14 +422,25 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'OAuth2 클라이언트 상태 업데이트' })
+  @ApiOperation({
+    summary: 'OAuth2 클라이언트 상태 업데이트 (소유자 또는 관리자)',
+    description: `
+클라이언트의 활성화 상태를 변경합니다.
+
+**권한 모델:**
+- 자신이 생성한 클라이언트만 상태 변경 가능
+- 관리자는 모든 클라이언트 상태 변경 가능
+
+**필요 권한:** write:client
+    `,
+  })
   @ApiResponse({
     status: 200,
     description: '클라이언트 상태가 성공적으로 업데이트됨',
   })
   @ApiResponse({
     status: 404,
-    description: '클라이언트를 찾을 수 없음',
+    description: '클라이언트를 찾을 수 없음 또는 소유권이 없음',
   })
   @ApiResponse({
     status: 403,
@@ -384,7 +460,7 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.authService.updateClientStatus(
-      parseInt(id),
+      ValidationHelpers.parseIdParam(id),
       body.isActive,
       req.user.id,
     );
@@ -394,14 +470,31 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'OAuth2 클라이언트 정보 업데이트' })
+  @ApiOperation({
+    summary: 'OAuth2 클라이언트 정보 업데이트 (소유자 또는 관리자)',
+    description: `
+클라이언트의 기본 정보를 업데이트합니다.
+
+**권한 모델:**
+- 자신이 생성한 클라이언트만 정보 수정 가능
+- 관리자는 모든 클라이언트 정보 수정 가능
+
+**업데이트 가능 필드:**
+- name: 클라이언트 이름
+- description: 클라이언트 설명
+- redirectUris: 리다이렉트 URI 목록
+- scopes: 사용 가능한 스코프 목록
+
+**필요 권한:** write:client
+    `,
+  })
   @ApiResponse({
     status: 200,
     description: '클라이언트 정보가 성공적으로 업데이트됨',
   })
   @ApiResponse({
     status: 404,
-    description: '클라이언트를 찾을 수 없음',
+    description: '클라이언트를 찾을 수 없음 또는 소유권이 없음',
   })
   @ApiResponse({
     status: 403,
@@ -431,14 +524,83 @@ export class AuthController {
     @Body() updateData: Partial<CreateClientDto>,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.authService.updateClient(parseInt(id), updateData, req.user.id);
+    // 요청 본문 검증 강화
+    if (!updateData || typeof updateData !== 'object') {
+      throw new BadRequestException('업데이트 데이터가 필요합니다.');
+    }
+
+    // redirectUris 검증
+    if (updateData.redirectUris !== undefined) {
+      if (!Array.isArray(updateData.redirectUris)) {
+        throw new BadRequestException('redirectUris는 배열이어야 합니다.');
+      }
+      for (const uri of updateData.redirectUris) {
+        if (typeof uri !== 'string' || !uri.trim()) {
+          throw new BadRequestException(
+            'redirectUris의 각 항목은 비어있지 않은 문자열이어야 합니다.',
+          );
+        }
+        // 간단한 URL 형식 검증
+        try {
+          new URL(uri.trim());
+        } catch {
+          throw new BadRequestException(`잘못된 URL 형식: ${uri}`);
+        }
+      }
+    }
+
+    // scopes 검증
+    if (updateData.scopes !== undefined) {
+      if (!Array.isArray(updateData.scopes)) {
+        throw new BadRequestException('scopes는 배열이어야 합니다.');
+      }
+      for (const scope of updateData.scopes) {
+        if (typeof scope !== 'string' || !scope.trim()) {
+          throw new BadRequestException(
+            'scopes의 각 항목은 비어있지 않은 문자열이어야 합니다.',
+          );
+        }
+      }
+    }
+
+    // name 검증
+    if (updateData.name !== undefined) {
+      if (typeof updateData.name !== 'string' || !updateData.name.trim()) {
+        throw new BadRequestException(
+          'name은 비어있지 않은 문자열이어야 합니다.',
+        );
+      }
+    }
+
+    return this.authService.updateClient(
+      ValidationHelpers.parseIdParam(id),
+      updateData,
+      req.user.id,
+    );
   }
 
   @Put('clients/:id/reset-secret')
+  @RateLimit(RATE_LIMIT_CONFIGS.AUTH_PASSWORD_RESET)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'OAuth2 클라이언트 시크릿 재설정' })
+  @ApiOperation({
+    summary: 'OAuth2 클라이언트 시크릿 재설정 (소유자 또는 관리자)',
+    description: `
+클라이언트의 시크릿 키를 새로 생성합니다.
+
+**보안 주의사항:**
+- 기존 시크릿은 즉시 무효화됩니다
+- 새 시크릿을 안전한 곳에 저장하세요
+- 이 작업은 되돌릴 수 없습니다
+
+**권한 모델:**
+- 자신이 생성한 클라이언트만 시크릿 재설정 가능
+- 관리자는 모든 클라이언트 시크릿 재설정 가능
+
+**필요 권한:** write:client
+    `,
+  })
   @ApiResponse({
     status: 200,
     description: '클라이언트 시크릿이 성공적으로 재설정됨',
@@ -464,18 +626,22 @@ export class AuthController {
   })
   @ApiResponse({
     status: 404,
-    description: '클라이언트를 찾을 수 없음',
+    description: '클라이언트를 찾을 수 없음 또는 소유권이 없음',
   })
   @ApiResponse({
     status: 403,
     description: '권한이 없음',
+  })
+  @ApiResponse({
+    status: 429,
+    description: '요청 제한 초과 (보안 작업)',
   })
   async resetClientSecret(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ) {
     const client = await this.authService.resetClientSecret(
-      parseInt(id),
+      ValidationHelpers.parseIdParam(id),
       req.user.id,
     );
     return {
@@ -532,14 +698,28 @@ export class AuthController {
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.authService.removeClientLogo(parseInt(id), req.user.id);
+    return this.authService.removeClientLogo(
+      ValidationHelpers.parseIdParam(id),
+      req.user.id,
+    );
   }
 
   @Delete('clients/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.DELETE_CLIENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'OAuth2 클라이언트 삭제' })
+  @ApiOperation({
+    summary: 'OAuth2 클라이언트 삭제 (관리자 권한)',
+    description: `
+OAuth2 클라이언트를 삭제합니다.
+
+**권한 모델:**
+- **관리자 (delete:client 권한)**: 모든 클라이언트 삭제 가능
+- **일반 사용자**: /clients/:id/delete-own 엔드포인트 사용 (자신의 클라이언트만)
+
+**필요 권한:** delete:client (관리자 전용)
+    `,
+  })
   @ApiResponse({
     status: 200,
     description: '클라이언트가 성공적으로 삭제됨',
@@ -550,10 +730,57 @@ export class AuthController {
   })
   @ApiResponse({
     status: 403,
+    description: '관리자 권한이 필요함',
+  })
+  async deleteClient(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    // 관리자 권한으로 모든 클라이언트 삭제 가능
+    await this.authService.deleteClient(
+      ValidationHelpers.parseIdParam(id),
+      req.user.id,
+    );
+    return { message: 'Client deleted successfully' };
+  }
+
+  @Delete('clients/:id/delete-own')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '자신의 OAuth2 클라이언트 삭제',
+    description: `
+현재 사용자가 소유한 OAuth2 클라이언트를 삭제합니다.
+
+**권한 모델:**
+- **일반 사용자 (write:client 권한)**: 자신이 생성한 클라이언트만 삭제 가능
+- 소유권 검증이 자동으로 수행됩니다
+
+**필요 권한:** write:client
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '클라이언트가 성공적으로 삭제됨',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '클라이언트를 찾을 수 없음 또는 소유권이 없음',
+  })
+  @ApiResponse({
+    status: 403,
     description: '권한이 없음',
   })
-  async deleteClient(@Param('id') id: string) {
-    await this.authService.deleteClient(parseInt(id));
+  async deleteOwnClient(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    // 일반 사용자는 자신의 클라이언트만 삭제 가능
+    await this.authService.deleteClient(
+      ValidationHelpers.parseIdParam(id),
+      req.user.id,
+    );
     return { message: 'Client deleted successfully' };
   }
 
@@ -592,7 +819,10 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
     @Param('id') tokenId: string,
   ) {
-    await this.authService.revokeToken(req.user.id, parseInt(tokenId));
+    await this.authService.revokeToken(
+      req.user.id,
+      ValidationHelpers.parseIdParam(tokenId),
+    );
     return { message: 'Token revoked successfully' };
   }
 
@@ -635,15 +865,25 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
     @Param('tokenType') tokenType: string,
   ) {
-    // 토큰 타입 검증
-    if (!Object.values(TOKEN_TYPES).includes(tokenType as any)) {
-      throw new BadRequestException('Invalid token type');
+    // 토큰 타입 검증 강화
+    if (!tokenType || typeof tokenType !== 'string') {
+      throw new BadRequestException('토큰 타입이 필요합니다.');
+    }
+
+    const trimmedTokenType = tokenType.trim();
+    if (!trimmedTokenType) {
+      throw new BadRequestException('토큰 타입이 비어있을 수 없습니다.');
+    }
+
+    // 허용된 토큰 타입인지 검증
+    if (!Object.values(TOKEN_TYPES).includes(trimmedTokenType as TokenType)) {
+      throw new BadRequestException('잘못된 토큰 타입입니다.');
     }
 
     await this.authService.revokeAllTokensForType(
       req.user.id,
-      tokenType as TokenType,
+      trimmedTokenType as TokenType,
     );
-    return { message: `${tokenType} tokens revoked successfully` };
+    return { message: `${trimmedTokenType} tokens revoked successfully` };
   }
 }

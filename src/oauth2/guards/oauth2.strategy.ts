@@ -1,9 +1,16 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  Logger,
+  Inject,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Strategy, ExtractJwt, StrategyOptions } from 'passport-jwt';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { Token } from '../token.entity';
 import { AUTH_ERROR_MESSAGES } from '../../constants/auth.constants';
 import { OAuth2JwtPayload } from '../../types/oauth2.types';
@@ -11,10 +18,14 @@ import { OAuth2JwtPayload } from '../../types/oauth2.types';
 @Injectable()
 export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
   private readonly logger = new Logger(OAuth2Strategy.name);
+  private readonly TOKEN_CACHE_TTL = 300; // 5 minutes cache for token validation
+
   constructor(
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
     private configService: ConfigService,
+    @Inject(CACHE_MANAGER)
+    private cacheManager: Cache,
   ) {
     const jwtSecret =
       configService.get<string>('JWT_SECRET') || 'your-secret-key';
@@ -30,18 +41,8 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
 
   async validate(payload: OAuth2JwtPayload): Promise<OAuth2JwtPayload> {
     try {
-      this.logger.debug('Validating OAuth2 token payload', {
-        sub: payload.sub,
-        client_id: payload.client_id,
-        scopes: payload.scopes,
-        token_type: payload.token_type,
-        hasJti: !!payload.jti,
-      });
-
       // If jti is present, verify token exists in database (for revocation check)
       if (payload.jti) {
-        this.logger.debug('Checking jti in database', { jti: payload.jti });
-
         // Validate that jti is a valid numeric string
         if (typeof payload.jti !== 'string' || isNaN(Number(payload.jti))) {
           this.logger.warn('Invalid jti format in OAuth2 payload', {
@@ -51,10 +52,30 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
         }
 
         const tokenId = parseInt(payload.jti, 10);
-        const token = await this.tokenRepository.findOne({
-          where: { id: tokenId },
-          relations: ['client'],
-        });
+        const cacheKey = `oauth2_token:${tokenId}`;
+
+        // Try to get token from cache first
+        let token = await this.cacheManager.get<Token>(cacheKey);
+
+        if (!token) {
+          // Cache miss - fetch from database
+          const dbToken = await this.tokenRepository.findOne({
+            where: { id: tokenId },
+            relations: ['client'],
+          });
+
+          if (dbToken) {
+            token = dbToken;
+            // Cache the token if found and valid
+            if (!token.isRevoked && token.expiresAt > new Date()) {
+              await this.cacheManager.set(
+                cacheKey,
+                token,
+                this.TOKEN_CACHE_TTL,
+              );
+            }
+          }
+        }
 
         if (!token) {
           this.logger.warn('OAuth2 token not found in database', {
@@ -90,10 +111,23 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
-        this.logger.debug('JTI validation passed', { jti: payload.jti });
+        // Add scopes from token to payload for scope validation
+        payload.scopes = token.scopes || [];
+      } else {
+        // For implicit grant tokens without jti, extract scopes from JWT payload
+        // Implicit grant tokens are not stored in database but have scopes in JWT
+        if (payload.scope && typeof payload.scope === 'string') {
+          payload.scopes = payload.scope.split(' ').filter((s) => s.length > 0);
+        } else if (!payload.scopes || payload.scopes.length === 0) {
+          this.logger.warn('OAuth2 token without jti has no scopes', {
+            clientId: payload.client_id,
+            sub: payload.sub,
+          });
+          // Default to basic scopes if none found
+          payload.scopes = [];
+        }
       }
 
-      this.logger.debug('OAuth2 token validation passed');
       return payload;
     } catch (error: unknown) {
       if (error instanceof UnauthorizedException) {

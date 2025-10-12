@@ -35,7 +35,15 @@ export class User {
   @Column({ type: 'tinyint', default: 0 })
   isEmailVerified: boolean;
 
-  @Column({ type: 'bigint', default: 1 }) // 기본적으로 READ_USER 권한
+  @Column({
+    type: 'bigint',
+    default: 1,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string | number) =>
+        typeof value === 'string' ? parseInt(value, 10) : value,
+    },
+  }) // 기본적으로 READ_USER 권한
   permissions: number;
 
   @Column({ type: 'datetime', nullable: true })
@@ -49,23 +57,23 @@ export class User {
   @Column({ type: 'tinyint', default: 0 })
   isTwoFactorEnabled: boolean;
 
-  @Column({ type: 'json', nullable: true })
+  @Column({ type: 'text', nullable: true })
   @Exclude()
   backupCodes?: string[];
 
   @Column({ type: 'tinyint', default: 1 })
   isActive: boolean;
 
-  @Column({ type: 'varchar', length: 500, nullable: true })
+  @Column({ type: 'text', nullable: true })
   avatar?: string | null;
 
   @Column({ type: 'text', nullable: true })
   bio?: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ type: 'text', nullable: true })
   website?: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ type: 'text', nullable: true })
   location?: string;
 
   @CreateDateColumn()

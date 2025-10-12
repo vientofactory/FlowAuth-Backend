@@ -104,4 +104,33 @@ export class StructuredLogger implements LoggerService {
       timestamp: new Date().toISOString(),
     });
   }
+
+  logSecurity(
+    event: string,
+    details: Record<string, any>,
+    context?: string,
+  ): void {
+    this.logger.warn('SECURITY_ALERT', {
+      event,
+      severity: 'HIGH',
+      ...details,
+      context,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  logTokenRotation(
+    tokenFamily: string,
+    generation: number,
+    clientId: string,
+    userId?: string,
+  ): void {
+    this.logger.info('TOKEN_ROTATION', {
+      tokenFamily,
+      generation,
+      clientId,
+      userId,
+      timestamp: new Date().toISOString(),
+    });
+  }
 }

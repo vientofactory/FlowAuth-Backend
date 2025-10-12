@@ -98,12 +98,14 @@ export class TokenIntrospectionService {
       }
 
       // ID 토큰 검증 (RSA 서명 + 클레임 검증)
-      const payload = await this.tokenService.validateIdToken(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const payload: any = await this.tokenService.validateIdToken(
         token,
         clientId,
         undefined,
       );
 
+      /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
       return {
         active: true,
         client_id: payload.aud,
@@ -118,6 +120,7 @@ export class TokenIntrospectionService {
         email_verified:
           payload[TOKEN_INTROSPECTION_CONSTANTS.CLAIMS.EMAIL_VERIFIED],
       };
+      /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
     } catch (error) {
       this.structuredLogger.warn(
         {

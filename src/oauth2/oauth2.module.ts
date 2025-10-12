@@ -15,6 +15,10 @@ import { AuthorizationService } from './services/authorization.service';
 import { TokenGrantService } from './services/token-grant.service';
 import { TokenIntrospectionService } from './services/token-introspection.service';
 import { AuthorizationCodeService } from './authorization-code.service';
+import { JwtTokenService } from './services/jwt-token.service';
+import { OAuth2TokenService } from './services/oauth2-token.service';
+import { TokenRevocationService } from './services/token-revocation.service';
+import { IdTokenService } from './services/id-token.service';
 import { TokenService } from './token.service';
 import { ScopeService } from './scope.service';
 import { CleanupSchedulerService } from './cleanup-scheduler.service';
@@ -64,6 +68,10 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
     TokenIntrospectionService,
     AuthorizationCodeService,
     TokenService,
+    JwtTokenService,
+    OAuth2TokenService,
+    TokenRevocationService,
+    IdTokenService,
     ScopeService,
     CleanupSchedulerService,
     OAuth2BearerGuard,

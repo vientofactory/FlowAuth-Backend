@@ -15,6 +15,8 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { setupSwagger } from './config/swagger.setup';
 import { ValidationSanitizationPipe } from './common/validation-sanitization.pipe';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { createSizeLimitMiddleware } from './common/middleware/size-limit.middleware';
+import { SIZE_LIMIT_CONFIGS } from './constants/security.constants';
 
 /**
  * FlowAuth Application Bootstrap
@@ -90,7 +92,13 @@ function configureSecurity(app: NestExpressApplication): void {
  * Configure basic middleware
  */
 function configureMiddleware(app: NestExpressApplication): void {
+  // Cookie parser middleware
   app.use(cookieParser());
+
+  // Request size limiting middleware
+  app.use('/auth', createSizeLimitMiddleware(SIZE_LIMIT_CONFIGS.AUTH));
+  app.use('/oauth2', createSizeLimitMiddleware(SIZE_LIMIT_CONFIGS.OAUTH2));
+  app.use('/api', createSizeLimitMiddleware(SIZE_LIMIT_CONFIGS.DEFAULT));
 }
 
 /**

@@ -55,9 +55,19 @@ export class ProfileService {
     }
 
     // 업데이트 가능한 필드만 허용
-    const allowedFields = ['firstName', 'lastName', 'username'] as const;
+    const allowedFields = [
+      'firstName',
+      'lastName',
+      'username',
+      'bio',
+      'website',
+      'location',
+    ] as const;
     const filteredData: Partial<
-      Pick<User, 'firstName' | 'lastName' | 'username'>
+      Pick<
+        User,
+        'firstName' | 'lastName' | 'username' | 'bio' | 'website' | 'location'
+      >
     > = {};
 
     // 입력 데이터 유효성 검사 및 필터링
@@ -102,12 +112,79 @@ export class ProfileService {
                 `${field === 'firstName' ? '이름' : '성'}은 문자열이어야 합니다.`,
               );
             }
-            if (value.length > 100) {
+            const trimmedValue = value.trim();
+            if (trimmedValue.length === 0) {
+              throw new BadRequestException(
+                `${field === 'firstName' ? '이름' : '성'}은 비어있을 수 없습니다.`,
+              );
+            }
+            if (trimmedValue.length > 100) {
               throw new BadRequestException(
                 `${field === 'firstName' ? '이름' : '성'}은 최대 100자까지 가능합니다.`,
               );
             }
+            // 특수문자 제한 (기본적인 문자, 공백, 하이픈만 허용)
+            if (!/^[a-zA-Z가-힣\s\-.']+$/.test(trimmedValue)) {
+              throw new BadRequestException(
+                `${field === 'firstName' ? '이름' : '성'}은 한글, 영문, 공백, 하이픈, 점, 아포스트로피만 사용할 수 있습니다.`,
+              );
+            }
+            filteredData[field] = trimmedValue;
+          }
+        } else if (field === 'bio') {
+          if (value !== null && value !== undefined) {
+            if (typeof value !== 'string') {
+              throw new BadRequestException('소개글은 문자열이어야 합니다.');
+            }
+            if (value.length > 500) {
+              throw new BadRequestException(
+                '소개글은 최대 500자까지 가능합니다.',
+              );
+            }
             filteredData[field] = value.trim() || undefined;
+          } else {
+            filteredData[field] = undefined;
+          }
+        } else if (field === 'website') {
+          if (value !== null && value !== undefined) {
+            if (typeof value !== 'string') {
+              throw new BadRequestException('웹사이트는 문자열이어야 합니다.');
+            }
+            const trimmedValue = value.trim();
+            if (trimmedValue && trimmedValue.length > 0) {
+              // URL 형식 검증
+              try {
+                new URL(trimmedValue);
+              } catch {
+                throw new BadRequestException(
+                  '올바른 URL 형식이 아닙니다. (예: https://example.com)',
+                );
+              }
+              if (trimmedValue.length > 255) {
+                throw new BadRequestException(
+                  '웹사이트 URL은 최대 255자까지 가능합니다.',
+                );
+              }
+              filteredData[field] = trimmedValue;
+            } else {
+              filteredData[field] = undefined;
+            }
+          } else {
+            filteredData[field] = undefined;
+          }
+        } else if (field === 'location') {
+          if (value !== null && value !== undefined) {
+            if (typeof value !== 'string') {
+              throw new BadRequestException('지역은 문자열이어야 합니다.');
+            }
+            if (value.length > 100) {
+              throw new BadRequestException(
+                '지역은 최대 100자까지 가능합니다.',
+              );
+            }
+            filteredData[field] = value.trim() || undefined;
+          } else {
+            filteredData[field] = undefined;
           }
         }
       }

@@ -5,6 +5,7 @@ import {
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
+  UpdateDateColumn,
   Index,
 } from 'typeorm';
 import { User } from '../auth/user.entity';
@@ -49,6 +50,15 @@ export class Token {
   @Column({ type: 'tinyint', default: 0 })
   isRefreshTokenUsed: boolean;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  revokedReason?: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  tokenFamily?: string;
+
+  @Column({ type: 'int', default: 1 })
+  rotationGeneration: number;
+
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn()
   user?: User;
@@ -59,4 +69,7 @@ export class Token {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

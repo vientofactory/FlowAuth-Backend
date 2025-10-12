@@ -21,15 +21,24 @@ export class SeedService {
   private readonly logger = new Logger(SeedService.name);
 
   private static readonly DEFAULT_SCOPES: readonly ScopeData[] = [
-    // 새로운 OAuth2 스코프들
     {
-      name: OAUTH2_SCOPES.IDENTIFY,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.IDENTIFY],
+      name: OAUTH2_SCOPES.OPENID,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.OPENID],
       isDefault: true,
+    },
+    {
+      name: OAUTH2_SCOPES.PROFILE,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.PROFILE],
+      isDefault: false,
     },
     {
       name: OAUTH2_SCOPES.EMAIL,
       description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.EMAIL],
+      isDefault: false,
+    },
+    {
+      name: OAUTH2_SCOPES.IDENTIFY,
+      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.IDENTIFY],
       isDefault: false,
     },
   ] as const;

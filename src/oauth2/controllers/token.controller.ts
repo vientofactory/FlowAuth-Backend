@@ -17,8 +17,17 @@ import {
   mapExceptionToOAuth2Error,
   createOAuth2Error,
 } from '../utils/oauth2-error.util';
+import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
+import {
+  AdvancedRateLimitGuard,
+  RateLimit,
+} from '../../common/guards/advanced-rate-limit.guard';
+import { DefaultFieldSizeLimitPipe } from '../../common/middleware/size-limit.middleware';
+import { RATE_LIMIT_CONFIGS } from '../../constants/security.constants';
+import { UseGuards } from '@nestjs/common';
 
 @Controller('oauth2')
+@UseGuards(AdvancedRateLimitGuard)
 @ApiTags('OAuth2 Token')
 export class TokenController {
   private readonly logger = new Logger(TokenController.name);
@@ -31,6 +40,7 @@ export class TokenController {
   ) {}
 
   @Post('token')
+  @RateLimit(RATE_LIMIT_CONFIGS.OAUTH2_TOKEN)
   @ApiOperation({
     summary: 'OAuth2 토큰 발급',
     description: `
@@ -62,7 +72,7 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
     type: ErrorResponseDto,
   })
   async token(
-    @Body() tokenDto: TokenRequestDto,
+    @Body(DefaultFieldSizeLimitPipe) tokenDto: TokenRequestDto,
   ): Promise<TokenResponseDto | ErrorResponseDto> {
     try {
       if (tokenDto.grant_type !== 'authorization_code') {
@@ -81,7 +91,10 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
 
       // For unexpected errors
       this.logger.error('Unexpected error in token endpoint', error);
-      return createOAuth2Error('server_error', 'An unexpected error occurred');
+      return createOAuth2Error(
+        OAUTH2_CONSTANTS.ERRORS.SERVER_ERROR,
+        'An unexpected error occurred',
+      );
     }
   }
 
