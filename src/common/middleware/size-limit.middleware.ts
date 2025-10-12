@@ -137,6 +137,9 @@ export class FieldSizeLimitPipe implements PipeTransform {
 // 기본 필드 크기 제한 파이프 인스턴스
 export const DefaultFieldSizeLimitPipe = new FieldSizeLimitPipe();
 
+// reCAPTCHA 토큰을 위한 전용 파이프 (더 긴 필드 허용)
+export const RecaptchaFieldSizeLimitPipe = new FieldSizeLimitPipe(3000);
+
 // Express 미들웨어 팩토리 함수
 export function createSizeLimitMiddleware(config: SizeLimitConfig = {}) {
   const limits = { ...DEFAULT_SIZE_LIMITS, ...config };

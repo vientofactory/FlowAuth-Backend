@@ -107,12 +107,20 @@ export const SIZE_LIMIT_CONFIGS = {
     maxFieldLength: 2048, // OAuth2 토큰 등을 위해
   },
 
-  // 인증 요청 (작은 크기)
+  // 인증 요청 (reCAPTCHA 토큰을 고려한 크기)
   AUTH: {
-    maxBodySize: 4 * 1024, // 4KB
+    maxBodySize: 8 * 1024, // 8KB (reCAPTCHA 토큰 포함)
     maxUrlLength: 2048,
     maxHeaderSize: 8192,
-    maxFieldLength: 500, // 비밀번호 등
+    maxFieldLength: 2500, // reCAPTCHA 토큰은 최대 2000자 정도
+  },
+
+  // reCAPTCHA 전용 설정 (더 큰 토큰 허용)
+  RECAPTCHA: {
+    maxBodySize: 8 * 1024, // 8KB
+    maxUrlLength: 2048,
+    maxHeaderSize: 8192,
+    maxFieldLength: 3000, // reCAPTCHA 토큰 최대 길이
   },
 } as const;
 

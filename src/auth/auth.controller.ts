@@ -47,12 +47,11 @@ import {
   RateLimit,
 } from '../common/guards/advanced-rate-limit.guard';
 import {
-  FieldSizeLimitPipe,
   DefaultFieldSizeLimitPipe,
+  RecaptchaFieldSizeLimitPipe,
 } from '../common/middleware/size-limit.middleware';
 import {
   RATE_LIMIT_CONFIGS,
-  SIZE_LIMIT_CONFIGS,
   KEY_GENERATORS,
 } from '../constants/security.constants';
 
@@ -82,7 +81,7 @@ export class AuthController {
   })
   @ApiBody({ type: CreateUserDto })
   async register(
-    @Body(new FieldSizeLimitPipe(SIZE_LIMIT_CONFIGS.AUTH.maxFieldLength))
+    @Body(RecaptchaFieldSizeLimitPipe)
     createUserDto: CreateUserDto,
   ): Promise<User> {
     const user = await this.authService.register(createUserDto);
@@ -110,7 +109,7 @@ export class AuthController {
   })
   @ApiBody({ type: LoginDto })
   async login(
-    @Body(new FieldSizeLimitPipe(SIZE_LIMIT_CONFIGS.AUTH.maxFieldLength))
+    @Body(RecaptchaFieldSizeLimitPipe)
     loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponseDto> {
@@ -319,7 +318,7 @@ export class AuthController {
   })
   @ApiBody({ type: CreateClientDto })
   async createClient(
-    @Body() createClientDto: CreateClientDto,
+    @Body(RecaptchaFieldSizeLimitPipe) createClientDto: CreateClientDto,
     @Request() req: AuthenticatedRequest,
   ): Promise<ClientCreateResponseDto> {
     const client = await this.authService.createClient(
