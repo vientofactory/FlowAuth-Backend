@@ -17,6 +17,7 @@ import { CreateClientDto } from '../dto/create-client.dto';
 import * as crypto from 'crypto';
 import { snowflakeGenerator } from '../../utils/snowflake-id.util';
 import { PermissionUtils } from '../../utils/permission.util';
+import { PERMISSIONS } from '@flowauth/shared';
 import { FileUploadService } from '../../upload/file-upload.service';
 
 @Injectable()
@@ -43,15 +44,18 @@ export class ClientAuthService {
   ): Promise<Client> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
+      select: ['id', 'permissions', 'userType', 'email', 'username'],
     });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // Check if user has permission to create clients
-    if (!PermissionUtils.hasPermission(user.permissions, 1 << 4)) {
-      // WRITE_CLIENT
+    // Check if user has permission to create clients (ADMIN 우회 포함)
+    if (
+      !PermissionUtils.isAdmin(user.permissions) &&
+      !PermissionUtils.hasPermission(user.permissions, PERMISSIONS.WRITE_CLIENT)
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
