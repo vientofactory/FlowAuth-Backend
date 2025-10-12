@@ -17,6 +17,7 @@ import * as crypto from 'crypto';
 import {
   AUTH_CONSTANTS,
   JWT_TOKEN_EXPIRY,
+  PERMISSIONS,
   type TokenType,
 } from '../../constants/auth.constants';
 import { JwtPayload, LoginResponse } from '../../types/auth.types';
@@ -76,9 +77,13 @@ export class TokenAuthService {
       throw new NotFoundException('Token user not found');
     }
 
-    // Check if user has permission to revoke tokens
-    if (!PermissionUtils.hasPermission(token.user.permissions, 1 << 7)) {
-      // WRITE_TOKEN
+    // Check if user has permission to revoke tokens (자신의 토큰 삭제)
+    if (
+      !PermissionUtils.hasPermission(
+        token.user.permissions,
+        PERMISSIONS.DELETE_TOKEN,
+      )
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
@@ -100,9 +105,10 @@ export class TokenAuthService {
       throw new NotFoundException('User not found');
     }
 
-    // Check if user has permission to revoke tokens
-    if (!PermissionUtils.hasPermission(user.permissions, 1 << 7)) {
-      // WRITE_TOKEN
+    // Check if user has permission to revoke tokens (자신의 모든 토큰 삭제)
+    if (
+      !PermissionUtils.hasPermission(user.permissions, PERMISSIONS.DELETE_TOKEN)
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
@@ -128,9 +134,10 @@ export class TokenAuthService {
       throw new NotFoundException('User not found');
     }
 
-    // Check if user has permission to revoke tokens
-    if (!PermissionUtils.hasPermission(user.permissions, 1 << 7)) {
-      // WRITE_TOKEN
+    // Check if user has permission to revoke tokens (자신의 특정 타입 토큰 삭제)
+    if (
+      !PermissionUtils.hasPermission(user.permissions, PERMISSIONS.DELETE_TOKEN)
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
 

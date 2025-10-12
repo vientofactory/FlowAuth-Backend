@@ -31,7 +31,11 @@ import {
   ClientCreateResponseDto,
 } from './dto/response.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import { PermissionsGuard, RequirePermissions } from './permissions.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+  RequireAnyPermissions,
+} from './permissions.guard';
 import { User } from './user.entity';
 import type { AuthenticatedRequest } from '../types/auth.types';
 import {
@@ -658,9 +662,18 @@ export class AuthController {
 
   @Delete('clients/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions(PERMISSIONS.DELETE_CLIENT)
+  @RequireAnyPermissions(PERMISSIONS.DELETE_CLIENT, PERMISSIONS.WRITE_CLIENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'OAuth2 클라이언트 삭제' })
+  @ApiOperation({
+    summary: 'OAuth2 클라이언트 삭제',
+    description: `
+OAuth2 클라이언트를 삭제합니다. 
+- 관리자: 모든 클라이언트 삭제 가능
+- 일반 사용자: 자신이 생성한 클라이언트만 삭제 가능
+
+**필요 권한:** delete:client 또는 write:client (자신의 클라이언트만)
+    `,
+  })
   @ApiResponse({
     status: 200,
     description: '클라이언트가 성공적으로 삭제됨',
@@ -671,10 +684,16 @@ export class AuthController {
   })
   @ApiResponse({
     status: 403,
-    description: '권한이 없음',
+    description: '권한이 없음 또는 다른 사용자의 클라이언트',
   })
-  async deleteClient(@Param('id') id: string) {
-    await this.authService.deleteClient(ValidationHelpers.parseIdParam(id));
+  async deleteClient(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    await this.authService.deleteClient(
+      ValidationHelpers.parseIdParam(id),
+      req.user.id,
+    );
     return { message: 'Client deleted successfully' };
   }
 

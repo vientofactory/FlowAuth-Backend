@@ -163,7 +163,7 @@ export class ClientAuthService {
     return this.clientRepository.save(client);
   }
 
-  async deleteClient(id: number): Promise<void> {
+  async deleteClient(id: number, requestUserId: number): Promise<void> {
     const client = await this.clientRepository.findOne({
       where: { id },
       relations: ['user'],
@@ -173,10 +173,38 @@ export class ClientAuthService {
       throw new NotFoundException('Client not found');
     }
 
-    // Check if user has permission to delete clients
-    if (!PermissionUtils.hasPermission(client.user.permissions, 1 << 5)) {
-      // DELETE_CLIENT
-      throw new ForbiddenException('Insufficient permissions');
+    // 요청하는 사용자 정보 조회
+    const requestUser = await this.userRepository.findOne({
+      where: { id: requestUserId },
+      select: ['id', 'permissions'],
+    });
+
+    if (!requestUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    // 권한 검증: ADMIN이거나 DELETE_CLIENT 권한이 있으면 모든 클라이언트 삭제 가능
+    const hasDeletePermission =
+      PermissionUtils.isAdmin(requestUser.permissions) ||
+      PermissionUtils.hasPermission(
+        requestUser.permissions,
+        PERMISSIONS.DELETE_CLIENT,
+      );
+
+    // 자신의 클라이언트이고 WRITE_CLIENT 권한이 있는 경우도 삭제 가능
+    const canDeleteOwnClient =
+      client.userId === requestUserId &&
+      PermissionUtils.hasPermission(
+        requestUser.permissions,
+        PERMISSIONS.WRITE_CLIENT,
+      );
+
+    if (!hasDeletePermission && !canDeleteOwnClient) {
+      throw new ForbiddenException(
+        client.userId === requestUserId
+          ? 'Insufficient permissions to delete your own client'
+          : "Cannot delete other users' clients",
+      );
     }
 
     // Remove logo file if exists

@@ -152,8 +152,8 @@ export class AuthService {
     return this.clientAuthService.removeClientLogo(id, userId);
   }
 
-  async deleteClient(id: number): Promise<void> {
-    return this.clientAuthService.deleteClient(id);
+  async deleteClient(id: number, userId: number): Promise<void> {
+    return this.clientAuthService.deleteClient(id, userId);
   }
 
   async getUserTokens(userId: number): Promise<TokenDto[]> {
