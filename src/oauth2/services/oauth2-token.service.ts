@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, EntityManager } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -182,15 +182,21 @@ export class OAuth2TokenService {
     return response;
   }
 
+  /**
+   * Issue new tokens using a refresh token
+   * Implements robust handling to prevent race conditions
+   */
   async refreshToken(
     refreshTokenValue: string,
     clientId: string,
   ): Promise<TokenCreateResponse | null> {
-    // Use transaction to prevent race conditions
+    // Use transaction with pessimistic locking to prevent race conditions
     return await this.tokenRepository.manager.transaction(async (manager) => {
+      // Find the token by refresh token value with a lock
       const token = await manager.findOne(Token, {
         where: { refreshToken: refreshTokenValue },
         relations: ['user', 'client'],
+        lock: { mode: 'pessimistic_write' },
       });
 
       if (!token) {
@@ -211,10 +217,14 @@ export class OAuth2TokenService {
         return null;
       }
 
-      // Check if refresh token was already used
+      // Check if token or its family is revoked
       if (token.isRefreshTokenUsed) {
         // Enhanced Security: revoke entire token family if refresh token reuse detected
-        await this.revokeTokenFamily(token.tokenFamily, 'refresh_token_reuse');
+        await this.revokeTokenFamilyInTransaction(
+          manager,
+          token.tokenFamily,
+          'refresh_token_reuse',
+        );
 
         this.structuredLogger.logSecurity('refresh_token_reuse_detected', {
           tokenFamily: token.tokenFamily,
@@ -227,9 +237,15 @@ export class OAuth2TokenService {
         return null;
       }
 
-      // Mark refresh token as used
-      token.isRefreshTokenUsed = true;
-      await manager.save(token);
+      // Mark current refresh token as used
+      await manager.update(
+        Token,
+        { id: token.id },
+        {
+          isRefreshTokenUsed: true,
+          updatedAt: new Date(),
+        },
+      );
 
       // Generate new tokens
       const newAccessToken = this.generateAccessTokenWithJti(
@@ -341,34 +357,24 @@ export class OAuth2TokenService {
     );
   }
 
-  private async revokeAllUserTokens(userId: number): Promise<void> {
-    await this.tokenRepository.update(
-      { user: { id: userId } },
-      {
-        accessToken: 'REVOKED',
-        isRefreshTokenUsed: true,
-        revokedReason: 'user_tokens_revoked',
-        revokedAt: new Date(),
-      },
-    );
-  }
-
   /**
-   * Revoke entire token family when refresh token reuse is detected
+   * Token family revocation within a transaction context
    */
-  private async revokeTokenFamily(
+  private async revokeTokenFamilyInTransaction(
+    manager: EntityManager,
     tokenFamily: string | undefined,
     reason: string,
   ): Promise<void> {
     if (!tokenFamily) return;
 
     // Get all tokens in family before revoking
-    const tokensInFamily = await this.tokenRepository.find({
+    const tokensInFamily = await manager.find(Token, {
       where: { tokenFamily },
       select: ['id'],
     });
 
-    await this.tokenRepository.update(
+    await manager.update(
+      Token,
       { tokenFamily },
       {
         isRevoked: true,

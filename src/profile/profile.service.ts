@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  ConflictException,
   Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -96,12 +97,12 @@ export class ProfileService {
             );
           }
 
-          // 사용자명 중복 체크 (자기 자신 제외)
+          // 중복 검사
           const existingUser = await this.userRepository.findOne({
             where: { username: value.trim() },
           });
           if (existingUser && existingUser.id !== userId) {
-            throw new BadRequestException('이미 사용중인 사용자명입니다.');
+            throw new ConflictException('이미 사용중인 사용자명입니다.');
           }
 
           filteredData[field] = value.trim();

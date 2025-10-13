@@ -16,7 +16,11 @@ import { TOKEN_TYPES, type TokenType } from '../constants/auth.constants';
 @Entity()
 @Index(['accessToken'], { unique: true })
 @Index(['refreshToken'], { unique: true })
-@Index(['client', 'user'])
+@Index(['user', 'client'])
+@Index(['isRevoked', 'expiresAt'])
+@Index(['tokenFamily', 'rotationGeneration'], { unique: true })
+@Index(['lastUsedAt'])
+@Index(['refreshExpiresAt', 'isRefreshTokenUsed'])
 export class Token {
   @PrimaryGeneratedColumn()
   id: number;
@@ -58,6 +62,12 @@ export class Token {
 
   @Column({ type: 'int', default: 1 })
   rotationGeneration: number;
+
+  @Column({ type: 'datetime', nullable: true })
+  lastUsedAt?: Date;
+
+  @Column({ type: 'varchar', length: 45, nullable: true })
+  lastUsedIp?: string;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn()
