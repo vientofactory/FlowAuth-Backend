@@ -96,7 +96,8 @@ CREATE TABLE `user` (
   `updatedAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
   UNIQUE KEY `IDX_78a916df40e02a9deb1c4b75ed` (`username`),
-  UNIQUE KEY `IDX_e12875dfb3b1d92d7d7c5377e2` (`email`)
+  UNIQUE KEY `IDX_e12875dfb3b1d92d7d7c5377e2` (`email`),
+  KEY `IDX_user_id_isActive` (`id`,`isActive`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
@@ -144,18 +145,24 @@ CREATE TABLE `token` (
   `revokedReason` varchar(255) DEFAULT NULL,
   `tokenFamily` varchar(255) DEFAULT NULL,
   `rotationGeneration` int NOT NULL DEFAULT 1,
+  `lastUsedAt` datetime DEFAULT NULL,
+  `lastUsedIp` varchar(45) DEFAULT NULL,
   `userId` int DEFAULT NULL,
   `clientId` int DEFAULT NULL,
   `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updatedAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `IDX_1e4a750a92c4a87a9e89c8d9e9` (`accessToken`),
-  UNIQUE KEY `IDX_1e4a750a92c4a87a9e89c8d9e8` (`refreshToken`),
-  KEY `IDX_1e4a750a92c4a87a9e89c8d9e7` (`clientId`,`userId`),
-  KEY `FK_1e4a750a92c4a87a9e89c8d9e6` (`userId`),
-  KEY `FK_1e4a750a92c4a87a9e89c8d9e5` (`clientId`),
-  CONSTRAINT `FK_1e4a750a92c4a87a9e89c8d9e5` FOREIGN KEY (`clientId`) REFERENCES `client` (`id`),
-  CONSTRAINT `FK_1e4a750a92c4a87a9e89c8d9e6` FOREIGN KEY (`userId`) REFERENCES `user` (`id`) ON DELETE SET NULL
+  UNIQUE KEY `IDX_token_accessToken` (`accessToken`),
+  UNIQUE KEY `IDX_token_refreshToken` (`refreshToken`),
+  UNIQUE KEY `IDX_token_family_generation` (`tokenFamily`,`rotationGeneration`),
+  KEY `IDX_token_user_client` (`userId`,`clientId`),
+  KEY `IDX_token_revoked_expires` (`isRevoked`,`expiresAt`),
+  KEY `IDX_token_lastUsedAt` (`lastUsedAt`),
+  KEY `IDX_token_refresh_expires_used` (`refreshExpiresAt`,`isRefreshTokenUsed`),
+  KEY `FK_token_userId` (`userId`),
+  KEY `FK_token_clientId` (`clientId`),
+  CONSTRAINT `FK_token_clientId` FOREIGN KEY (`clientId`) REFERENCES `client` (`id`),
+  CONSTRAINT `FK_token_userId` FOREIGN KEY (`userId`) REFERENCES `user` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
@@ -178,12 +185,12 @@ CREATE TABLE `authorization_code` (
   `clientId` int NOT NULL,
   `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `IDX_1e4a750a92c4a87a9e89c8d9e4` (`code`),
-  KEY `IDX_1e4a750a92c4a87a9e89c8d9e3` (`clientId`,`userId`),
-  KEY `FK_1e4a750a92c4a87a9e89c8d9e2` (`userId`),
-  KEY `FK_1e4a750a92c4a87a9e89c8d9e1` (`clientId`),
-  CONSTRAINT `FK_1e4a750a92c4a87a9e89c8d9e1` FOREIGN KEY (`clientId`) REFERENCES `client` (`id`),
-  CONSTRAINT `FK_1e4a750a92c4a87a9e89c8d9e2` FOREIGN KEY (`userId`) REFERENCES `user` (`id`)
+  UNIQUE KEY `IDX_authcode_code` (`code`),
+  KEY `IDX_authcode_client_user` (`clientId`,`userId`),
+  KEY `FK_authcode_userId` (`userId`),
+  KEY `FK_authcode_clientId` (`clientId`),
+  CONSTRAINT `FK_authcode_clientId` FOREIGN KEY (`clientId`) REFERENCES `client` (`id`),
+  CONSTRAINT `FK_authcode_userId` FOREIGN KEY (`userId`) REFERENCES `user` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
@@ -199,7 +206,7 @@ CREATE TABLE `scope` (
   `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `updatedAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `IDX_1e4a750a92c4a87a9e89c8d9e0` (`name`)
+  UNIQUE KEY `IDX_scope_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
@@ -296,8 +303,19 @@ API 문서를 확인하려면 브라우저에서 `http://localhost:3000/api`로 
 - expiresAt: Date
 - refreshExpiresAt: Date
 - scopes: string[] (JSON Array)
+- tokenType: string (기본값: 'login')
+- isRevoked: boolean (기본값: false)
+- revokedAt: Date (Nullable)
+- isRefreshTokenUsed: boolean (기본값: false)
+- revokedReason: string (Nullable)
+- tokenFamily: string (Nullable)
+- rotationGeneration: number (기본값: 1)
+- lastUsedAt: Date (Nullable)
+- lastUsedIp: string (Nullable)
 - user: User (Foreign Key, Nullable)
-- client: Client (Foreign Key)
+- client: Client (Foreign Key, Nullable)
+- createdAt: Date
+- updatedAt: Date
 ```
 
 ## 테스트
