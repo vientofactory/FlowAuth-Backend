@@ -11,6 +11,7 @@ import {
   OAUTH2_CONSTANTS,
   RATE_LIMIT_CONSTANTS,
   OAUTH2_ERROR_MESSAGES,
+  OAuth2GrantType,
 } from '../../constants/oauth2.constants';
 
 @Injectable()
@@ -91,10 +92,16 @@ export class TokenGrantService {
       throw new BadRequestException('Invalid grant_type parameter');
     }
 
-    if (!OAUTH2_CONSTANTS.SUPPORTED_GRANT_TYPES.includes(grant_type as never)) {
+    // Validate supported grant types
+    if (
+      !OAUTH2_CONSTANTS.SUPPORTED_GRANT_TYPES.includes(
+        grant_type as OAuth2GrantType,
+      )
+    ) {
       throw new BadRequestException(`Unsupported grant type: ${grant_type}`);
     }
 
+    // Handle different grant types
     switch (grant_type) {
       case 'authorization_code':
         return this.handleAuthorizationCodeGrant(tokenDto);

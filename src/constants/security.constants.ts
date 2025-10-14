@@ -11,6 +11,23 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
+// Validation Pipe 관련 설정
+export const VALIDATION_PIPE_OPTIONS = {
+  maxPayloadSize: 1024 * 1024, // 1MB
+  skipPayloadSizeValidationForFileUploads: true,
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  forbidUnknownValues: true,
+} as const;
+
+// 파일 업로드 관련 DTO 클래스 이름 패턴 (페이로드 크기 검증 제외용)
+export const FILE_UPLOAD_DTO_PATTERNS = [
+  /Upload.*Dto$/,
+  /.*Upload.*$/,
+  /File.*Dto$/,
+  /.*File.*$/,
+] as const;
+
 // 엔드포인트별 레이트 리미팅 설정
 export const RATE_LIMIT_CONFIGS = {
   // 인증 관련 엔드포인트 (더 엄격)

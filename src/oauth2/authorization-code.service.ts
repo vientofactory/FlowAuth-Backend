@@ -120,45 +120,6 @@ export class AuthorizationCodeService {
     return authCode;
   }
 
-  private validateAuthorizationCode(
-    authCode: AuthorizationCode,
-    clientId: string,
-    redirectUri?: string,
-  ): void {
-    // Check client
-    if (authCode.client.clientId !== clientId) {
-      throw new BadRequestException(
-        OAUTH2_ERROR_MESSAGES.INVALID_CLIENT_CREDENTIALS,
-      );
-    }
-
-    // Check redirect URI if provided
-    if (redirectUri && authCode.redirectUri !== redirectUri) {
-      throw new BadRequestException(
-        OAUTH2_ERROR_MESSAGES.INVALID_REDIRECT_URI_CLIENT,
-      );
-    }
-  }
-
-  private validateAndProcessPKCE(
-    authCode: AuthorizationCode,
-    codeVerifier?: string,
-  ): void {
-    // Check PKCE if code challenge was used (PKCE is now optional)
-    if (authCode.codeChallenge) {
-      if (!codeVerifier) {
-        throw new BadRequestException(
-          OAUTH2_ERROR_MESSAGES.PKCE_VERIFIER_REQUIRED,
-        );
-      }
-
-      // Use stored method or default to 'plain'
-      const method = authCode.codeChallengeMethod || 'plain';
-
-      this.verifyCodeChallenge(codeVerifier, authCode.codeChallenge, method);
-    }
-  }
-
   async cleanupExpiredCodes(): Promise<number> {
     const now = new Date();
     const result = await this.authCodeRepository.delete({

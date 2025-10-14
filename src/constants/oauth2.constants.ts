@@ -1,3 +1,16 @@
+// OAuth 관련 타입 정의
+export type OAuth2GrantType =
+  | 'authorization_code'
+  | 'refresh_token'
+  | 'client_credentials';
+export type OAuth2ResponseType =
+  | 'code'
+  | 'token'
+  | 'id_token'
+  | 'code id_token'
+  | 'token id_token';
+export type OAuth2TokenType = 'Bearer';
+
 // OAuth2 관련 상수들
 export const OAUTH2_CONSTANTS = {
   SUPPORTED_RESPONSE_TYPES: [
