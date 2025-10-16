@@ -60,9 +60,8 @@ export class AuthorizeRequestDto {
   @Length(0, OAUTH2_CONSTANTS.SCOPE_MAX_LENGTH, {
     message: `scope must not exceed ${OAUTH2_CONSTANTS.SCOPE_MAX_LENGTH} characters`,
   })
-  @Matches(/^(openid\s+)?(.*)$/, {
-    message: 'OpenID Connect requests must include openid scope',
-  })
+  @IsString()
+  // Custom validation will be implemented in the service layer for scope validation
   scope?: string;
 
   @ApiProperty({

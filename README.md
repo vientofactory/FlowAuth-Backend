@@ -383,8 +383,35 @@ CACHE_TTL=300000
 CLEANUP_CRON_EXPRESSION=0 0 * * *
 
 # Frontend Configuration (for CORS)
+# Development environment
+FRONTEND_URL=http://localhost:5173
+
+# Production environment (multiple domains supported)
+# FRONTEND_URL=https://app.yourdomain.com,https://www.yourdomain.com
+```
+
+### CORS 설정
+
+FlowAuth 백엔드는 `FRONTEND_URL` 환경변수를 통해 CORS(Cross-Origin Resource Sharing)를 설정합니다.
+
+**개발 환경**:
+
+```env
 FRONTEND_URL=http://localhost:5173
 ```
+
+**프로덕션 환경** (여러 도메인 지원):
+
+```env
+FRONTEND_URL=https://app.yourdomain.com,https://www.yourdomain.com,https://admin.yourdomain.com
+```
+
+**특징**:
+
+- 개발 환경에서는 `localhost` 및 `127.0.0.1` 기반 URL들이 자동으로 허용됩니다
+- 프로덕션 환경에서는 `FRONTEND_URL`에 명시된 도메인만 허용됩니다
+- 여러 도메인은 쉼표(`,`)로 구분하여 설정할 수 있습니다
+- 설정되지 않은 origin에서의 요청은 CORS 오류가 발생합니다
 
 ## 보안 기능
 

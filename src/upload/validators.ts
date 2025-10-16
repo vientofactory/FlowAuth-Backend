@@ -270,6 +270,7 @@ export class FileUploadValidator {
     };
 
     try {
+      // eslint-disable-next-line security/detect-object-injection
       const config = UPLOAD_CONFIG.fileTypes[type];
       if (!config) {
         result.isValid = false;

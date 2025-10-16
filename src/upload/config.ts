@@ -123,24 +123,37 @@ export const UPLOAD_CONFIG = {
 export const getUploadPath = (
   type: keyof typeof UPLOAD_CONFIG.fileTypes,
 ): string => {
-  return join(
-    UPLOAD_CONFIG.baseUploadPath,
-    UPLOAD_CONFIG.fileTypes[type].destination,
-  );
+  // Safe object access to prevent injection
+  // eslint-disable-next-line security/detect-object-injection
+  const fileTypeConfig = UPLOAD_CONFIG.fileTypes[type];
+  if (!fileTypeConfig) {
+    throw new Error(`Invalid file type: ${type}`);
+  }
+
+  return join(UPLOAD_CONFIG.baseUploadPath, fileTypeConfig.destination);
 };
 
 export const getFileUrl = (
   type: keyof typeof UPLOAD_CONFIG.fileTypes,
   filename: string,
 ): string => {
-  const destination = UPLOAD_CONFIG.fileTypes[type].destination;
+  // eslint-disable-next-line security/detect-object-injection
+  const fileTypeConfig = UPLOAD_CONFIG.fileTypes[type];
+  if (!fileTypeConfig) {
+    throw new Error(`Invalid file type: ${type}`);
+  }
+  const destination = fileTypeConfig.destination;
   // 백엔드 서버의 호스트를 포함한 절대 URL 반환
   const backendHost = process.env.BACKEND_HOST || 'http://localhost:3000';
   return `${backendHost}/uploads/${destination}/${filename}`;
 };
 
 export const getFileLimits = (type: keyof typeof UPLOAD_CONFIG.fileTypes) => {
+  // eslint-disable-next-line security/detect-object-injection
   const config = UPLOAD_CONFIG.fileTypes[type];
+  if (!config) {
+    throw new Error(`Invalid file type: ${type}`);
+  }
   return {
     fileSize: config.maxSize,
     files: 1,

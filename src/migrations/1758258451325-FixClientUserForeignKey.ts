@@ -73,7 +73,11 @@ export class FixClientUserForeignKey1758258451325
         `);
       } catch (error) {
         // Ignore errors if index doesn't exist or is needed by other constraints
-        console.log(`Could not drop index ${index.INDEX_NAME}:`, String(error));
+        console.log(
+          'Could not drop index %s:',
+          index.INDEX_NAME,
+          String(error),
+        );
       }
     }
   }

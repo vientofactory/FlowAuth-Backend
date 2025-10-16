@@ -156,13 +156,26 @@ export class ValidationSanitizationPipe implements PipeTransform<any> {
         !Array.isArray(value) &&
         value.constructor === Object
       ) {
-        cleanObject[key] = this.sanitizeObject(
-          value as Record<string, unknown>,
-        );
+        Object.defineProperty(cleanObject, key, {
+          value: this.sanitizeObject(value as Record<string, unknown>),
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       } else if (Array.isArray(value)) {
-        cleanObject[key] = this.sanitizeArray(value);
+        Object.defineProperty(cleanObject, key, {
+          value: this.sanitizeArray(value),
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       } else {
-        cleanObject[key] = value;
+        Object.defineProperty(cleanObject, key, {
+          value: value,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       }
     }
 
@@ -463,6 +476,10 @@ export class ValidationSanitizationPipe implements PipeTransform<any> {
     metatype: unknown,
     metadata?: ArgumentMetadata,
   ): boolean {
+    if (!VALIDATION_PIPE_OPTIONS.skipPayloadSizeValidationForFileUploads) {
+      return false;
+    }
+
     if (metatype && typeof metatype === 'function') {
       const className = metatype.name;
       if (

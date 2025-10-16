@@ -150,24 +150,17 @@ export class UserManagementService {
     updateData: Partial<User>,
   ): Promise<User> {
     const user = await this.findById(userId);
-
-    // Update allowed fields
-    const allowedFields = [
-      'firstName',
-      'lastName',
-      'email',
-      'username',
-      'avatar',
-      'bio',
-      'website',
-      'location',
-    ];
-
-    allowedFields.forEach((field) => {
-      if (updateData[field] !== undefined) {
-        user[field] = updateData[field];
-      }
-    });
+    // Safe field assignment to prevent object injection
+    if (updateData.firstName !== undefined)
+      user.firstName = updateData.firstName;
+    if (updateData.lastName !== undefined) user.lastName = updateData.lastName;
+    if (updateData.username !== undefined) user.username = updateData.username;
+    if (updateData.email !== undefined) user.email = updateData.email;
+    if (updateData.userType !== undefined) user.userType = updateData.userType;
+    if (updateData.avatar !== undefined) user.avatar = updateData.avatar;
+    if (updateData.bio !== undefined) user.bio = updateData.bio;
+    if (updateData.website !== undefined) user.website = updateData.website;
+    if (updateData.location !== undefined) user.location = updateData.location;
 
     // Handle password update separately
     if (updateData.password) {

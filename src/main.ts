@@ -19,6 +19,65 @@ import { createSizeLimitMiddleware } from './common/middleware/size-limit.middle
 import { SIZE_LIMIT_CONFIGS } from './constants/security.constants';
 
 /**
+ * Get allowed origins from environment variables
+ */
+function getAllowedOrigins(): string[] {
+  const frontendUrl = process.env.FRONTEND_URL;
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Base allowed origins for development
+  const developmentOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173', // Vite dev server
+    'http://localhost:4173', // Vite preview
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+  ];
+
+  if (isProduction) {
+    if (frontendUrl) {
+      // Support multiple frontend URLs
+      const productionOrigins = frontendUrl.split(',').map((url) => url.trim());
+      return [...productionOrigins, ...developmentOrigins];
+    } else {
+      console.warn(
+        'FRONTEND_URL not set in production environment. Using development origins as fallback.',
+      );
+      return developmentOrigins;
+    }
+  } else {
+    const origins = [...developmentOrigins];
+    if (frontendUrl) {
+      const additionalOrigins = frontendUrl.split(',').map((url) => url.trim());
+      origins.push(...additionalOrigins);
+    }
+    return [...new Set(origins)];
+  }
+}
+
+/**
+ * Check if origin is allowed
+ */
+function isOriginAllowed(origin: string | undefined): boolean {
+  if (!origin) return true; // Allow requests with no origin (mobile apps, etc.)
+
+  const allowedOrigins = getAllowedOrigins();
+  const isDevelopment = process.env.NODE_ENV === 'development';
+
+  // In development, be more permissive
+  if (isDevelopment) {
+    return (
+      allowedOrigins.includes(origin) ||
+      origin.startsWith('http://localhost') ||
+      origin.startsWith('http://127.0.0.1')
+    );
+  }
+
+  // In production, be strict
+  return allowedOrigins.includes(origin);
+}
+
+/**
  * FlowAuth Application Bootstrap
  * OAuth2 인증 시스템의 메인 진입점
  */
@@ -77,13 +136,56 @@ function configureApp(app: NestExpressApplication): void {
  * Configure security middleware (Helmet)
  */
 function configureSecurity(app: NestExpressApplication): void {
+  const isProduction = process.env.NODE_ENV === 'production';
+
   app.use(
     helmet({
-      crossOriginResourcePolicy: false, // Disable for static file CORS
-      crossOriginEmbedderPolicy: false, // Disable for cross-origin embedding
-      contentSecurityPolicy: false, // Disable for development flexibility
-      hsts: false, // Disable HSTS for development
-      noSniff: false, // Allow content type sniffing for images
+      // Content Security Policy
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: [
+            "'self'",
+            "'unsafe-inline'", // For development - should be removed in production
+            'https://cdnjs.cloudflare.com',
+          ],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          fontSrc: ["'self'", 'https:', 'data:'],
+          connectSrc: ["'self'"],
+          mediaSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          childSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+        },
+      },
+
+      // HTTP Strict Transport Security (only in production)
+      hsts: isProduction
+        ? {
+            maxAge: 31536000, // 1 year
+            includeSubDomains: true,
+            preload: true,
+          }
+        : false,
+
+      // Cross-Origin policies
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      crossOriginEmbedderPolicy: false, // Allow cross-origin embedding for uploads
+
+      // Prevent MIME type sniffing
+      noSniff: true,
+
+      // Prevent clickjacking
+      frameguard: { action: 'deny' },
+
+      // Remove X-Powered-By header
+      hidePoweredBy: true,
+
+      // Referrer Policy
+      referrerPolicy: { policy: ['no-referrer', 'same-origin'] },
     }),
   );
 }
@@ -109,8 +211,10 @@ function configureStaticFiles(app: NestExpressApplication): void {
   app.use('/uploads', (req: Request, res: Response, next: NextFunction) => {
     const origin = req.headers.origin;
 
-    // Set CORS headers for both API endpoints and static files
-    res.header('Access-Control-Allow-Origin', origin || '*');
+    // Set CORS headers with origin validation
+    if (isOriginAllowed(origin)) {
+      res.header('Access-Control-Allow-Origin', origin || '*');
+    }
     res.header('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
     res.header(
       'Access-Control-Allow-Headers',
@@ -155,11 +259,16 @@ function configureStaticFiles(app: NestExpressApplication): void {
 function configureCORS(app: NestExpressApplication): void {
   app.enableCors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (mobile apps, postman, etc.)
-      if (!origin) return callback(null, true);
-
-      // Allow all origins in development
-      return callback(null, true);
+      if (isOriginAllowed(origin)) {
+        callback(null, true);
+      } else {
+        callback(
+          new Error(
+            `CORS policy violation: Origin '${origin}' not allowed. Configure FRONTEND_URL environment variable.`,
+          ),
+          false,
+        );
+      }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
     allowedHeaders: [

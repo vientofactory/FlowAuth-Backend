@@ -18,9 +18,14 @@ export class OAuth2Exception extends HttpException {
     state?: string,
     statusCode: HttpStatus = HttpStatus.BAD_REQUEST,
   ) {
-    const errorCode = OAUTH2_CONSTANTS.ERRORS[error];
+    // Safe object access using type assertion
+    // eslint-disable-next-line security/detect-object-injection
+    const errorCode = OAUTH2_CONSTANTS.ERRORS[error] || 'invalid_request';
     const errorDescription =
-      description || OAUTH2_CONSTANTS.ERROR_DESCRIPTIONS[error];
+      description ||
+      // eslint-disable-next-line security/detect-object-injection
+      OAUTH2_CONSTANTS.ERROR_DESCRIPTIONS[error] ||
+      'An error occurred';
 
     const response: OAuth2ErrorResponse = {
       error: errorCode,
@@ -182,7 +187,8 @@ export class OAuth2ErrorHelper {
     state?: string,
   ): string {
     const params = new URLSearchParams({
-      error: OAUTH2_CONSTANTS.ERRORS[error],
+      // eslint-disable-next-line security/detect-object-injection
+      error: OAUTH2_CONSTANTS.ERRORS[error] || 'invalid_request',
     });
 
     if (description) {
@@ -207,7 +213,8 @@ export class OAuth2ErrorHelper {
     state?: string,
   ): string {
     const params = new URLSearchParams({
-      error: OAUTH2_CONSTANTS.ERRORS[error],
+      // eslint-disable-next-line security/detect-object-injection
+      error: OAUTH2_CONSTANTS.ERRORS[error] || 'invalid_request',
     });
 
     if (description) {

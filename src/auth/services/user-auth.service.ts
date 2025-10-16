@@ -93,7 +93,19 @@ export class UserAuthService {
       permissions = PERMISSIONS.ADMIN_ACCESS;
     } else {
       // Set permissions based on user type
-      permissions = USER_TYPE_PERMISSIONS[finalUserType];
+      if (
+        Object.prototype.hasOwnProperty.call(
+          USER_TYPE_PERMISSIONS,
+          finalUserType,
+        )
+      ) {
+        permissions =
+          USER_TYPE_PERMISSIONS[
+            finalUserType as keyof typeof USER_TYPE_PERMISSIONS
+          ];
+      } else {
+        throw new Error(`Invalid user type: ${finalUserType}`);
+      }
     }
 
     // Create user

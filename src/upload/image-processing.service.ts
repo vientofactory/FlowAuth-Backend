@@ -1,8 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { existsSync, mkdirSync } from 'fs';
 import { writeFile } from 'fs/promises';
-import { join } from 'path';
 import sharp from 'sharp';
+import {
+  safePath,
+  validateFilename,
+  sanitizeFilename,
+} from '../utils/path-security.util';
 import { v4 as uuidv4 } from 'uuid';
 import { MulterFile, FileUploadError } from './types';
 import { UPLOAD_CONFIG, getUploadPath } from './config';
@@ -19,7 +23,9 @@ export class ImageProcessingService {
     // Create directories for image types
     ['logo', 'avatar'].forEach((type) => {
       const path = getUploadPath(type as keyof typeof UPLOAD_CONFIG.fileTypes);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
       if (!existsSync(path)) {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
         mkdirSync(path, { recursive: true });
         this.logger.log(`Created image directory for ${type}: ${path}`);
       }
@@ -84,11 +90,23 @@ export class ImageProcessingService {
 
       // Save processed file
       const destinationPath = getUploadPath(type);
-      const fullPath = join(destinationPath, filename);
+
+      // Validate and sanitize filename
+      if (!validateFilename(filename)) {
+        throw new FileUploadError(
+          'Invalid filename detected',
+          'INVALID_FILENAME',
+        );
+      }
+
+      const sanitizedFilename = sanitizeFilename(filename);
+      const fullPath = safePath(sanitizedFilename, destinationPath);
 
       // Ensure destination directory exists with error handling
       try {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
         if (!existsSync(destinationPath)) {
+          // eslint-disable-next-line security/detect-non-literal-fs-filename
           mkdirSync(destinationPath, { recursive: true });
           this.logger.log(`Created directory: ${destinationPath}`);
         }
@@ -101,6 +119,7 @@ export class ImageProcessingService {
 
       // Save processed file with error handling
       try {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
         await writeFile(fullPath, processedBuffer);
       } catch (error) {
         // Handle filesystem-specific errors
@@ -388,6 +407,7 @@ export class ImageProcessingService {
     };
 
     // Try to determine format from MIME type first
+    // eslint-disable-next-line security/detect-object-injection
     const formatFromMime = mimeToFormat[mimeType];
 
     // If MIME type gives us a supported format, use it
@@ -414,6 +434,7 @@ export class ImageProcessingService {
       tif: 'jpeg',
     };
 
+    // eslint-disable-next-line security/detect-object-injection
     const formatFromExtension = extensionToFormat[fileExtension];
 
     // If extension gives us a supported format, use it
@@ -444,6 +465,7 @@ export class ImageProcessingService {
       avif: 'avif',
     };
 
+    // eslint-disable-next-line security/detect-object-injection
     return extensionMap[format] || 'jpg';
   }
 
@@ -454,6 +476,7 @@ export class ImageProcessingService {
     type: keyof typeof UPLOAD_CONFIG.fileTypes,
     filename: string,
   ): string {
+    // eslint-disable-next-line security/detect-object-injection
     const destination = UPLOAD_CONFIG.fileTypes[type].destination;
     return `/uploads/${destination}/${filename}`;
   }
