@@ -17,65 +17,7 @@ import { ValidationSanitizationPipe } from './common/validation-sanitization.pip
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { createSizeLimitMiddleware } from './common/middleware/size-limit.middleware';
 import { SIZE_LIMIT_CONFIGS } from './constants/security.constants';
-
-/**
- * Get allowed origins from environment variables
- */
-function getAllowedOrigins(): string[] {
-  const frontendUrl = process.env.FRONTEND_URL;
-  const isProduction = process.env.NODE_ENV === 'production';
-
-  // Base allowed origins for development
-  const developmentOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5173', // Vite dev server
-    'http://localhost:4173', // Vite preview
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:5173',
-  ];
-
-  if (isProduction) {
-    if (frontendUrl) {
-      // Support multiple frontend URLs
-      const productionOrigins = frontendUrl.split(',').map((url) => url.trim());
-      return [...productionOrigins, ...developmentOrigins];
-    } else {
-      console.warn(
-        'FRONTEND_URL not set in production environment. Using development origins as fallback.',
-      );
-      return developmentOrigins;
-    }
-  } else {
-    const origins = [...developmentOrigins];
-    if (frontendUrl) {
-      const additionalOrigins = frontendUrl.split(',').map((url) => url.trim());
-      origins.push(...additionalOrigins);
-    }
-    return [...new Set(origins)];
-  }
-}
-
-/**
- * Check if origin is allowed
- */
-function isOriginAllowed(origin: string | undefined): boolean {
-  if (!origin) return true; // Allow requests with no origin (mobile apps, etc.)
-
-  const allowedOrigins = getAllowedOrigins();
-  const isDevelopment = process.env.NODE_ENV === 'development';
-
-  // In development, be more permissive
-  if (isDevelopment) {
-    return (
-      allowedOrigins.includes(origin) ||
-      origin.startsWith('http://localhost') ||
-      origin.startsWith('http://127.0.0.1')
-    );
-  }
-
-  // In production, be strict
-  return allowedOrigins.includes(origin);
-}
+import { CorsService, corsConfig, CorsConfig } from './config/cors';
 
 /**
  * FlowAuth Application Bootstrap
@@ -207,12 +149,21 @@ function configureMiddleware(app: NestExpressApplication): void {
  * Configure static file serving with CORS headers
  */
 function configureStaticFiles(app: NestExpressApplication): void {
+  const configService = app.get(ConfigService);
+
+  // Update corsConfig with current environment values
+  const currentCorsConfig: CorsConfig = {
+    ...corsConfig,
+    frontendUrl: configService.get<string>('FRONTEND_URL'),
+    nodeEnv: configService.get<string>('NODE_ENV') || 'development',
+  };
+
   // Custom CORS middleware for uploads path (both API and static files)
   app.use('/uploads', (req: Request, res: Response, next: NextFunction) => {
     const origin = req.headers.origin;
 
-    // Set CORS headers with origin validation
-    if (isOriginAllowed(origin)) {
+    // Set CORS headers with origin validation using CORS service
+    if (CorsService.isOriginAllowed(origin, currentCorsConfig)) {
       res.header('Access-Control-Allow-Origin', origin);
     }
     res.header('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
@@ -254,95 +205,20 @@ function configureStaticFiles(app: NestExpressApplication): void {
 }
 
 /**
- * Configure CORS for API endpoints
+ * Configure CORS for OAuth2/OpenID Connect endpoints
  */
 function configureCORS(app: NestExpressApplication): void {
-  // Add specific CORS middleware for well-known endpoints
-  app.use(
-    '/.well-known/openid-configuration',
-    (req: Request, res: Response, next: NextFunction) => {
-      const logger = new Logger('OpenIDConfigCORS');
-      logger.debug(
-        `Processing OpenID config request: ${req.method} ${req.path} from origin: ${req.headers.origin}`,
-      );
+  const configService = app.get(ConfigService);
 
-      // Set CORS headers for OpenID configuration endpoint
-      res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-      res.header(
-        'Access-Control-Allow-Headers',
-        'Origin, X-Requested-With, Content-Type, Accept',
-      );
-      res.header('Vary', 'Origin');
+  // Update corsConfig with current environment values
+  const currentCorsConfig: CorsConfig = {
+    ...corsConfig,
+    frontendUrl: configService.get<string>('FRONTEND_URL'),
+    nodeEnv: configService.get<string>('NODE_ENV') || 'development',
+  };
 
-      // Handle preflight requests
-      if (req.method === 'OPTIONS') {
-        logger.debug(`Handling OPTIONS preflight for OpenID config`);
-        res.status(200).end();
-        return;
-      }
-
-      logger.debug(`Continuing to OpenID config controller`);
-      next();
-    },
-  );
-
-  // Add specific CORS middleware for JWKS endpoint
-  app.use(
-    '/.well-known/jwks.json',
-    (req: Request, res: Response, next: NextFunction) => {
-      const logger = new Logger('JwksCORS');
-      logger.debug(
-        `Processing JWKS request: ${req.method} ${req.path} from origin: ${req.headers.origin}`,
-      );
-
-      // Set CORS headers for JWKS endpoint
-      res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-      res.header(
-        'Access-Control-Allow-Headers',
-        'Origin, X-Requested-With, Content-Type, Accept',
-      );
-      res.header('Vary', 'Origin');
-
-      // Handle preflight requests
-      if (req.method === 'OPTIONS') {
-        logger.debug(`Handling OPTIONS preflight for JWKS`);
-        res.status(200).end();
-        return;
-      }
-
-      logger.debug(`Continuing to JWKS controller`);
-      next();
-    },
-  );
-
-  app.enableCors({
-    origin: function (origin, callback) {
-      if (isOriginAllowed(origin)) {
-        callback(null, true);
-      } else {
-        callback(
-          new Error(`CORS policy violation: Origin '${origin}' not allowed`),
-          false,
-        );
-      }
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
-    allowedHeaders: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-      'Cache-Control',
-      'X-CSRF-Token',
-    ],
-    exposedHeaders: ['Content-Length', 'ETag', 'Last-Modified'],
-    credentials: true,
-    maxAge: 86400,
-    optionsSuccessStatus: 200,
-  });
+  // Apply CORS middleware using the new service
+  app.use(CorsService.createCorsMiddleware(currentCorsConfig));
 }
 
 /**
