@@ -115,11 +115,10 @@ export class AuthController {
   ): Promise<LoginResponseDto> {
     const result = await this.authService.login(loginDto);
 
-    // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {
-      httpOnly: false,
+      httpOnly: true,
       secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
@@ -173,11 +172,10 @@ export class AuthController {
       token.trim(),
     );
 
-    // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {
-      httpOnly: false,
+      httpOnly: true,
       secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
@@ -203,11 +201,10 @@ export class AuthController {
     const token = ValidationHelpers.extractBearerToken(req);
     const result = this.authService.logout(token);
 
-    // 쿠키 제거
     res.clearCookie('token', {
-      httpOnly: false,
+      httpOnly: true,
       secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
     });
 
     return result;
@@ -279,11 +276,10 @@ export class AuthController {
       backupCode.trim(),
     );
 
-    // OAuth2 플로우를 위해 쿠키에 토큰 설정
     res.cookie('token', result.accessToken, {
-      httpOnly: false,
+      httpOnly: true,
       secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 

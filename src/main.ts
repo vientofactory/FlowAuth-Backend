@@ -213,7 +213,7 @@ function configureStaticFiles(app: NestExpressApplication): void {
 
     // Set CORS headers with origin validation
     if (isOriginAllowed(origin)) {
-      res.header('Access-Control-Allow-Origin', origin || '*');
+      res.header('Access-Control-Allow-Origin', origin);
     }
     res.header('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
     res.header(
