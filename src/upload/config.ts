@@ -1,5 +1,10 @@
 import { join } from 'path';
 import { FILE_TYPES } from './types';
+import {
+  safePath,
+  validateFilename,
+  sanitizeFilename,
+} from '../utils/path-security.util';
 
 // File size constants (in bytes)
 export const FILE_SIZE_LIMITS = {
@@ -130,7 +135,14 @@ export const getUploadPath = (
     throw new Error(`Invalid file type: ${type}`);
   }
 
-  return join(UPLOAD_CONFIG.baseUploadPath, fileTypeConfig.destination);
+  // Use safePath to prevent path traversal attacks
+  try {
+    return safePath(fileTypeConfig.destination, UPLOAD_CONFIG.baseUploadPath);
+  } catch (error) {
+    throw new Error(
+      `Invalid upload path configuration for ${type}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
+  }
 };
 
 export const getFileUrl = (
@@ -158,4 +170,50 @@ export const getFileLimits = (type: keyof typeof UPLOAD_CONFIG.fileTypes) => {
     fileSize: config.maxSize,
     files: 1,
   };
+};
+
+/**
+ * Safely validate and sanitize uploaded filename
+ * Prevents path traversal and malicious filename attacks
+ */
+export const validateAndSanitizeFilename = (filename: string): string => {
+  if (!filename || typeof filename !== 'string') {
+    throw new Error('Invalid filename: Must be a non-empty string');
+  }
+
+  // First, check if the original filename is valid
+  if (!validateFilename(filename)) {
+    // If not valid, sanitize it
+    const sanitized = sanitizeFilename(filename);
+    if (!sanitized) {
+      throw new Error('Invalid filename: Cannot be sanitized to a safe name');
+    }
+    return sanitized;
+  }
+
+  return filename;
+};
+
+/**
+ * Create a secure file path for uploaded files
+ * Combines safe path resolution with filename validation
+ */
+export const createSecureFilePath = (
+  type: keyof typeof UPLOAD_CONFIG.fileTypes,
+  filename: string,
+): string => {
+  // Validate and sanitize filename first
+  const safeFilename = validateAndSanitizeFilename(filename);
+
+  // Get the secure upload path
+  const uploadPath = getUploadPath(type);
+
+  // Create the final secure path
+  try {
+    return safePath(safeFilename, uploadPath);
+  } catch (error) {
+    throw new Error(
+      `Cannot create secure file path: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
+  }
 };
