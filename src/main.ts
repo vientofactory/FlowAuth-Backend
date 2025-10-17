@@ -257,10 +257,16 @@ function configureStaticFiles(app: NestExpressApplication): void {
  * Configure CORS for API endpoints
  */
 function configureCORS(app: NestExpressApplication): void {
-  // Allow all origins for well-known endpoints before global CORS setup
+  // Add custom CORS middleware for well-known endpoints before global CORS setup
   app.use(
     /^\/\.well-known\/.*$/,
     (req: Request, res: Response, next: NextFunction) => {
+      const logger = new Logger('WellKnownCORS');
+      logger.debug(
+        `Processing well-known request: ${req.method} ${req.path} from origin: ${req.headers.origin}`,
+      );
+
+      // Set CORS headers for well-known endpoints
       res.header('Access-Control-Allow-Origin', '*');
       res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
       res.header(
@@ -269,11 +275,15 @@ function configureCORS(app: NestExpressApplication): void {
       );
       res.header('Vary', 'Origin');
 
+      // Handle preflight requests
       if (req.method === 'OPTIONS') {
+        logger.debug(`Handling OPTIONS preflight for: ${req.path}`);
         res.status(200).end();
         return;
       }
 
+      // Continue to the actual controller
+      logger.debug(`Continuing to controller for: ${req.path}`);
       next();
     },
   );
