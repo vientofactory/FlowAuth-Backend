@@ -257,15 +257,34 @@ function configureStaticFiles(app: NestExpressApplication): void {
  * Configure CORS for API endpoints
  */
 function configureCORS(app: NestExpressApplication): void {
+  // Allow all origins for well-known endpoints before global CORS setup
+  app.use(
+    /^\/\.well-known\/.*$/,
+    (req: Request, res: Response, next: NextFunction) => {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Origin, X-Requested-With, Content-Type, Accept',
+      );
+      res.header('Vary', 'Origin');
+
+      if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
+      }
+
+      next();
+    },
+  );
+
   app.enableCors({
     origin: function (origin, callback) {
       if (isOriginAllowed(origin)) {
         callback(null, true);
       } else {
         callback(
-          new Error(
-            `CORS policy violation: Origin '${origin}' not allowed. Configure FRONTEND_URL environment variable.`,
-          ),
+          new Error(`CORS policy violation: Origin '${origin}' not allowed`),
           false,
         );
       }
