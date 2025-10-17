@@ -63,11 +63,9 @@ export class JwksController {
   })
   getJwks() {
     try {
-      this.logger.debug('Processing JWKS request');
       const result = {
         keys: [this.jwk],
       };
-      this.logger.debug('JWKS generated successfully');
       return result;
     } catch (error) {
       this.logger.error('Error generating JWKS:', error);

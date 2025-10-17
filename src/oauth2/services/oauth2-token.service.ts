@@ -53,7 +53,8 @@ export class OAuth2TokenService {
     authTime?: number,
   ): Promise<TokenCreateResponse> {
     return this.tokenRepository.manager.transaction(async (manager) => {
-      if (this.isDebugMode()) {
+      // Debug logging only in development environment
+      if (this.isDebugMode() && process.env.NODE_ENV === 'development') {
         this.structuredLogger.debug(
           {
             message: 'createToken called',

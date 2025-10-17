@@ -193,13 +193,7 @@ export class IdTokenService {
 
       // 개발 환경 토큰은 검증 건너뛰기
       if (header.alg === JWT_CONSTANTS.ALGORITHMS.HS256) {
-        this.structuredLogger.debug(
-          {
-            message:
-              'Development environment token detected, skipping RSA validation',
-          },
-          'IdTokenService',
-        );
+        // Development environment token - skip RSA validation
         return payload;
       }
 

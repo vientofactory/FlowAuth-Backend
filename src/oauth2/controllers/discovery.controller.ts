@@ -21,13 +21,9 @@ export class DiscoveryController {
   })
   getOpenIdConfiguration() {
     try {
-      this.logger.debug('Processing OpenID Configuration request');
-
       const baseUrl =
         this.configService.get<string>('BACKEND_URL') ||
         'http://localhost:3000';
-
-      this.logger.debug(`Using base URL: ${baseUrl}`);
 
       const configuration = {
         issuer: baseUrl,
@@ -65,7 +61,6 @@ export class DiscoveryController {
         require_request_uri_registration: false,
       };
 
-      this.logger.debug('OpenID Configuration generated successfully');
       return configuration;
     } catch (error) {
       this.logger.error('Error generating OpenID Configuration:', error);
