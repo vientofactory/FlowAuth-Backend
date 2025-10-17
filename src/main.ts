@@ -257,16 +257,16 @@ function configureStaticFiles(app: NestExpressApplication): void {
  * Configure CORS for API endpoints
  */
 function configureCORS(app: NestExpressApplication): void {
-  // Add custom CORS middleware for well-known endpoints before global CORS setup
+  // Add specific CORS middleware for well-known endpoints
   app.use(
-    /^\/\.well-known\/.*$/,
+    '/.well-known/openid-configuration',
     (req: Request, res: Response, next: NextFunction) => {
-      const logger = new Logger('WellKnownCORS');
+      const logger = new Logger('OpenIDConfigCORS');
       logger.debug(
-        `Processing well-known request: ${req.method} ${req.path} from origin: ${req.headers.origin}`,
+        `Processing OpenID config request: ${req.method} ${req.path} from origin: ${req.headers.origin}`,
       );
 
-      // Set CORS headers for well-known endpoints
+      // Set CORS headers for OpenID configuration endpoint
       res.header('Access-Control-Allow-Origin', '*');
       res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
       res.header(
@@ -277,13 +277,42 @@ function configureCORS(app: NestExpressApplication): void {
 
       // Handle preflight requests
       if (req.method === 'OPTIONS') {
-        logger.debug(`Handling OPTIONS preflight for: ${req.path}`);
+        logger.debug(`Handling OPTIONS preflight for OpenID config`);
         res.status(200).end();
         return;
       }
 
-      // Continue to the actual controller
-      logger.debug(`Continuing to controller for: ${req.path}`);
+      logger.debug(`Continuing to OpenID config controller`);
+      next();
+    },
+  );
+
+  // Add specific CORS middleware for JWKS endpoint
+  app.use(
+    '/.well-known/jwks.json',
+    (req: Request, res: Response, next: NextFunction) => {
+      const logger = new Logger('JwksCORS');
+      logger.debug(
+        `Processing JWKS request: ${req.method} ${req.path} from origin: ${req.headers.origin}`,
+      );
+
+      // Set CORS headers for JWKS endpoint
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Origin, X-Requested-With, Content-Type, Accept',
+      );
+      res.header('Vary', 'Origin');
+
+      // Handle preflight requests
+      if (req.method === 'OPTIONS') {
+        logger.debug(`Handling OPTIONS preflight for JWKS`);
+        res.status(200).end();
+        return;
+      }
+
+      logger.debug(`Continuing to JWKS controller`);
       next();
     },
   );
