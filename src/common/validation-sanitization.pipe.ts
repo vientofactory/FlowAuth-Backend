@@ -7,12 +7,17 @@ import {
 } from '@nestjs/common';
 import { validate, ValidationError } from 'class-validator';
 import { plainToClass } from 'class-transformer';
+import {
+  VALIDATION_PIPE_OPTIONS,
+  FILE_UPLOAD_DTO_PATTERNS,
+} from '../constants/security.constants';
 
 @Injectable()
 export class ValidationSanitizationPipe implements PipeTransform<any> {
   private readonly logger = new Logger(ValidationSanitizationPipe.name);
 
-  async transform(value: any, { metatype }: ArgumentMetadata): Promise<any> {
+  async transform(value: any, metadata: ArgumentMetadata): Promise<any> {
+    const { metatype } = metadata;
     if (!metatype || !this.toValidate(metatype)) {
       return value;
     }
@@ -20,7 +25,11 @@ export class ValidationSanitizationPipe implements PipeTransform<any> {
     // Pre-sanitization security checks (must be done before sanitization to avoid infinite loops)
     this.validateCircularReferences(value, new WeakSet());
     this.validateNestingDepth(value, 0);
-    this.validatePayloadSize(value);
+
+    // Payload size validation (skip for file uploads, which are handled separately)
+    if (!this.isFileUploadRequest(metatype, metadata)) {
+      this.validatePayloadSize(value);
+    }
 
     // Comprehensive security sanitization
     value = this.performSecuritySanitization(value);
@@ -28,11 +37,14 @@ export class ValidationSanitizationPipe implements PipeTransform<any> {
     // Transform to class instance
     const object = plainToClass(metatype, value) as Record<string, unknown>;
 
+    const { whitelist, forbidNonWhitelisted, forbidUnknownValues } =
+      VALIDATION_PIPE_OPTIONS;
+
     // Validate the object
     const errors = await validate(object, {
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      forbidUnknownValues: true,
+      whitelist,
+      forbidNonWhitelisted,
+      forbidUnknownValues,
     });
 
     if (errors.length > 0) {
@@ -144,13 +156,26 @@ export class ValidationSanitizationPipe implements PipeTransform<any> {
         !Array.isArray(value) &&
         value.constructor === Object
       ) {
-        cleanObject[key] = this.sanitizeObject(
-          value as Record<string, unknown>,
-        );
+        Object.defineProperty(cleanObject, key, {
+          value: this.sanitizeObject(value as Record<string, unknown>),
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       } else if (Array.isArray(value)) {
-        cleanObject[key] = this.sanitizeArray(value);
+        Object.defineProperty(cleanObject, key, {
+          value: this.sanitizeArray(value),
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       } else {
-        cleanObject[key] = value;
+        Object.defineProperty(cleanObject, key, {
+          value: value,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       }
     }
 
@@ -233,23 +258,52 @@ export class ValidationSanitizationPipe implements PipeTransform<any> {
   }
 
   private sanitizeString(str: string): string {
-    // Remove potential script injection patterns
-    const cleanStr = str
-      // Remove null bytes and control characters
-      // eslint-disable-next-line no-control-regex
-      .replace(/[\x00-\x1f\x7f-\x9f]/g, '')
-      // Remove potential script tags
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      // Remove javascript: protocol
-      .replace(/javascript:/gi, '')
-      // Remove data: protocol with script content
-      .replace(/data:.*script/gi, '')
-      // Remove potential XSS vectors
-      .replace(/on\w+\s*=/gi, '')
-      // Limit string length to prevent DoS
-      .substring(0, 10000);
+    let cleanStr = str;
+    let hasChanges = false;
 
-    if (cleanStr !== str) {
+    // Remove null bytes and control characters
+    // eslint-disable-next-line no-control-regex
+    const controlCharRemoved = cleanStr.replace(/[\x00-\x1f\x7f-\x9f]/g, '');
+    if (controlCharRemoved !== cleanStr) {
+      cleanStr = controlCharRemoved;
+      hasChanges = true;
+    }
+
+    // Remove potential script tags (more comprehensive)
+    const scriptRemoved = cleanStr.replace(/<script[\s\S]*?<\/script>/gi, '');
+    if (scriptRemoved !== cleanStr) {
+      cleanStr = scriptRemoved;
+      hasChanges = true;
+    }
+
+    // Remove javascript: protocol
+    const jsProtocolRemoved = cleanStr.replace(/javascript:/gi, '');
+    if (jsProtocolRemoved !== cleanStr) {
+      cleanStr = jsProtocolRemoved;
+      hasChanges = true;
+    }
+
+    // Remove data: protocol with script content
+    const dataScriptRemoved = cleanStr.replace(/data:.*script/gi, '');
+    if (dataScriptRemoved !== cleanStr) {
+      cleanStr = dataScriptRemoved;
+      hasChanges = true;
+    }
+
+    // Remove potential XSS vectors (event handlers)
+    const eventHandlerRemoved = cleanStr.replace(/on\w+\s*=/gi, '');
+    if (eventHandlerRemoved !== cleanStr) {
+      cleanStr = eventHandlerRemoved;
+      hasChanges = true;
+    }
+
+    // Limit string length to prevent DoS
+    if (cleanStr.length > 10000) {
+      cleanStr = cleanStr.substring(0, 10000);
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
       this.logger.warn('Potentially malicious string content sanitized', {
         originalLength: str.length,
         cleanedLength: cleanStr.length,
@@ -336,13 +390,22 @@ export class ValidationSanitizationPipe implements PipeTransform<any> {
   }
 
   private validatePayloadSize(value: unknown): void {
-    const MAX_PAYLOAD_SIZE = 1024 * 1024; // 1MB
+    const MAX_PAYLOAD_SIZE = VALIDATION_PIPE_OPTIONS.maxPayloadSize;
+
+    // Skip validation for values that contain file-like data
+    if (this.containsFileData(value)) {
+      this.logger.debug('Skipping payload size validation for file-like data');
+      return;
+    }
 
     try {
       const serialized = JSON.stringify(value);
       const payloadSize = Buffer.byteLength(serialized, 'utf8');
 
       if (payloadSize > MAX_PAYLOAD_SIZE) {
+        this.logger.warn(
+          `Payload size limit exceeded: ${payloadSize} > ${MAX_PAYLOAD_SIZE}`,
+        );
         throw new BadRequestException({
           message: 'Payload size exceeds maximum allowed limit',
           maxSize: MAX_PAYLOAD_SIZE,
@@ -354,11 +417,84 @@ export class ValidationSanitizationPipe implements PipeTransform<any> {
         throw error;
       }
       // If JSON.stringify fails due to circular references or other issues
+      this.logger.warn('Failed to serialize payload for size validation', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       throw new BadRequestException({
         message: 'Invalid payload structure',
         error: 'PAYLOAD_STRUCTURE_ERROR',
       });
     }
+  }
+
+  /**
+   * Check if the value contains file-like data (Buffer, ArrayBuffer, or File object)
+   */
+  private containsFileData(value: unknown): boolean {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+
+    // Direct Buffer or ArrayBuffer check
+    if (Buffer.isBuffer(value) || value instanceof ArrayBuffer) {
+      return true;
+    }
+
+    // File-like object check (filename, mimetype, buffer properties)
+    const obj = value as Record<string, unknown>;
+    if (
+      'filename' in obj &&
+      'mimetype' in obj &&
+      ('buffer' in obj || 'data' in obj)
+    ) {
+      return true;
+    }
+
+    // Nested object check
+    if (Array.isArray(value)) {
+      return value.some((item) => this.containsFileData(item));
+    }
+
+    // Check nested properties for file-like data
+    try {
+      for (const prop of Object.values(obj)) {
+        if (this.containsFileData(prop)) {
+          return true;
+        }
+      }
+    } catch {
+      return false;
+    }
+
+    return false;
+  }
+
+  /**
+   * Check if the current request is likely a file upload based on DTO patterns or metadata
+   */
+  private isFileUploadRequest(
+    metatype: unknown,
+    metadata?: ArgumentMetadata,
+  ): boolean {
+    if (!VALIDATION_PIPE_OPTIONS.skipPayloadSizeValidationForFileUploads) {
+      return false;
+    }
+
+    if (metatype && typeof metatype === 'function') {
+      const className = metatype.name;
+      if (
+        className &&
+        FILE_UPLOAD_DTO_PATTERNS.some((pattern) => pattern.test(className))
+      ) {
+        return true;
+      }
+    }
+
+    if (metadata?.type === 'custom') {
+      return true;
+    }
+
+    return false;
   }
 
   private getSafeInputDescription(value: unknown): string {

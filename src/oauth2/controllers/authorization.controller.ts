@@ -24,6 +24,7 @@ import {
   RateLimit,
 } from '../../common/guards/advanced-rate-limit.guard';
 import { RATE_LIMIT_CONFIGS } from '../../constants/security.constants';
+import { validateOAuth2RedirectUri } from '../../utils/url-security.util';
 
 @Controller('oauth2')
 @UseGuards(AdvancedRateLimitGuard)
@@ -268,7 +269,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
       }
 
       // Handle the authorization flow
-      // 사용자가 인증되었으므로 동의 페이지로 리다이렉트
+      // User is authenticated, so redirect to consent page
       const consentUrl = this.buildConsentRedirectUrl(authorizeDto);
       return res.redirect(consentUrl);
     } catch {
@@ -345,6 +346,11 @@ OAuth2 Authorization Code Flow의 시작점입니다.
   }
 
   private validateRedirectUriForError(redirectUri: string): string | null {
+    // Use secure URL validation (addressing validator.js CVE-2025-56200)
+    if (!validateOAuth2RedirectUri(redirectUri)) {
+      return null;
+    }
+
     try {
       const url = new URL(redirectUri);
       // Only allow HTTP/HTTPS schemes

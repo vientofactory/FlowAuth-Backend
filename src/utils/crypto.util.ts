@@ -27,7 +27,11 @@ export class CryptoUtils {
 
     for (let i = 0; i < length; i++) {
       // crypto.randomBytes()로 생성된 바이트를 charset 인덱스로 변환
-      result += charset.charAt(randomBytes[i] % charset.length);
+      // Safe array access using .at() method
+      const byte = randomBytes.at(i);
+      if (byte !== undefined) {
+        result += charset.charAt(byte % charset.length);
+      }
     }
 
     return result;

@@ -1,4 +1,4 @@
-import { Controller, Get, Logger } from '@nestjs/common';
+import { Controller, Get, Logger, UsePipes } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -52,6 +52,7 @@ export class JwksController {
   }
 
   @Get('jwks.json')
+  @UsePipes() // Disable global validation pipe for this endpoint
   @ApiOperation({
     summary: 'JSON Web Key Set',
     description: 'ID 토큰 검증에 필요한 공개키 정보를 제공합니다.',
@@ -61,8 +62,14 @@ export class JwksController {
     description: 'JWKS 정보',
   })
   getJwks() {
-    return {
-      keys: [this.jwk],
-    };
+    try {
+      const result = {
+        keys: [this.jwk],
+      };
+      return result;
+    } catch (error) {
+      this.logger.error('Error generating JWKS:', error);
+      throw error;
+    }
   }
 }

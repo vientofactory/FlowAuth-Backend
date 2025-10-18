@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  ConflictException,
   Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -70,10 +71,41 @@ export class ProfileService {
       >
     > = {};
 
+    // 안전한 객체 할당을 위한 helper 함수
+    const safeAssign = (
+      key: keyof typeof filteredData,
+      value: string | undefined,
+    ) => {
+      if (key === 'firstName') filteredData.firstName = value as string;
+      else if (key === 'lastName') filteredData.lastName = value as string;
+      else if (key === 'username') filteredData.username = value as string;
+      else if (key === 'bio') filteredData.bio = value;
+      else if (key === 'website') filteredData.website = value;
+      else if (key === 'location') filteredData.location = value;
+    };
+
     // 입력 데이터 유효성 검사 및 필터링
     for (const field of allowedFields) {
-      if (updateData[field] !== undefined) {
-        const value = updateData[field];
+      if (
+        Object.prototype.hasOwnProperty.call(updateData, field) &&
+        // eslint-disable-next-line security/detect-object-injection
+        updateData[field] !== undefined
+      ) {
+        // Safe property access
+        const value =
+          field === 'firstName'
+            ? updateData.firstName
+            : field === 'lastName'
+              ? updateData.lastName
+              : field === 'username'
+                ? updateData.username
+                : field === 'bio'
+                  ? updateData.bio
+                  : field === 'website'
+                    ? updateData.website
+                    : field === 'location'
+                      ? updateData.location
+                      : undefined;
 
         // 필드별 유효성 검사
         if (field === 'username') {
@@ -96,15 +128,15 @@ export class ProfileService {
             );
           }
 
-          // 사용자명 중복 체크 (자기 자신 제외)
+          // 중복 검사
           const existingUser = await this.userRepository.findOne({
             where: { username: value.trim() },
           });
           if (existingUser && existingUser.id !== userId) {
-            throw new BadRequestException('이미 사용중인 사용자명입니다.');
+            throw new ConflictException('이미 사용중인 사용자명입니다.');
           }
 
-          filteredData[field] = value.trim();
+          safeAssign(field, value.trim());
         } else if (field === 'firstName' || field === 'lastName') {
           if (value !== null && value !== undefined) {
             if (typeof value !== 'string') {
@@ -129,7 +161,7 @@ export class ProfileService {
                 `${field === 'firstName' ? '이름' : '성'}은 한글, 영문, 공백, 하이픈, 점, 아포스트로피만 사용할 수 있습니다.`,
               );
             }
-            filteredData[field] = trimmedValue;
+            safeAssign(field, trimmedValue);
           }
         } else if (field === 'bio') {
           if (value !== null && value !== undefined) {
@@ -141,9 +173,9 @@ export class ProfileService {
                 '소개글은 최대 500자까지 가능합니다.',
               );
             }
-            filteredData[field] = value.trim() || undefined;
+            safeAssign(field, value.trim() || undefined);
           } else {
-            filteredData[field] = undefined;
+            safeAssign(field, undefined);
           }
         } else if (field === 'website') {
           if (value !== null && value !== undefined) {
@@ -165,12 +197,12 @@ export class ProfileService {
                   '웹사이트 URL은 최대 255자까지 가능합니다.',
                 );
               }
-              filteredData[field] = trimmedValue;
+              safeAssign(field, trimmedValue);
             } else {
-              filteredData[field] = undefined;
+              safeAssign(field, undefined);
             }
           } else {
-            filteredData[field] = undefined;
+            safeAssign(field, undefined);
           }
         } else if (field === 'location') {
           if (value !== null && value !== undefined) {
@@ -182,9 +214,9 @@ export class ProfileService {
                 '지역은 최대 100자까지 가능합니다.',
               );
             }
-            filteredData[field] = value.trim() || undefined;
+            safeAssign(field, value.trim() || undefined);
           } else {
-            filteredData[field] = undefined;
+            safeAssign(field, undefined);
           }
         }
       }

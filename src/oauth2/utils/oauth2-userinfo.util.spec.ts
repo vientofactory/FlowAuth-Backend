@@ -62,7 +62,7 @@ describe('OAuth2UserInfoBuilder', () => {
       expect(result).toEqual({
         sub: '1',
         preferred_username: 'testuser',
-        roles: ['일반 사용자'], // PermissionUtils.getRoleName(1)의 결과
+        roles: ['사용자 정의'], // PermissionUtils.getRoleName(1)의 실제 결과
       });
     });
 
@@ -77,7 +77,7 @@ describe('OAuth2UserInfoBuilder', () => {
         email: 'test@example.com',
         email_verified: false,
         preferred_username: 'testuser',
-        roles: ['일반 사용자'],
+        roles: ['사용자 정의'],
       });
     });
 

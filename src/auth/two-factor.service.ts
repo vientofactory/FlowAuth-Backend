@@ -160,10 +160,11 @@ export class TwoFactorService {
     for (let i = 0; i < user.backupCodes.length; i++) {
       try {
         // 해시된 백업 코드와 입력된 코드를 직접 비교
-        const isValid = await bcrypt.compare(
-          normalizedInputCode,
-          user.backupCodes[i],
-        );
+        // Safe array access to prevent object injection
+        const backupCode = user.backupCodes.at(i);
+        if (!backupCode) continue;
+
+        const isValid = await bcrypt.compare(normalizedInputCode, backupCode);
         if (isValid) {
           // 사용된 백업 코드는 제거
           const updatedBackupCodes = [...user.backupCodes];

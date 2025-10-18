@@ -30,20 +30,20 @@ interface IdTokenPayload {
   iat: number;
   auth_time: number;
   nonce?: string;
-  // profile 스코프 클레임
+  // profile scope claims
   name?: string;
   preferred_username?: string;
   given_name?: string;
   family_name?: string;
   picture?: string;
   updated_at?: number;
-  // email 스코프 클레임
+  // email scope claims
   email?: string;
   email_verified?: boolean;
-  // phone 스코프 클레임
+  // phone scope claims
   phone_number?: string;
   phone_number_verified?: boolean;
-  // address 스코프 클레임
+  // address scope claims
   address?: any;
 }
 
@@ -67,22 +67,22 @@ export class IdTokenService {
     const baseUrl =
       this.configService.get<string>('BACKEND_URL') || 'http://localhost:3000';
 
-    // 기본 클레임 (항상 포함)
+    // Define standard ID token claims
     const payload: IdTokenPayload = {
       iss: baseUrl,
       sub: user.id.toString(),
       aud: client.clientId,
-      exp: Math.floor(Date.now() / 1000) + JWT_CONSTANTS.TIME.ONE_HOUR_SECONDS, // 1시간
+      exp: Math.floor(Date.now() / 1000) + JWT_CONSTANTS.TIME.ONE_HOUR_SECONDS, // 1 hour expiration
       iat: Math.floor(Date.now() / 1000),
       auth_time: authTime || Math.floor(Date.now() / 1000),
     };
 
-    // nonce가 있으면 추가 (OpenID Connect 요구사항)
+    // Add nonce if present (OpenID Connect requirement)
     if (nonce) {
       payload.nonce = nonce;
     }
 
-    // 스코프에 따른 클레임 추가
+    // Add claims based on scopes
     this.addClaimsBasedOnScopes(payload, user, scopes);
 
     return await this.jwtTokenService.signJwtWithRSA(
@@ -91,14 +91,14 @@ export class IdTokenService {
   }
 
   /**
-   * 스코프에 따라 클레임을 추가하는 메서드
+   * Add claims to ID token payload based on granted scopes
    */
   private addClaimsBasedOnScopes(
     payload: IdTokenPayload,
     user: User,
     scopes: string[],
   ) {
-    // profile 스코프: 프로필 정보
+    // profile scope: User profile information
     if (scopes.includes('profile')) {
       payload.name = user.username || '';
       payload.preferred_username = user.username || '';
@@ -110,7 +110,7 @@ export class IdTokenService {
         : undefined;
     }
 
-    // email 스코프: 이메일 정보
+    // email scope: Email information
     if (scopes.includes('email')) {
       payload.email = user.email || '';
       payload.email_verified = !!user.isEmailVerified;
@@ -118,7 +118,7 @@ export class IdTokenService {
   }
 
   /**
-   * JWKS에서 RSA 공개키 가져오기
+   * Fetch RSA public key from JWKS endpoint for ID token validation
    */
   private async getRsaPublicKey(kid: string): Promise<crypto.KeyObject> {
     const baseUrl =
@@ -126,16 +126,15 @@ export class IdTokenService {
     const jwksUrl = `${baseUrl}${JWT_CONSTANTS.JWKS_PATH}`;
 
     try {
-      // 캐시에서 JWKS 확인
+      // Check JWKS in cache
       const cacheKey = `jwks:${jwksUrl}`;
       let jwks: JWKSResponse | undefined =
         await this.cacheManager.get(cacheKey);
 
       if (!jwks) {
-        // HTTP 요청으로 JWKS 가져오기
+        // Fetch JWKS via HTTP request
         const response = await axios.get(jwksUrl);
         jwks = response.data as JWKSResponse;
-        // 1시간 캐시
         await this.cacheManager.set(cacheKey, jwks, CACHE_CONSTANTS.JWKS_TTL);
       }
 
@@ -144,7 +143,7 @@ export class IdTokenService {
         throw new Error(`Key with kid '${kid}' not found in JWKS`);
       }
 
-      // JWK를 직접 사용하여 공개키 생성
+      // Construct RSA public key
       const publicKey = crypto.createPublicKey({
         key: {
           kty: key.kty,
@@ -169,7 +168,7 @@ export class IdTokenService {
   }
 
   /**
-   * ID 토큰 검증 (RSA 서명 + 클레임 검증)
+   * Validate ID token signature and claims
    */
   async validateIdToken(
     idToken: string,
@@ -177,7 +176,6 @@ export class IdTokenService {
     expectedNonce?: string,
   ): Promise<IdTokenPayload> {
     try {
-      // JWT 파싱
       const parts = idToken.split('.');
       if (parts.length !== 3) {
         throw new Error('Invalid JWT format');
@@ -191,19 +189,12 @@ export class IdTokenService {
       ) as IdTokenPayload;
       const signature = parts[2];
 
-      // 개발 환경 토큰은 검증 건너뛰기
+      // Development environment token - skip RSA validation
       if (header.alg === JWT_CONSTANTS.ALGORITHMS.HS256) {
-        this.structuredLogger.debug(
-          {
-            message:
-              'Development environment token detected, skipping RSA validation',
-          },
-          'IdTokenService',
-        );
         return payload;
       }
 
-      // RSA 서명 검증
+      // RSA signature verification
       if (header.alg !== JWT_CONSTANTS.ALGORITHMS.RS256) {
         throw new Error('Unsupported algorithm');
       }
@@ -213,10 +204,10 @@ export class IdTokenService {
         throw new Error('Key ID (kid) not found in token header');
       }
 
-      // 공개키 가져오기
+      // Fetch public key
       const publicKey = await this.getRsaPublicKey(kid);
 
-      // 서명 검증
+      // Verify signature
       const data = `${parts[0]}.${parts[1]}`;
       const isValid = crypto.verify(
         'RSA-SHA256',
@@ -229,7 +220,7 @@ export class IdTokenService {
         throw new Error('Invalid token signature');
       }
 
-      // 클레임 검증
+      // Validate standard claims
       const now = Math.floor(Date.now() / 1000);
 
       if (payload.exp < now) {

@@ -150,7 +150,8 @@ export class UploadController {
 
     // Process logo image with Sharp for optimization
     const logoUrl = await this.fileUploadService.processLogoImage(file);
-    const filename = logoUrl.split('/').pop() || '';
+    const filename =
+      typeof logoUrl === 'string' ? (logoUrl.split('/').pop() ?? '') : '';
 
     return {
       success: true,

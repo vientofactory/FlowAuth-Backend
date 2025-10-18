@@ -1,16 +1,15 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
 import { AuthorizationCodeService } from '../authorization-code.service';
 import { TokenService } from '../token.service';
-import { ScopeService } from '../scope.service';
 import { TokenRequestDto, TokenResponseDto } from '../dto/oauth2.dto';
 import {
   OAUTH2_CONSTANTS,
   RATE_LIMIT_CONSTANTS,
   OAUTH2_ERROR_MESSAGES,
+  OAuth2GrantType,
 } from '../../constants/oauth2.constants';
 
 @Injectable()
@@ -24,13 +23,10 @@ export class TokenGrantService {
   >();
 
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
     @InjectRepository(Client)
     private readonly clientRepository: Repository<Client>,
     private readonly authCodeService: AuthorizationCodeService,
     private readonly tokenService: TokenService,
-    private readonly scopeService: ScopeService,
   ) {}
 
   private checkRateLimit(
@@ -91,10 +87,16 @@ export class TokenGrantService {
       throw new BadRequestException('Invalid grant_type parameter');
     }
 
-    if (!OAUTH2_CONSTANTS.SUPPORTED_GRANT_TYPES.includes(grant_type as never)) {
+    // Validate supported grant types
+    if (
+      !OAUTH2_CONSTANTS.SUPPORTED_GRANT_TYPES.includes(
+        grant_type as OAuth2GrantType,
+      )
+    ) {
       throw new BadRequestException(`Unsupported grant type: ${grant_type}`);
     }
 
+    // Handle different grant types
     switch (grant_type) {
       case 'authorization_code':
         return this.handleAuthorizationCodeGrant(tokenDto);

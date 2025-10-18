@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, EntityManager } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -12,7 +12,6 @@ import { Token } from '../token.entity';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { TOKEN_TYPES } from '../../constants/auth.constants';
 import { StructuredLogger } from '../../logging/structured-logger.service';
-import { JwtTokenService } from './jwt-token.service';
 import { IdTokenService } from './id-token.service';
 
 interface TokenCreateResponse {
@@ -39,7 +38,6 @@ export class OAuth2TokenService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private structuredLogger: StructuredLogger,
-    private jwtTokenService: JwtTokenService,
     private idTokenService: IdTokenService,
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
@@ -53,7 +51,8 @@ export class OAuth2TokenService {
     authTime?: number,
   ): Promise<TokenCreateResponse> {
     return this.tokenRepository.manager.transaction(async (manager) => {
-      if (this.isDebugMode()) {
+      // Debug logging only in development environment
+      if (this.isDebugMode() && process.env.NODE_ENV === 'development') {
         this.structuredLogger.debug(
           {
             message: 'createToken called',
@@ -145,7 +144,6 @@ export class OAuth2TokenService {
 
   /**
    * Create tokens for Implicit Grant flow (OpenID Connect)
-   * Implicit Grant에서는 토큰을 데이터베이스에 저장하지 않고 직접 생성하여 반환
    */
   async createImplicitTokens(
     user: User,
@@ -157,13 +155,13 @@ export class OAuth2TokenService {
       tokenType: JWT_CONSTANTS.TOKEN_TYPE,
     };
 
-    // 액세스 토큰 생성 (openid 스코프가 있는 경우)
+    // Create tokens based on requested scopes
     if (scopes.includes('openid')) {
       const accessToken = this.generateAccessToken(user, client, scopes);
       response.accessToken = accessToken;
       response.expiresIn = this.getAccessTokenExpirySeconds();
 
-      // ID 토큰 생성
+      // Generate auth time
       const authTime = Math.floor(Date.now() / 1000);
       response.idToken = await this.generateIdToken(
         user,
@@ -173,7 +171,7 @@ export class OAuth2TokenService {
         authTime,
       );
     } else {
-      // openid 스코프가 없으면 액세스 토큰만 생성
+      // Only access token if openid scope is not requested
       const accessToken = this.generateAccessToken(user, client, scopes);
       response.accessToken = accessToken;
       response.expiresIn = this.getAccessTokenExpirySeconds();
@@ -182,15 +180,21 @@ export class OAuth2TokenService {
     return response;
   }
 
+  /**
+   * Issue new tokens using a refresh token
+   * Implements robust handling to prevent race conditions
+   */
   async refreshToken(
     refreshTokenValue: string,
     clientId: string,
   ): Promise<TokenCreateResponse | null> {
-    // Use transaction to prevent race conditions
+    // Use transaction with pessimistic locking to prevent race conditions
     return await this.tokenRepository.manager.transaction(async (manager) => {
+      // Find the token by refresh token value with a lock
       const token = await manager.findOne(Token, {
         where: { refreshToken: refreshTokenValue },
         relations: ['user', 'client'],
+        lock: { mode: 'pessimistic_write' },
       });
 
       if (!token) {
@@ -211,10 +215,14 @@ export class OAuth2TokenService {
         return null;
       }
 
-      // Check if refresh token was already used
+      // Check if token or its family is revoked
       if (token.isRefreshTokenUsed) {
         // Enhanced Security: revoke entire token family if refresh token reuse detected
-        await this.revokeTokenFamily(token.tokenFamily, 'refresh_token_reuse');
+        await this.revokeTokenFamilyInTransaction(
+          manager,
+          token.tokenFamily,
+          'refresh_token_reuse',
+        );
 
         this.structuredLogger.logSecurity('refresh_token_reuse_detected', {
           tokenFamily: token.tokenFamily,
@@ -227,9 +235,15 @@ export class OAuth2TokenService {
         return null;
       }
 
-      // Mark refresh token as used
-      token.isRefreshTokenUsed = true;
-      await manager.save(token);
+      // Mark current refresh token as used
+      await manager.update(
+        Token,
+        { id: token.id },
+        {
+          isRefreshTokenUsed: true,
+          updatedAt: new Date(),
+        },
+      );
 
       // Generate new tokens
       const newAccessToken = this.generateAccessTokenWithJti(
@@ -341,34 +355,24 @@ export class OAuth2TokenService {
     );
   }
 
-  private async revokeAllUserTokens(userId: number): Promise<void> {
-    await this.tokenRepository.update(
-      { user: { id: userId } },
-      {
-        accessToken: 'REVOKED',
-        isRefreshTokenUsed: true,
-        revokedReason: 'user_tokens_revoked',
-        revokedAt: new Date(),
-      },
-    );
-  }
-
   /**
-   * Revoke entire token family when refresh token reuse is detected
+   * Token family revocation within a transaction context
    */
-  private async revokeTokenFamily(
+  private async revokeTokenFamilyInTransaction(
+    manager: EntityManager,
     tokenFamily: string | undefined,
     reason: string,
   ): Promise<void> {
     if (!tokenFamily) return;
 
     // Get all tokens in family before revoking
-    const tokensInFamily = await this.tokenRepository.find({
+    const tokensInFamily = await manager.find(Token, {
       where: { tokenFamily },
       select: ['id'],
     });
 
-    await this.tokenRepository.update(
+    await manager.update(
+      Token,
       { tokenFamily },
       {
         isRevoked: true,

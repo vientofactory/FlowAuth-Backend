@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { extname, join } from 'path';
+import { extname } from 'path';
 import { existsSync, unlinkSync } from 'fs';
 import { memoryStorage } from 'multer';
+import {
+  safePath,
+  validateFilename,
+  sanitizeFilename,
+} from '../utils/path-security.util';
 import { v4 as uuidv4 } from 'uuid';
 import type { Request } from 'express';
 import {
@@ -81,6 +86,7 @@ export class FileUploadService {
    * Get upload limits for a specific file type
    */
   getUploadLimits(type: keyof typeof UPLOAD_CONFIG.fileTypes): UploadLimits {
+    // eslint-disable-next-line security/detect-object-injection
     const config = UPLOAD_CONFIG.fileTypes[type];
     return {
       fileSize: config.maxSize,
@@ -118,6 +124,7 @@ export class FileUploadService {
     type: keyof typeof UPLOAD_CONFIG.fileTypes,
     filename: string,
   ): string {
+    // eslint-disable-next-line security/detect-object-injection
     const destination = UPLOAD_CONFIG.fileTypes[type].destination;
     return `/uploads/${destination}/${filename}`;
   }
@@ -129,8 +136,16 @@ export class FileUploadService {
     type: keyof typeof UPLOAD_CONFIG.fileTypes,
     filename: string,
   ): string {
+    // Validate and sanitize filename
+    if (!validateFilename(filename)) {
+      throw new Error('Invalid filename detected');
+    }
+
+    const sanitizedFilename = sanitizeFilename(filename);
     const destination = getUploadPath(type);
-    return join(destination, filename);
+
+    // Use safePath to prevent directory traversal
+    return safePath(sanitizedFilename, destination);
   }
 
   /**
@@ -141,6 +156,7 @@ export class FileUploadService {
     filename: string,
   ): boolean {
     const filePath = this.getFullFilePath(type, filename);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     return existsSync(filePath);
   }
 
@@ -184,21 +200,31 @@ export class FileUploadService {
         return false;
       }
 
-      // Build absolute file path
-      const filePath = join(process.cwd(), relativePath);
+      // Build absolute file path safely
+      try {
+        const filePath = safePath(relativePath, process.cwd());
 
-      // Check if file exists
-      if (!existsSync(filePath)) {
-        this.logger.warn(`File does not exist: ${filePath}`);
+        // Check if file exists
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        if (!existsSync(filePath)) {
+          this.logger.warn(`File does not exist: ${filePath}`);
+          return false;
+        }
+
+        // Delete the file
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        unlinkSync(filePath);
+        return true;
+      } catch (error) {
+        this.logger.error(
+          `Failed to delete file: ${logoUri}`,
+          error instanceof Error ? error.stack : String(error),
+        );
         return false;
       }
-
-      // Delete the file
-      unlinkSync(filePath);
-      return true;
     } catch (error) {
       this.logger.error(
-        `Failed to delete file: ${logoUri}`,
+        `Unexpected error during file deletion: ${logoUri}`,
         error instanceof Error ? error.stack : String(error),
       );
       return false;

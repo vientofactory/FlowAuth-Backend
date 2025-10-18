@@ -221,7 +221,15 @@ export const FieldSizeLimit = (maxLength: number): ParameterDecorator => {
         target,
         propertyKey!,
       ) as Record<number, number>) || {};
-    existingLimits[parameterIndex] = maxLength;
+    // Safe object assignment to prevent injection
+    if (typeof parameterIndex === 'number' && parameterIndex >= 0) {
+      Object.defineProperty(existingLimits, parameterIndex, {
+        value: maxLength,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+    }
     Reflect.defineMetadata(
       FIELD_SIZE_LIMIT_KEY,
       existingLimits,

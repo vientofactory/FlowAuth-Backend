@@ -17,6 +17,7 @@ import { ValidationSanitizationPipe } from './common/validation-sanitization.pip
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { createSizeLimitMiddleware } from './common/middleware/size-limit.middleware';
 import { SIZE_LIMIT_CONFIGS } from './constants/security.constants';
+import { CorsService, corsConfig, CorsConfig } from './config/cors';
 
 /**
  * FlowAuth Application Bootstrap
@@ -77,13 +78,56 @@ function configureApp(app: NestExpressApplication): void {
  * Configure security middleware (Helmet)
  */
 function configureSecurity(app: NestExpressApplication): void {
+  const isProduction = process.env.NODE_ENV === 'production';
+
   app.use(
     helmet({
-      crossOriginResourcePolicy: false, // Disable for static file CORS
-      crossOriginEmbedderPolicy: false, // Disable for cross-origin embedding
-      contentSecurityPolicy: false, // Disable for development flexibility
-      hsts: false, // Disable HSTS for development
-      noSniff: false, // Allow content type sniffing for images
+      // Content Security Policy
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: [
+            "'self'",
+            "'unsafe-inline'", // For development - should be removed in production
+            'https://cdnjs.cloudflare.com',
+          ],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          fontSrc: ["'self'", 'https:', 'data:'],
+          connectSrc: ["'self'"],
+          mediaSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          childSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+        },
+      },
+
+      // HTTP Strict Transport Security (only in production)
+      hsts: isProduction
+        ? {
+            maxAge: 31536000, // 1 year
+            includeSubDomains: true,
+            preload: true,
+          }
+        : false,
+
+      // Cross-Origin policies
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      crossOriginEmbedderPolicy: false, // Allow cross-origin embedding for uploads
+
+      // Prevent MIME type sniffing
+      noSniff: true,
+
+      // Prevent clickjacking
+      frameguard: { action: 'deny' },
+
+      // Remove X-Powered-By header
+      hidePoweredBy: true,
+
+      // Referrer Policy
+      referrerPolicy: { policy: ['no-referrer', 'same-origin'] },
     }),
   );
 }
@@ -105,12 +149,23 @@ function configureMiddleware(app: NestExpressApplication): void {
  * Configure static file serving with CORS headers
  */
 function configureStaticFiles(app: NestExpressApplication): void {
+  const configService = app.get(ConfigService);
+
+  // Update corsConfig with current environment values
+  const currentCorsConfig: CorsConfig = {
+    ...corsConfig,
+    frontendUrl: configService.get<string>('FRONTEND_URL'),
+    nodeEnv: configService.get<string>('NODE_ENV') || 'development',
+  };
+
   // Custom CORS middleware for uploads path (both API and static files)
   app.use('/uploads', (req: Request, res: Response, next: NextFunction) => {
     const origin = req.headers.origin;
 
-    // Set CORS headers for both API endpoints and static files
-    res.header('Access-Control-Allow-Origin', origin || '*');
+    // Set CORS headers with origin validation using CORS service
+    if (CorsService.isOriginAllowed(origin, currentCorsConfig)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    }
     res.header('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
     res.header(
       'Access-Control-Allow-Headers',
@@ -150,32 +205,20 @@ function configureStaticFiles(app: NestExpressApplication): void {
 }
 
 /**
- * Configure CORS for API endpoints
+ * Configure CORS for OAuth2/OpenID Connect endpoints
  */
 function configureCORS(app: NestExpressApplication): void {
-  app.enableCors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (mobile apps, postman, etc.)
-      if (!origin) return callback(null, true);
+  const configService = app.get(ConfigService);
 
-      // Allow all origins in development
-      return callback(null, true);
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
-    allowedHeaders: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-      'Cache-Control',
-      'X-CSRF-Token',
-    ],
-    exposedHeaders: ['Content-Length', 'ETag', 'Last-Modified'],
-    credentials: true,
-    maxAge: 86400,
-    optionsSuccessStatus: 200,
-  });
+  // Update corsConfig with current environment values
+  const currentCorsConfig: CorsConfig = {
+    ...corsConfig,
+    frontendUrl: configService.get<string>('FRONTEND_URL'),
+    nodeEnv: configService.get<string>('NODE_ENV') || 'development',
+  };
+
+  // Apply CORS middleware using the new service
+  app.use(CorsService.createCorsMiddleware(currentCorsConfig));
 }
 
 /**

@@ -305,7 +305,11 @@ export class ScopeService implements OnApplicationBootstrap {
       openid: 'openid',
     };
 
-    return legacyScopeMapping[scopeName] || scopeName;
+    // Safe object access to prevent injection
+    return Object.prototype.hasOwnProperty.call(legacyScopeMapping, scopeName)
+      ? // eslint-disable-next-line security/detect-object-injection
+        legacyScopeMapping[scopeName]
+      : scopeName;
   }
 
   /**

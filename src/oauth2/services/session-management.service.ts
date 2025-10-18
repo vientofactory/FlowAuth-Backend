@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
@@ -23,8 +22,7 @@ export interface SessionCheckResult {
 }
 
 /**
- * OpenID Connect Session Management 1.0 구현
- * https://openid.net/specs/openid-connect-session-1_0.html
+ * OpenID Connect Session Management 1.0 Implementation
  */
 @Injectable()
 export class SessionManagementService {
@@ -34,7 +32,6 @@ export class SessionManagementService {
 
   constructor(
     private configService: ConfigService,
-    private jwtService: JwtService,
     private structuredLogger: StructuredLogger,
   ) {
     this.CHECK_SESSION_IFRAME_URL = `${this.configService.get('BASE_URL')}/connect/session/check`;
@@ -49,7 +46,7 @@ export class SessionManagementService {
   }
 
   /**
-   * 새로운 세션 생성
+   * Create a new session
    */
   createSession(
     user: User,
@@ -82,7 +79,7 @@ export class SessionManagementService {
   }
 
   /**
-   * 세션 상태 확인
+   * Check session status
    */
   checkSession(sessionId: string, clientId: string): SessionCheckResult {
     const session = this.sessions.get(sessionId);
@@ -112,7 +109,7 @@ export class SessionManagementService {
   }
 
   /**
-   * 세션 종료
+   * End session
    */
   endSession(sessionId: string): void {
     const session = this.sessions.get(sessionId);
@@ -128,7 +125,7 @@ export class SessionManagementService {
   }
 
   /**
-   * 사용자의 모든 세션 종료
+   * End all sessions for a user
    */
   endAllUserSessions(userId: number): void {
     for (const [sessionId, session] of this.sessions.entries()) {
@@ -139,7 +136,7 @@ export class SessionManagementService {
   }
 
   /**
-   * 클라이언트의 모든 세션 종료
+   * End all sessions for a client
    */
   endAllClientSessions(clientId: string): void {
     for (const [sessionId, session] of this.sessions.entries()) {
@@ -150,7 +147,7 @@ export class SessionManagementService {
   }
 
   /**
-   * 만료된 세션 정리
+   * Cleanup expired sessions
    */
   private cleanupExpiredSessions(): void {
     const now = new Date();
@@ -178,7 +175,7 @@ export class SessionManagementService {
   }
 
   /**
-   * Session State 생성 (for OP iframe)
+   * Create Session State (for OP iframe)
    */
   generateSessionState(
     clientId: string,
@@ -195,14 +192,14 @@ export class SessionManagementService {
   }
 
   /**
-   * Check Session iframe URL 반환
+   * Check Session iframe URL
    */
   getCheckSessionIframeUrl(): string {
     return this.CHECK_SESSION_IFRAME_URL;
   }
 
   /**
-   * 세션 통계 조회
+   * Get session statistics
    */
   getSessionStats(): {
     totalSessions: number;
@@ -229,7 +226,7 @@ export class SessionManagementService {
   }
 
   /**
-   * 특정 사용자의 활성 세션 조회
+   * Get all active sessions for a user
    */
   getUserActiveSessions(userId: number): SessionState[] {
     const userSessions: SessionState[] = [];

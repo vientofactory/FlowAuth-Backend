@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { safeStringCompare } from '../utils/timing-security.util';
 import { AuthorizationCode } from './authorization-code.entity';
 import { User } from '../auth/user.entity';
 import { Client } from './client.entity';
@@ -120,45 +121,6 @@ export class AuthorizationCodeService {
     return authCode;
   }
 
-  private validateAuthorizationCode(
-    authCode: AuthorizationCode,
-    clientId: string,
-    redirectUri?: string,
-  ): void {
-    // Check client
-    if (authCode.client.clientId !== clientId) {
-      throw new BadRequestException(
-        OAUTH2_ERROR_MESSAGES.INVALID_CLIENT_CREDENTIALS,
-      );
-    }
-
-    // Check redirect URI if provided
-    if (redirectUri && authCode.redirectUri !== redirectUri) {
-      throw new BadRequestException(
-        OAUTH2_ERROR_MESSAGES.INVALID_REDIRECT_URI_CLIENT,
-      );
-    }
-  }
-
-  private validateAndProcessPKCE(
-    authCode: AuthorizationCode,
-    codeVerifier?: string,
-  ): void {
-    // Check PKCE if code challenge was used (PKCE is now optional)
-    if (authCode.codeChallenge) {
-      if (!codeVerifier) {
-        throw new BadRequestException(
-          OAUTH2_ERROR_MESSAGES.PKCE_VERIFIER_REQUIRED,
-        );
-      }
-
-      // Use stored method or default to 'plain'
-      const method = authCode.codeChallengeMethod || 'plain';
-
-      this.verifyCodeChallenge(codeVerifier, authCode.codeChallenge, method);
-    }
-  }
-
   async cleanupExpiredCodes(): Promise<number> {
     const now = new Date();
     const result = await this.authCodeRepository.delete({
@@ -224,7 +186,7 @@ export class AuthorizationCodeService {
   }
 
   private verifyPlainChallenge(verifier: string, challenge: string): boolean {
-    if (verifier !== challenge) {
+    if (!safeStringCompare(verifier, challenge)) {
       throw new BadRequestException(
         OAUTH2_ERROR_MESSAGES.PKCE_VERIFICATION_FAILED_PLAIN,
       );
@@ -238,7 +200,7 @@ export class AuthorizationCodeService {
       .update(verifier)
       .digest('base64url');
 
-    if (hash !== challenge) {
+    if (!safeStringCompare(hash, challenge)) {
       throw new BadRequestException(
         OAUTH2_ERROR_MESSAGES.PKCE_VERIFICATION_FAILED_S256,
       );
