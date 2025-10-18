@@ -11,6 +11,7 @@ import {
   OAUTH2_CONSTANTS,
   OAUTH2_ERROR_MESSAGES,
 } from '../../constants/oauth2.constants';
+import { validateOAuth2RedirectUri } from '../../utils/url-security.util';
 
 @Injectable()
 export class AuthorizationService {
@@ -94,6 +95,11 @@ export class AuthorizationService {
       throw new BadRequestException(OAUTH2_ERROR_MESSAGES.INVALID_CLIENT);
     }
 
+    // Validate redirect URI format first (addressing validator.js CVE-2025-56200)
+    if (!validateOAuth2RedirectUri(redirect_uri)) {
+      throw new BadRequestException(OAUTH2_ERROR_MESSAGES.INVALID_REDIRECT_URI);
+    }
+
     // Validate redirect URI matches client's registered URIs
     if (!client.redirectUris.includes(redirect_uri)) {
       throw new BadRequestException(OAUTH2_ERROR_MESSAGES.INVALID_REDIRECT_URI);
@@ -113,7 +119,7 @@ export class AuthorizationService {
       }
     }
 
-    // 레거시 스코프들을 새로운 스코프들로 정규화
+    // Normalize legacy scopes to new scopes
     const normalizedScopes = this.scopeService.normalizeScopes(requestedScopes);
 
     return { client, requestedScopes: normalizedScopes };
@@ -123,7 +129,7 @@ export class AuthorizationService {
     authorizeDto: AuthorizeRequestDto,
     user: User,
   ): Promise<AuthorizeResponseDto> {
-    // 먼저 검증 수행
+    // Perform validation first
     const { client, requestedScopes } =
       await this.validateAuthorizationRequest(authorizeDto);
 
@@ -136,7 +142,7 @@ export class AuthorizationService {
       nonce,
     } = authorizeDto;
 
-    // response_type에 따른 처리
+    // Handle different response types
     if (response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE) {
       // Authorization Code Grant
       return this.handleAuthorizationCodeGrant(
@@ -168,7 +174,7 @@ export class AuthorizationService {
       response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
       response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
     ) {
-      // Implicit Grant (OAuth2 및 OpenID Connect)
+      // Implicit Grant (Access Token and/or ID Token)
       return this.handleImplicitGrant(
         user,
         client,
@@ -195,7 +201,7 @@ export class AuthorizationService {
     codeChallengeMethod?: string,
     nonce?: string,
   ): Promise<AuthorizeResponseDto> {
-    // PKCE 파라미터 검증 (OPTIONAL but RECOMMENDED for security)
+    // PKCE parameter validation (OPTIONAL but RECOMMENDED for security)
     if (codeChallenge || codeChallengeMethod) {
       this.validatePKCEParameters(codeChallenge, codeChallengeMethod);
     }
@@ -240,7 +246,7 @@ export class AuthorizationService {
     codeChallengeMethod?: string,
     nonce?: string,
   ): Promise<AuthorizeResponseDto> {
-    // Hybrid Flow에서는 PKCE를 사용할 수 있음
+    // PKCE parameter validation (OPTIONAL but RECOMMENDED for security)
     if (codeChallenge || codeChallengeMethod) {
       this.validatePKCEParameters(codeChallenge, codeChallengeMethod);
     }
@@ -255,7 +261,7 @@ export class AuthorizationService {
       );
     }
 
-    // Hybrid Flow에서는 openid scope가 필수
+    // Require openid scope for ID token issuance
     if (!requestedScopes.includes('openid')) {
       throw new BadRequestException(
         'response_type=code id_token requires openid scope',
@@ -302,7 +308,7 @@ export class AuthorizationService {
     state?: string,
     nonce?: string,
   ): Promise<AuthorizeResponseDto> {
-    // Implicit Grant을 위한 토큰 생성
+    // Generate tokens
     const implicitTokens = await this.tokenService.createImplicitTokens(
       user,
       client,
@@ -314,7 +320,7 @@ export class AuthorizationService {
       redirect_uri,
     };
 
-    // response_type에 따라 토큰 결정
+    // Populate response based on response_type
     if (
       response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN ||
       response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN

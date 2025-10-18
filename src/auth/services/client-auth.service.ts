@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   Logger,
   Inject,
 } from '@nestjs/common';
@@ -18,6 +19,10 @@ import * as crypto from 'crypto';
 import { snowflakeGenerator } from '../../utils/snowflake-id.util';
 import { PermissionUtils } from '../../utils/permission.util';
 import { PERMISSIONS } from '@flowauth/shared';
+import {
+  validateOAuth2RedirectUri,
+  validateWebUrl,
+} from '../../utils/url-security.util';
 import { FileUploadService } from '../../upload/file-upload.service';
 
 @Injectable()
@@ -69,6 +74,28 @@ export class ClientAuthService {
       termsOfServiceUri,
       policyUri,
     } = createClientDto;
+
+    // Validate redirect URIs
+    for (const uri of redirectUris) {
+      if (!validateOAuth2RedirectUri(uri)) {
+        throw new BadRequestException(`Invalid redirect URI: ${uri}`);
+      }
+    }
+
+    // Validate optional web URIs
+    if (logoUri && !validateWebUrl(logoUri)) {
+      throw new BadRequestException(`Invalid logo URI: ${logoUri}`);
+    }
+
+    if (termsOfServiceUri && !validateWebUrl(termsOfServiceUri)) {
+      throw new BadRequestException(
+        `Invalid terms of service URI: ${termsOfServiceUri}`,
+      );
+    }
+
+    if (policyUri && !validateWebUrl(policyUri)) {
+      throw new BadRequestException(`Invalid policy URI: ${policyUri}`);
+    }
 
     // Generate clientId using Snowflake ID and clientSecret using crypto-safe random string
     const clientId = snowflakeGenerator.generate().toString();
@@ -173,7 +200,7 @@ export class ClientAuthService {
       throw new NotFoundException('Client not found');
     }
 
-    // 요청하는 사용자 정보 조회
+    // Get requesting user information
     const requestUser = await this.userRepository.findOne({
       where: { id: requestUserId },
       select: ['id', 'permissions'],
@@ -183,7 +210,7 @@ export class ClientAuthService {
       throw new NotFoundException('User not found');
     }
 
-    // 권한 검증: ADMIN이거나 DELETE_CLIENT 권한이 있으면 모든 클라이언트 삭제 가능
+    // Permission validation: ADMIN or DELETE_CLIENT permission allows deleting any client
     const hasDeletePermission =
       PermissionUtils.isAdmin(requestUser.permissions) ||
       PermissionUtils.hasPermission(
@@ -191,7 +218,7 @@ export class ClientAuthService {
         PERMISSIONS.DELETE_CLIENT,
       );
 
-    // 자신의 클라이언트이고 WRITE_CLIENT 권한이 있는 경우도 삭제 가능
+    // Can also delete own client if has WRITE_CLIENT permission
     const canDeleteOwnClient =
       client.userId === requestUserId &&
       PermissionUtils.hasPermission(

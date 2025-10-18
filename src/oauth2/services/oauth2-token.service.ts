@@ -12,7 +12,6 @@ import { Token } from '../token.entity';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { TOKEN_TYPES } from '../../constants/auth.constants';
 import { StructuredLogger } from '../../logging/structured-logger.service';
-import { JwtTokenService } from './jwt-token.service';
 import { IdTokenService } from './id-token.service';
 
 interface TokenCreateResponse {
@@ -39,7 +38,6 @@ export class OAuth2TokenService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private structuredLogger: StructuredLogger,
-    private jwtTokenService: JwtTokenService,
     private idTokenService: IdTokenService,
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
@@ -146,7 +144,6 @@ export class OAuth2TokenService {
 
   /**
    * Create tokens for Implicit Grant flow (OpenID Connect)
-   * Implicit Grant에서는 토큰을 데이터베이스에 저장하지 않고 직접 생성하여 반환
    */
   async createImplicitTokens(
     user: User,
@@ -158,13 +155,13 @@ export class OAuth2TokenService {
       tokenType: JWT_CONSTANTS.TOKEN_TYPE,
     };
 
-    // 액세스 토큰 생성 (openid 스코프가 있는 경우)
+    // Create tokens based on requested scopes
     if (scopes.includes('openid')) {
       const accessToken = this.generateAccessToken(user, client, scopes);
       response.accessToken = accessToken;
       response.expiresIn = this.getAccessTokenExpirySeconds();
 
-      // ID 토큰 생성
+      // Generate auth time
       const authTime = Math.floor(Date.now() / 1000);
       response.idToken = await this.generateIdToken(
         user,
@@ -174,7 +171,7 @@ export class OAuth2TokenService {
         authTime,
       );
     } else {
-      // openid 스코프가 없으면 액세스 토큰만 생성
+      // Only access token if openid scope is not requested
       const accessToken = this.generateAccessToken(user, client, scopes);
       response.accessToken = accessToken;
       response.expiresIn = this.getAccessTokenExpirySeconds();

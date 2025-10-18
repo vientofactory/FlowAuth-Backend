@@ -1,5 +1,4 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
@@ -10,23 +9,22 @@ import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 @Injectable()
 export class JwtTokenService {
   constructor(
-    private jwtService: JwtService,
     private configService: ConfigService,
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
   ) {}
 
   /**
-   * JWT 토큰을 RSA 키로 서명
+   * Sign JWT with RSA private key
    */
   async signJwtWithRSA(payload: Record<string, any>): Promise<string> {
     const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
 
     if (privateKeyPem) {
-      // RSA 키를 사용하여 서명
+      // Sign with RSA key
       const privateKey = crypto.createPrivateKey(privateKeyPem);
 
-      // JWKS와 동일한 kid 사용
+      // Use the same kid as JWKS
       const kid = JWT_CONSTANTS.KEY_IDS.RSA_ENV;
 
       const options: jwt.SignOptions = {
@@ -39,7 +37,7 @@ export class JwtTokenService {
 
       return jwt.sign(payload, privateKey, options);
     } else {
-      // 개발 환경에서도 RSA 키 생성하여 사용 (OIDC 표준 준수)
+      // Development mode: use cached or new RSA key
       const { privateKey, kid } = await this.getOrCreateDevRsaKey();
 
       const options: jwt.SignOptions = {
@@ -55,7 +53,7 @@ export class JwtTokenService {
   }
 
   /**
-   * 개발 환경용 RSA 키 생성 또는 캐시된 키 반환
+   * Get or create development RSA key
    */
   private async getOrCreateDevRsaKey(): Promise<{
     privateKey: crypto.KeyObject;
@@ -63,7 +61,7 @@ export class JwtTokenService {
   }> {
     const cacheKey = 'dev_rsa_key';
 
-    // 캐시에서 키 확인
+    // Check cache first
     const cached = await this.cacheManager.get<{
       privateKey: crypto.KeyObject;
       kid: string;
@@ -72,7 +70,7 @@ export class JwtTokenService {
       return cached;
     }
 
-    // 환경 변수에서 개발용 RSA 개인키 가져오기
+    // Fetch development RSA private key from environment variable
     const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
 
     if (!privateKeyPem) {
@@ -85,18 +83,18 @@ export class JwtTokenService {
 
     const keyPair = { privateKey: crypto.createPrivateKey(privateKeyPem), kid };
 
-    // 캐시에 저장 (메모리에만 저장)
+    // Cache the key pair for future use
     await this.cacheManager.set(
       cacheKey,
       keyPair,
       JWT_CONSTANTS.TIME.ONE_HOUR_MILLISECONDS,
-    ); // 1시간 캐시
+    ); // 1 hour cache
 
     return keyPair;
   }
 
   /**
-   * RSA 공개키 가져오기
+   * Fetch RSA public key
    */
   getRsaPublicKey(): crypto.KeyObject {
     const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
@@ -107,12 +105,5 @@ export class JwtTokenService {
 
     const privateKey = crypto.createPrivateKey(privateKeyPem);
     return crypto.createPublicKey(privateKey);
-  }
-
-  /**
-   * 디버그 모드 확인
-   */
-  private isDebugMode(): boolean {
-    return this.configService.get<string>('NODE_ENV') !== 'production';
   }
 }

@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TokenService } from '../token.service';
-import { OAuth2Service } from '../oauth2.service';
 import { Token } from '../token.entity';
 import { Client } from '../client.entity';
 import { StructuredLogger } from '../../logging/structured-logger.service';
@@ -25,7 +24,6 @@ export interface TokenIntrospectionResult {
 export class TokenIntrospectionService {
   constructor(
     private readonly tokenService: TokenService,
-    private readonly oauth2Service: OAuth2Service,
     @InjectRepository(Token)
     private readonly tokenRepository: Repository<Token>,
     @InjectRepository(Client)
@@ -34,51 +32,49 @@ export class TokenIntrospectionService {
   ) {}
 
   /**
-   * 토큰 타입 자동 판별
+   * Identify token type based on format and hint
    */
   determineTokenType(token: string, hint?: string): string {
-    // 힌트가 제공된 경우 우선 사용
+    // If a hint is provided, use it first
     if (hint) {
       return hint;
     }
 
-    // JWT 형식인 경우 헤더에서 타입 판별
+    // If the token is in JWT format, determine type from headers/payload
     if (token.split('.').length === 3) {
       try {
         const payload = JSON.parse(
           Buffer.from(token.split('.')[1], 'base64url').toString(),
         ) as { nonce?: string; scopes?: string[]; scope?: string };
 
-        // ID 토큰은 nonce 클레임이 있는 경우가 많음
         if (payload.nonce !== undefined) {
           return 'id_token';
         }
 
-        // 액세스 토큰은 scopes가 있는 경우
         if (payload.scopes || payload.scope) {
           return 'access_token';
         }
       } catch {
-        // 파싱 실패 시 기본값
+        // If parsing fails, default to access_token
       }
     }
 
-    // 기본적으로 액세스 토큰으로 가정
+    // Default to access_token
     return 'access_token';
   }
 
   /**
-   * ID 토큰 인트로스펙션
+   * ID Token introspection
    */
   async introspectIdToken(
     token: string,
     expectedClientId?: string,
   ): Promise<TokenIntrospectionResult> {
     try {
-      // 클라이언트 ID 검증을 위한 클라이언트 조회
+      // Check or extract client ID
       let clientId = expectedClientId;
       if (!clientId) {
-        // 토큰에서 audience 추출하여 클라이언트 ID 결정
+        // Extract audience from token to determine client ID
         const payload = JSON.parse(
           Buffer.from(token.split('.')[1], 'base64url').toString(),
         ) as { aud?: string };
@@ -89,7 +85,7 @@ export class TokenIntrospectionService {
         throw new Error('Client ID not found in token or request');
       }
 
-      // 클라이언트 존재 확인
+      // Check if client exists
       const client = await this.clientRepository.findOne({
         where: { clientId },
       });
@@ -97,7 +93,7 @@ export class TokenIntrospectionService {
         throw new Error('Invalid client');
       }
 
-      // ID 토큰 검증 (RSA 서명 + 클레임 검증)
+      // ID Token validation (RSA signature + claims validation)
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const payload: any = await this.tokenService.validateIdToken(
         token,
@@ -134,20 +130,20 @@ export class TokenIntrospectionService {
   }
 
   /**
-   * 액세스 토큰 인트로스펙션
+   * Access Token introspection
    */
   async introspectAccessToken(
     token: string,
   ): Promise<TokenIntrospectionResult> {
     try {
-      // 액세스 토큰 검증
+      // Access Token validation (signature + claims)
       const payload = await this.tokenService.validateToken(token);
 
       if (!payload) {
         return { active: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_STATUS.INACTIVE };
       }
 
-      // 클라이언트 존재 확인
+      // Check if client exists
       const client = await this.clientRepository.findOne({
         where: { clientId: payload.client_id || '' },
       });
@@ -178,13 +174,13 @@ export class TokenIntrospectionService {
   }
 
   /**
-   * 리프레시 토큰 인트로스펙션
+   * Refresh Token introspection
    */
   async introspectRefreshToken(
     token: string,
   ): Promise<TokenIntrospectionResult> {
     try {
-      // 데이터베이스에서 리프레시 토큰 조회
+      // Find the refresh token in the database
       const tokenEntity = await this.tokenRepository.findOne({
         where: { refreshToken: token },
         relations: ['user', 'client'],
@@ -194,13 +190,13 @@ export class TokenIntrospectionService {
         return { active: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_STATUS.INACTIVE };
       }
 
-      // 만료 확인
+      // Check if refresh token is expired
       const now = new Date();
       if (!tokenEntity.refreshExpiresAt || tokenEntity.refreshExpiresAt < now) {
         return { active: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_STATUS.INACTIVE };
       }
 
-      // 클라이언트 존재 확인
+      // Check if client exists
       if (!tokenEntity.client) {
         return { active: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_STATUS.INACTIVE };
       }
@@ -237,7 +233,7 @@ export class TokenIntrospectionService {
   }
 
   /**
-   * 범용 토큰 인트로스펙션
+   * Token introspection main method
    */
   async introspectToken(
     token: string,

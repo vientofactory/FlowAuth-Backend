@@ -1,11 +1,9 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
 import { AuthorizationCodeService } from '../authorization-code.service';
 import { TokenService } from '../token.service';
-import { ScopeService } from '../scope.service';
 import { TokenRequestDto, TokenResponseDto } from '../dto/oauth2.dto';
 import {
   OAUTH2_CONSTANTS,
@@ -25,13 +23,10 @@ export class TokenGrantService {
   >();
 
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
     @InjectRepository(Client)
     private readonly clientRepository: Repository<Client>,
     private readonly authCodeService: AuthorizationCodeService,
     private readonly tokenService: TokenService,
-    private readonly scopeService: ScopeService,
   ) {}
 
   private checkRateLimit(
