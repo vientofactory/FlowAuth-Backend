@@ -6,8 +6,9 @@
  * - File type and size validation
  * - Path traversal attack prevention
  * - Safe file path generation
+ * - Enhanced content type security validation
  *
- * @version 2.0.0 - path-security module integration
+ * @version 3.0.0 - content-type-security module integration
  */
 
 import type { MulterFile } from './types';
@@ -18,6 +19,10 @@ import {
   validatePathInput,
   safePath,
 } from '../utils/path-security.util';
+import {
+  ContentTypeSecurityValidator,
+  type FileContentValidationResult,
+} from '../utils/content-type-security.util';
 
 /**
  * File upload validation constants (integrated with path-security module)
@@ -62,12 +67,42 @@ export interface FileValidationResult {
   isValid: boolean;
   errors: string[];
   warnings: string[];
+  mimetype: string;
+  securityCheck: {
+    path: boolean;
+    extension: boolean;
+    content: boolean;
+    timing: boolean;
+    url: boolean;
+  };
+  enhancement: {
+    shouldResize: boolean;
+    suggestedDimensions?: {
+      width: number;
+      height: number;
+    };
+  };
+  contentValidation?: FileContentValidationResult;
 }
 
 /**
  * File upload validator class
  */
 export class FileUploadValidator {
+  private readonly contentValidator: ContentTypeSecurityValidator;
+
+  constructor(options?: { enableBufferAnalysis?: boolean }) {
+    this.contentValidator = new ContentTypeSecurityValidator({
+      enableBufferAnalysis: options?.enableBufferAnalysis ?? true,
+      bufferAnalysisConfig: {
+        maxAnalysisDepth: 1000, // medium depth
+        enableMagicBytesDetection: true,
+        enableSuspiciousPatternAnalysis: true,
+        skipLargeFiles: true,
+        maxFileSize: 10 * 1024 * 1024, // 10MB
+      },
+    });
+  }
   /**
    * Filename validation (prevents directory traversal and security vulnerabilities)
    * Enhanced validation using path-security module
@@ -206,7 +241,75 @@ export class FileUploadValidator {
   }
 
   /**
-   * File type validation
+   * Enhanced content type validation with actual file content analysis
+   * Prevents MIME type spoofing and detects malicious files
+   */
+  async validateContentType(
+    file: MulterFile,
+    allowedTypes: readonly string[],
+  ): Promise<{
+    isValid: boolean;
+    error?: string;
+    warnings?: string[];
+    contentValidation?: FileContentValidationResult;
+  }> {
+    try {
+      if (!file || !file.mimetype || !file.buffer) {
+        return {
+          isValid: false,
+          error: 'File content cannot be analyzed',
+        };
+      }
+
+      // Basic MIME type check
+      if (!allowedTypes.includes(file.mimetype)) {
+        return {
+          isValid: false,
+          error: `File type not allowed. Allowed types: ${allowedTypes.join(', ')}`,
+        };
+      }
+
+      // Enhanced content validation using content-type-security module
+      const contentValidation = await this.contentValidator.validateFileContent(
+        file.buffer,
+        file.mimetype,
+        file.originalname,
+      );
+
+      const isContentSafe = this.contentValidator.isFileContentSafe(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+      );
+
+      if (!isContentSafe) {
+        return {
+          isValid: false,
+          error: `File content validation failed: ${contentValidation.errors.join(', ')}`,
+          warnings: contentValidation.warnings,
+          contentValidation,
+        };
+      }
+
+      // Return success with warnings if any
+      return {
+        isValid: true,
+        warnings:
+          contentValidation.warnings.length > 0
+            ? contentValidation.warnings
+            : undefined,
+        contentValidation,
+      };
+    } catch (error) {
+      return {
+        isValid: false,
+        error: `Content type validation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Basic file type validation (legacy method, kept for compatibility)
    */
   validateFileType(
     file: MulterFile,
@@ -355,14 +458,121 @@ export class FileUploadValidator {
   }
 
   /**
-   * Comprehensive file validation (type, size, extension, path security)
+   * Comprehensive file validation (type, size, extension, path security, content validation)
+   * Enhanced with content-type security validation
+   */
+  async validateFileEnhanced(
+    file: MulterFile,
+    type: keyof typeof UPLOAD_CONFIG.fileTypes,
+    options: {
+      skipSizeValidation?: boolean;
+      baseDirectory?: string;
+      enableContentValidation?: boolean;
+    } = {},
+  ): Promise<{ isValid: boolean; errors: string[]; warnings: string[] }> {
+    const result: { isValid: boolean; errors: string[]; warnings: string[] } = {
+      isValid: true,
+      errors: [],
+      warnings: [],
+    };
+
+    try {
+      // eslint-disable-next-line security/detect-object-injection
+      const config = UPLOAD_CONFIG.fileTypes[type];
+      if (!config) {
+        result.isValid = false;
+        result.errors.push(`Unsupported file type: ${type}`);
+        return result;
+      }
+
+      // Enhanced filename security validation
+      if (file.originalname) {
+        const filenameValidation = this.validateFilename(file.originalname);
+        if (!filenameValidation.isValid) {
+          result.isValid = false;
+          result.errors.push(filenameValidation.error!);
+        } else if (filenameValidation.sanitizedFilename !== file.originalname) {
+          result.warnings.push(
+            `Filename may be modified for security: ${filenameValidation.sanitizedFilename}`,
+          );
+        }
+      }
+
+      // Safe path generation validation (when baseDirectory is provided)
+      if (options.baseDirectory && file.originalname) {
+        const pathResult = this.createSafePath(
+          file.originalname,
+          options.baseDirectory,
+        );
+        if (!pathResult.success) {
+          result.isValid = false;
+          result.errors.push(pathResult.error!);
+        }
+      }
+
+      // Enhanced content type validation (enabled by default, can be disabled)
+      if (options.enableContentValidation !== false && file.buffer) {
+        const contentTypeValidation = await this.validateContentType(
+          file,
+          config.allowedMimes,
+        );
+        if (!contentTypeValidation.isValid) {
+          result.isValid = false;
+          result.errors.push(contentTypeValidation.error!);
+        } else {
+          // Add content validation warnings if any
+          if (contentTypeValidation.warnings) {
+            result.warnings.push(...contentTypeValidation.warnings);
+          }
+          // Content validation details are logged but not included in simple result
+        }
+      } else {
+        // Fallback to basic file type validation if content validation is disabled
+        const typeValidation = this.validateFileType(file, config.allowedMimes);
+        if (!typeValidation.isValid) {
+          result.isValid = false;
+          result.errors.push(typeValidation.error!);
+        }
+      }
+
+      // File size validation (skipped based on options)
+      if (!options.skipSizeValidation) {
+        const sizeValidation = this.validateFileSize(file, config.maxSize);
+        if (!sizeValidation.isValid) {
+          result.isValid = false;
+          result.errors.push(sizeValidation.error!);
+        }
+      }
+
+      // File extension validation
+      const extensionValidation = this.validateFileExtension(file);
+      if (!extensionValidation.isValid) {
+        result.isValid = false;
+        result.errors.push(extensionValidation.error!);
+      } else if (extensionValidation.warning) {
+        result.warnings.push(extensionValidation.warning);
+      }
+
+      return result;
+    } catch (error) {
+      result.isValid = false;
+      result.errors.push(
+        `Error occurred during file validation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      return result;
+    }
+  }
+
+  /**
+   * Basic file validation (type, size, extension, path security)
+   * Legacy method for backward compatibility
    */
   validateFile(
     file: MulterFile,
     type: keyof typeof UPLOAD_CONFIG.fileTypes,
     options: { skipSizeValidation?: boolean; baseDirectory?: string } = {},
-  ): FileValidationResult {
-    const result: FileValidationResult = {
+  ): { isValid: boolean; errors: string[]; warnings: string[] } {
+    const result: { isValid: boolean; errors: string[]; warnings: string[] } = {
       isValid: true,
       errors: [],
       warnings: [],
@@ -427,9 +637,6 @@ export class FileUploadValidator {
         result.warnings.push(extensionValidation.warning);
       }
 
-      // Additional validation logic (expandable as needed)
-      // Example: virus scanning, image validity verification, etc.
-
       return result;
     } catch (error) {
       result.isValid = false;
@@ -461,9 +668,18 @@ export class FileUploadValidator {
 }
 
 /**
- * Default validator instance
+ * Default validator instance with buffer analysis enabled
  */
-export const fileUploadValidator = new FileUploadValidator();
+export const fileUploadValidator = new FileUploadValidator({
+  enableBufferAnalysis: true,
+});
+
+/**
+ * Validator instance with buffer analysis disabled (for performance-critical scenarios)
+ */
+export const fileUploadValidatorFast = new FileUploadValidator({
+  enableBufferAnalysis: false,
+});
 
 /**
  * Convenience functions (maintaining compatibility with existing code)
@@ -472,12 +688,90 @@ export function validateFilename(filename: string): FilenameValidationResult {
   return fileUploadValidator.validateFilename(filename);
 }
 
+/**
+ * Enhanced file validation with content security validation
+ */
+export async function validateFileEnhanced(
+  file: MulterFile,
+  type: keyof typeof UPLOAD_CONFIG.fileTypes,
+  options?: {
+    skipSizeValidation?: boolean;
+    baseDirectory?: string;
+    enableContentValidation?: boolean;
+  },
+): Promise<{ isValid: boolean; errors: string[]; warnings: string[] }> {
+  return fileUploadValidator.validateFileEnhanced(file, type, options);
+}
+
+/**
+ * Basic file validation (legacy function for backward compatibility)
+ */
 export function validateFile(
   file: MulterFile,
   type: keyof typeof UPLOAD_CONFIG.fileTypes,
   options?: { skipSizeValidation?: boolean; baseDirectory?: string },
-): FileValidationResult {
+): { isValid: boolean; errors: string[]; warnings: string[] } {
   return fileUploadValidator.validateFile(file, type, options);
+}
+
+/**
+ * Quick content security check
+ */
+export function isFileContentSecure(
+  file: MulterFile,
+  declaredMimeType?: string,
+): boolean {
+  if (!file.buffer) {
+    return false;
+  }
+
+  const mimeType = declaredMimeType || file.mimetype;
+  if (!mimeType) {
+    return false;
+  }
+
+  try {
+    const validator = new ContentTypeSecurityValidator();
+    return validator.isFileContentSafe(
+      file.buffer,
+      file.originalname,
+      mimeType,
+    );
+  } catch (error) {
+    // Log error and return false as fallback
+    console.error('Content security check failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Comprehensive file content analysis
+ */
+export async function analyzeFileContent(
+  file: MulterFile,
+  declaredMimeType?: string,
+): Promise<FileContentValidationResult | null> {
+  if (!file.buffer) {
+    return null;
+  }
+
+  const mimeType = declaredMimeType || file.mimetype;
+  if (!mimeType) {
+    return null;
+  }
+
+  try {
+    const validator = new ContentTypeSecurityValidator();
+    return await validator.validateFileContent(
+      file.buffer,
+      mimeType,
+      file.originalname,
+    );
+  } catch (error) {
+    // Log error and return null as fallback
+    console.error('File content analysis failed:', error);
+    return null;
+  }
 }
 
 export function isValidFilename(filename: string): boolean {
