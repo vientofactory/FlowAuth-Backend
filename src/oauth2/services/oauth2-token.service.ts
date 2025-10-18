@@ -13,6 +13,7 @@ import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { TOKEN_TYPES } from '../../constants/auth.constants';
 import { StructuredLogger } from '../../logging/structured-logger.service';
 import { IdTokenService } from './id-token.service';
+import { safeTokenCompare } from '../../utils/timing-security.util';
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -205,8 +206,8 @@ export class OAuth2TokenService {
         return null;
       }
 
-      // Verify client matches
-      if (token.client.clientId !== clientId) {
+      // Verify client matches using timing-safe comparison
+      if (!safeTokenCompare(token.client.clientId, clientId)) {
         return null;
       }
 

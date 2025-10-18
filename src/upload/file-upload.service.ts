@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { extname } from 'path';
 import { existsSync, unlinkSync } from 'fs';
 import { memoryStorage } from 'multer';
 import {
@@ -7,12 +6,10 @@ import {
   validateFilename,
   sanitizeFilename,
 } from '../utils/path-security.util';
-import { v4 as uuidv4 } from 'uuid';
 import type { Request } from 'express';
 import {
   MulterFile,
   UploadedFile,
-  UploadLimits,
   MulterFileFilterCallback,
   FileUploadError,
 } from './types';
@@ -27,11 +24,6 @@ export class FileUploadService {
   constructor(
     private readonly imageProcessingService: ImageProcessingService,
   ) {}
-
-  private ensureDirectoriesExist(): void {
-    // Note: Directory creation is now handled by ImageProcessingService
-    // This method is kept for backward compatibility but is no longer used
-  }
 
   /**
    * Create multer storage configuration for a specific file type
@@ -80,29 +72,6 @@ export class FileUploadService {
         cb(error instanceof Error ? error : new Error(String(error)), false);
       }
     };
-  }
-
-  /**
-   * Get upload limits for a specific file type
-   */
-  getUploadLimits(type: keyof typeof UPLOAD_CONFIG.fileTypes): UploadLimits {
-    // eslint-disable-next-line security/detect-object-injection
-    const config = UPLOAD_CONFIG.fileTypes[type];
-    return {
-      fileSize: config.maxSize,
-      files: 1,
-    };
-  }
-
-  /**
-   * Generate a unique filename
-   */
-  private generateFilename(file: MulterFile): string {
-    const extension = extname(file.originalname);
-    const randomId = uuidv4();
-
-    // Use uuid strategy for now (can be made configurable later)
-    return `${randomId}${extension}`;
   }
 
   /**

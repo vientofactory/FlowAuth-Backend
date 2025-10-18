@@ -67,3 +67,40 @@ export async function verifySecureHash(
 ): Promise<boolean> {
   return await bcrypt.compare(input, hash);
 }
+
+/**
+ * Perform timing-safe token comparison for OAuth2 tokens, secrets, etc.
+ * This function is optimized for comparing tokens and secrets that may vary in length
+ */
+export function safeTokenCompare(tokenA: string, tokenB: string): boolean {
+  // Normalize tokens to ensure consistent comparison
+  const normalizedA = tokenA?.trim() || '';
+  const normalizedB = tokenB?.trim() || '';
+
+  // Use safeStringCompare for the actual comparison
+  return safeStringCompare(normalizedA, normalizedB);
+}
+
+/**
+ * Perform timing-safe comparison for client credentials
+ * This function handles null/undefined cases safely
+ */
+export function safeCredentialCompare(
+  providedCredential: string | null | undefined,
+  storedCredential: string | null | undefined,
+): boolean {
+  // Handle null/undefined cases with strict equality
+  if (providedCredential === null && storedCredential === null) {
+    return true; // Both are null
+  }
+
+  if (providedCredential === undefined && storedCredential === undefined) {
+    return true; // Both are undefined
+  }
+
+  if (!providedCredential || !storedCredential) {
+    return false; // One is null/undefined, the other isn't, or they are different types
+  }
+
+  return safeStringCompare(providedCredential, storedCredential);
+}

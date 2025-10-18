@@ -11,6 +11,7 @@ import {
   OAUTH2_ERROR_MESSAGES,
   OAuth2GrantType,
 } from '../../constants/oauth2.constants';
+import { safeCredentialCompare } from '../../utils/timing-security.util';
 
 @Injectable()
 export class TokenGrantService {
@@ -300,8 +301,8 @@ export class TokenGrantService {
       throw new BadRequestException('Invalid client');
     }
 
-    // Validate client secret if provided
-    if (clientSecret && client.clientSecret !== clientSecret) {
+    // Validate client secret if provided using timing-safe comparison
+    if (!safeCredentialCompare(clientSecret, client.clientSecret)) {
       throw new BadRequestException('Invalid client credentials');
     }
 
