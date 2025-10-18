@@ -248,11 +248,15 @@ export function isSafeUrl(
       }
 
       // Reject if @ character is present (userinfo present)
-      if (
-        input.includes('@') &&
-        input.indexOf('@') < input.indexOf(url.hostname)
-      ) {
-        return false;
+      if (input.includes('@')) {
+        const hostnameIndex = input.indexOf(url.hostname);
+        if (hostnameIndex === -1) {
+          // Hostname not found in input - potential security issue
+          return false;
+        }
+        if (input.indexOf('@') < hostnameIndex) {
+          return false;
+        }
       }
 
       // Domain name validation for non-IP addresses
