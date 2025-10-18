@@ -88,7 +88,7 @@ describe('Content Type Security Utility (Refactored)', () => {
       expect(result.isValid).toBe(true);
       expect(result.bufferAnalysisResult?.analysisSkipped).toBe(true);
       expect(result.bufferAnalysisResult?.skipReason).toBe(
-        'Buffer analysis engine is disabled',
+        'Buffer analysis disabled by configuration',
       );
       expect(result.detectedMimeType).toBeNull();
     });

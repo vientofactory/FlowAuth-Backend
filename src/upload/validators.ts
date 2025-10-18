@@ -102,6 +102,8 @@ export class FileUploadValidator {
         maxFileSize: 10 * 1024 * 1024, // 10MB
       },
     });
+
+    // No need for explicit enableBufferAnalysis() call since it's already configured above
   }
   /**
    * Filename validation (prevents directory traversal and security vulnerabilities)
@@ -270,6 +272,7 @@ export class FileUploadValidator {
       }
 
       // Enhanced content validation using content-type-security module
+      // Buffer analysis is already enabled in constructor, no need to call enableBufferAnalysis() again
       const contentValidation = await this.contentValidator.validateFileContent(
         file.buffer,
         file.mimetype,
@@ -731,7 +734,11 @@ export function isFileContentSecure(
   }
 
   try {
-    const validator = new ContentTypeSecurityValidator();
+    // Use explicit configuration to minimize warnings
+    const validator = new ContentTypeSecurityValidator({
+      enableBufferAnalysis: true,
+      enableSpoofingDetection: true,
+    });
     return validator.isFileContentSafe(
       file.buffer,
       file.originalname,
@@ -761,7 +768,11 @@ export async function analyzeFileContent(
   }
 
   try {
-    const validator = new ContentTypeSecurityValidator();
+    // Use explicit configuration to minimize warnings
+    const validator = new ContentTypeSecurityValidator({
+      enableBufferAnalysis: true,
+      enableSpoofingDetection: true,
+    });
     return await validator.validateFileContent(
       file.buffer,
       mimeType,

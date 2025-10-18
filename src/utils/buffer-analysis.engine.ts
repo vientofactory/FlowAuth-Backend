@@ -64,6 +64,15 @@ export class BufferAnalysisEngine {
 
   constructor(config?: BufferAnalysisConfig) {
     this.config = { ...DEFAULT_BUFFER_ANALYSIS_CONFIG, ...config };
+
+    // Check environment variable to override default enabled state
+    const envDisabled = process.env.DISABLE_BUFFER_ANALYSIS === 'true';
+    if (envDisabled) {
+      this.enabled = false;
+      this.logger.warn(
+        'Buffer analysis disabled by environment variable DISABLE_BUFFER_ANALYSIS',
+      );
+    }
   }
 
   /**
@@ -71,7 +80,6 @@ export class BufferAnalysisEngine {
    */
   enable(): void {
     this.enabled = true;
-    this.logger.log('Buffer analysis engine enabled');
   }
 
   /**
@@ -79,7 +87,6 @@ export class BufferAnalysisEngine {
    */
   disable(): void {
     this.enabled = false;
-    this.logger.log('Buffer analysis engine disabled');
   }
 
   /**
@@ -306,6 +313,8 @@ export function getBufferAnalysisEngine(
 ): BufferAnalysisEngine {
   if (!globalBufferAnalysisEngine) {
     globalBufferAnalysisEngine = new BufferAnalysisEngine(config);
+    // Ensure it starts enabled by default
+    globalBufferAnalysisEngine.enable();
   }
   return globalBufferAnalysisEngine;
 }
@@ -340,4 +349,27 @@ export function setBufferAnalysisEnabled(enabled: boolean): void {
 export function isBufferAnalysisEnabled(): boolean {
   const engine = getBufferAnalysisEngine();
   return engine.isEnabled();
+}
+
+/**
+ * Debug utility to log buffer analysis engine status
+ * Only logs in development or when explicitly enabled
+ */
+export function logBufferAnalysisStatus(force = false): void {
+  // Only log in development environment or when forced
+  if (!force && process.env.NODE_ENV === 'production') {
+    return;
+  }
+
+  const engine = getBufferAnalysisEngine();
+  const logger = new Logger('BufferAnalysisDebug');
+
+  logger.debug(`Buffer Analysis Engine Status:`);
+  logger.debug(`- Enabled: ${engine.isEnabled()}`);
+  logger.debug(
+    `- Environment DISABLE_BUFFER_ANALYSIS: ${process.env.DISABLE_BUFFER_ANALYSIS || 'not set'}`,
+  );
+  logger.debug(
+    `- Global instance exists: ${globalBufferAnalysisEngine !== null}`,
+  );
 }

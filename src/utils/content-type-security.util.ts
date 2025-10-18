@@ -100,8 +100,9 @@ export class ContentTypeSecurityValidator {
   constructor(config?: ContentSecurityConfig) {
     this.config = { ...DEFAULT_SECURITY_CONFIG, ...config };
 
-    // Initialize buffer analysis engine with configuration
-    this.bufferEngine = getBufferAnalysisEngine(
+    // Create a dedicated buffer analysis engine instance for this validator
+    // This prevents global state conflicts between different validator instances
+    this.bufferEngine = new BufferAnalysisEngine(
       this.config.bufferAnalysisConfig,
     );
 
@@ -110,6 +111,7 @@ export class ContentTypeSecurityValidator {
       this.bufferEngine.enable();
     } else {
       this.bufferEngine.disable();
+      // Silent operation - no logs during normal operation or bootstrap
     }
   }
 
@@ -126,7 +128,15 @@ export class ContentTypeSecurityValidator {
   enableBufferAnalysis(): void {
     this.config.enableBufferAnalysis = true;
     this.bufferEngine.enable();
-    this.logger.log('Buffer analysis enabled for content validation');
+
+    // Double-check to ensure it's actually enabled
+    if (!this.bufferEngine.isEnabled()) {
+      this.logger.error(
+        'Failed to enable buffer analysis engine, attempting force enable',
+      );
+      // Try enabling again
+      this.bufferEngine.enable();
+    }
   }
 
   /**
@@ -135,7 +145,6 @@ export class ContentTypeSecurityValidator {
   disableBufferAnalysis(): void {
     this.config.enableBufferAnalysis = false;
     this.bufferEngine.disable();
-    this.logger.log('Buffer analysis disabled for content validation');
   }
 
   /**
@@ -157,20 +166,35 @@ export class ContentTypeSecurityValidator {
       let bufferAnalysisResult: BufferAnalysisResult;
 
       // Perform buffer analysis if enabled at instance level
-      if (this.config.enableBufferAnalysis && this.bufferEngine.isEnabled()) {
-        bufferAnalysisResult = this.bufferEngine.analyzeBuffer(
-          buffer,
-          filename,
-        );
+      if (this.config.enableBufferAnalysis) {
+        // Use the dedicated instance's buffer analysis engine
+        if (this.bufferEngine.isEnabled()) {
+          bufferAnalysisResult = this.bufferEngine.analyzeBuffer(
+            buffer,
+            filename,
+          );
+        } else {
+          this.logger.error(
+            'Buffer analysis engine could not be enabled, creating skipped result',
+          );
+          bufferAnalysisResult = {
+            detectedMimeType: null,
+            hasSuspiciousPatterns: false,
+            suspiciousPatterns: [],
+            confidence: 0,
+            analysisSkipped: true,
+            skipReason: 'Buffer analysis engine could not be enabled',
+          };
+        }
       } else {
-        // Create a skipped result when disabled
+        // Create a skipped result when disabled by configuration
         bufferAnalysisResult = {
           detectedMimeType: null,
           hasSuspiciousPatterns: false,
           suspiciousPatterns: [],
           confidence: 0,
           analysisSkipped: true,
-          skipReason: 'Buffer analysis engine is disabled',
+          skipReason: 'Buffer analysis disabled by configuration',
         };
       }
 
@@ -474,16 +498,16 @@ export function isFileContentSafe(
   enableBufferAnalysis = true,
 ): boolean {
   try {
-    // Use buffer analysis engine for detection
-    const bufferEngine = getBufferAnalysisEngine();
+    // Create a temporary instance instead of modifying global state
+    const tempEngine = new BufferAnalysisEngine();
 
     if (enableBufferAnalysis) {
-      bufferEngine.enable();
+      tempEngine.enable();
     } else {
-      bufferEngine.disable();
+      tempEngine.disable();
     }
 
-    const bufferAnalysisResult = bufferEngine.analyzeBuffer(buffer, filename);
+    const bufferAnalysisResult = tempEngine.analyzeBuffer(buffer, filename);
     const detectedMimeType = bufferAnalysisResult.detectedMimeType;
 
     // Check dangerous patterns manually since we can't access private methods
@@ -536,15 +560,16 @@ export function getMimeTypeFromContent(
   buffer: Buffer,
   enableBufferAnalysis = true,
 ): string | null {
-  const bufferEngine = getBufferAnalysisEngine();
+  // Create a temporary instance instead of modifying global state
+  const tempEngine = new BufferAnalysisEngine();
 
   if (enableBufferAnalysis) {
-    bufferEngine.enable();
+    tempEngine.enable();
   } else {
-    bufferEngine.disable();
+    tempEngine.disable();
   }
 
-  const result = bufferEngine.analyzeBuffer(buffer);
+  const result = tempEngine.analyzeBuffer(buffer);
   return result.detectedMimeType;
 }
 

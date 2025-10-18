@@ -135,9 +135,18 @@ export class UploadController {
     }
 
     // Enhanced file validation with content type security
+    // Buffer analysis is already enabled by default in validators
     const validationResult = await validateFileEnhanced(file, 'logo', {
       enableContentValidation: true,
     });
+
+    // Debug: Log buffer analysis status if validation has issues (development only)
+    if (!validationResult.isValid || validationResult.warnings.length > 0) {
+      const { logBufferAnalysisStatus } = await import(
+        '../utils/buffer-analysis.engine'
+      );
+      logBufferAnalysisStatus(); // This will only log in development
+    }
 
     if (!validationResult.isValid) {
       this.logger.error({
