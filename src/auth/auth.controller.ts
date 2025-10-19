@@ -45,6 +45,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { ValidationHelpers } from './validation.helpers';
 import { ValidationService } from './services/validation.service';
+import { validateOAuth2RedirectUri } from '../utils/url-security.util';
 import {
   AdvancedRateLimitGuard,
   RateLimit,
@@ -565,13 +566,11 @@ export class AuthController {
 
     // redirectUris 검증
     if (updateData.redirectUris !== undefined) {
-      ValidationService.validateUrlArray(
-        updateData.redirectUris,
-        'redirectUris',
-        {
-          allowedProtocols: ['http', 'https'],
-        },
-      );
+      for (const uri of updateData.redirectUris) {
+        if (!validateOAuth2RedirectUri(uri)) {
+          throw new BadRequestException(`Invalid redirect URI: ${uri}`);
+        }
+      }
     }
 
     // scopes 검증
