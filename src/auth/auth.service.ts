@@ -18,6 +18,8 @@ import { PermissionUtils } from '../utils/permission.util';
 import { UserAuthService } from './services/user-auth.service';
 import { ClientAuthService } from './services/client-auth.service';
 import { TwoFactorAuthService } from './services/two-factor-auth.service';
+import { ValidationService } from './services/validation.service';
+import type { AvailabilityResult } from '../constants/validation.constants';
 
 @Injectable()
 export class AuthService {
@@ -34,10 +36,21 @@ export class AuthService {
     private userAuthService: UserAuthService,
     private clientAuthService: ClientAuthService,
     private twoFactorAuthService: TwoFactorAuthService,
+    private validationService: ValidationService,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
     return this.userAuthService.register(createUserDto);
+  }
+
+  async checkEmailAvailability(email: string): Promise<AvailabilityResult> {
+    return this.validationService.checkEmailAvailability(email);
+  }
+
+  async checkUsernameAvailability(
+    username: string,
+  ): Promise<AvailabilityResult> {
+    return this.validationService.checkUsernameAvailability(username);
   }
 
   async login(loginDto: {

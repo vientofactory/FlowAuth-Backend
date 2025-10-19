@@ -21,6 +21,7 @@ import { UserManagementService } from './services/user-management.service';
 import { UserAuthService } from './services/user-auth.service';
 import { ClientAuthService } from './services/client-auth.service';
 import { TwoFactorAuthService } from './services/two-factor-auth.service';
+import { ValidationService } from './services/validation.service';
 import { UploadModule } from '../upload/upload.module';
 
 @Module({
@@ -49,6 +50,7 @@ import { UploadModule } from '../upload/upload.module';
     UserAuthService,
     ClientAuthService,
     TwoFactorAuthService,
+    ValidationService,
   ],
   controllers: [AuthController, TwoFactorController],
   exports: [
