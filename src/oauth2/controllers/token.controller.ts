@@ -73,6 +73,7 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
   })
   async token(
     @Body(DefaultFieldSizeLimitPipe) tokenDto: TokenRequestDto,
+    @Headers('authorization') authHeader?: string,
   ): Promise<TokenResponseDto | ErrorResponseDto> {
     try {
       if (tokenDto.grant_type !== 'authorization_code') {
@@ -82,7 +83,38 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
         };
       }
 
-      return await this.tokenGrantService.token(tokenDto);
+      // Parse Basic Authentication header if present
+      let clientId = tokenDto.client_id;
+      let clientSecret = tokenDto.client_secret;
+
+      if (authHeader && authHeader.startsWith('Basic ')) {
+        try {
+          const base64Credentials = authHeader.substring(6);
+          const credentials = Buffer.from(base64Credentials, 'base64').toString(
+            'utf8',
+          );
+          const [headerClientId, headerClientSecret] = credentials.split(':');
+
+          // Use credentials from header if not provided in body
+          if (!clientId) clientId = headerClientId;
+          if (!clientSecret) clientSecret = headerClientSecret;
+        } catch (error) {
+          this.logger.warn('Failed to parse Authorization header', error);
+          return {
+            error: 'invalid_client',
+            error_description: 'Invalid Authorization header format',
+          };
+        }
+      }
+
+      // Create a new request object with extracted credentials
+      const enhancedTokenDto = {
+        ...tokenDto,
+        client_id: clientId,
+        client_secret: clientSecret,
+      };
+
+      return await this.tokenGrantService.token(enhancedTokenDto);
     } catch (error) {
       // Convert exceptions to OAuth2 standard error responses
       if (error instanceof BadRequestException) {

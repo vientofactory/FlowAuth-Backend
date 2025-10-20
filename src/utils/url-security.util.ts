@@ -427,18 +427,24 @@ function isPrivateNetwork(hostname: string): boolean {
  * OAuth2 redirect URI validation function
  */
 export function validateOAuth2RedirectUri(uri: string): boolean {
-  // Allow localhost/loopback addresses for OAuth2 development and testing
-  // This is a common practice for OAuth2 providers to allow localhost redirects
-  const isLocalhost =
-    uri.includes('localhost') ||
-    uri.includes('127.0.0.1') ||
-    uri.includes('[::1]') ||
-    uri.includes('::1');
+  // Check if this is a localhost/loopback address for HTTP allowance only
+  const isLocalhost = uri.includes('localhost') || uri.includes('127.0.0.1');
+
+  // Check if this is IPv6 loopback for separate handling
+  const isIPv6Loopback = uri.includes('[::1]');
+
+  // For production, only allow HTTPS except for localhost
+  const allowHttp = process.env.NODE_ENV === 'development' || isLocalhost;
+
+  // Allow private networks only in development or for specific localhost cases
+  // Don't allow IPv6 loopback in production
+  const allowPrivateNetworks =
+    process.env.NODE_ENV === 'development' || (isLocalhost && !isIPv6Loopback);
 
   return isSafeUrl(uri, {
     allowedProtocols: ['https:', 'http:'],
-    allowHttp: process.env.NODE_ENV === 'development' || isLocalhost, // Allow HTTP for localhost always
-    allowPrivateNetworks: process.env.NODE_ENV === 'development' || isLocalhost, // Allow localhost always
+    allowHttp: allowHttp,
+    allowPrivateNetworks: allowPrivateNetworks,
     maxLength: 2048,
     validateHostname: true,
   });

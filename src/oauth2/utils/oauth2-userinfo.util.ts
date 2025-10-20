@@ -54,6 +54,10 @@ const SCOPE_FIELD_MAPPINGS: ScopeFieldMapping[] = [
     scope: 'email',
     fields: ['email', 'email_verified'],
   },
+  {
+    scope: 'identify',
+    fields: ['preferred_username', 'roles'],
+  },
 ];
 
 /**
@@ -174,6 +178,11 @@ export class OAuth2UserInfoBuilder {
           email: user.email,
           email_verified: !!user.isEmailVerified,
         };
+      case 'identify':
+        return {
+          preferred_username: user.username,
+          roles: [PermissionUtils.getRoleName(user.permissions)],
+        };
       default:
         return {};
     }
@@ -210,6 +219,11 @@ export class OAuth2UserInfoBuilder {
         return {
           email: user.email,
           email_verified: !!user.isEmailVerified,
+        };
+      case 'identify':
+        return {
+          preferred_username: user.username,
+          roles: [PermissionUtils.getRoleName(user.permissions)],
         };
       default:
         return {};
