@@ -160,9 +160,6 @@ export const OAUTH2_SCOPES = {
   OPENID: 'openid',
   PROFILE: 'profile',
   EMAIL: 'email',
-
-  // 계정 기본 정보 (레거시 호환성)
-  IDENTIFY: 'identify',
 } as const;
 
 // 스코프 설명
@@ -171,8 +168,10 @@ export const SCOPE_DESCRIPTIONS = {
   [OAUTH2_SCOPES.OPENID]: 'OpenID Connect 인증 및 기본 프로필 정보 읽기',
   [OAUTH2_SCOPES.PROFILE]:
     '사용자 프로필 정보 읽기 (이름, 생년월일, 지역, 사진 등)',
-  [OAUTH2_SCOPES.IDENTIFY]: '계정의 기본 정보 읽기 (사용자 ID, 이름 등)',
 } as const;
 
-// 기본 스코프 목록
-export const DEFAULT_SCOPES = [OAUTH2_SCOPES.IDENTIFY] as const;
+// 기본 스코프 목록 (OpenID Connect 표준)
+export const DEFAULT_SCOPES = [
+  OAUTH2_SCOPES.OPENID,
+  OAUTH2_SCOPES.PROFILE,
+] as const;

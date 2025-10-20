@@ -298,9 +298,10 @@ export class ScopeService implements OnApplicationBootstrap {
   private mapLegacyScope(scopeName: string): string {
     // 레거시 스코프 매핑 테이블
     const legacyScopeMapping: Record<string, string> = {
-      basic: 'identify',
-      'read:user': 'identify',
+      basic: 'profile',
+      'read:user': 'profile',
       'read:profile': 'profile',
+      identify: 'profile', // identify 레거시 스코프를 profile로 매핑
       email: 'email',
       openid: 'openid',
     };
@@ -313,8 +314,7 @@ export class ScopeService implements OnApplicationBootstrap {
   }
 
   /**
-   * 기본 스코프들을 데이터베이스에 초기화 (없는 경우에만)
-   * OIDC 지원을 위해 openid 스코프 추가
+   * 기본 스코프들을 데이터베이스에 초기화
    */
   async initializeDefaultScopes(): Promise<void> {
     const defaultScopes = [
@@ -333,13 +333,7 @@ export class ScopeService implements OnApplicationBootstrap {
       {
         name: 'email',
         description: '사용자 이메일 주소 접근',
-        isDefault: true,
-        isActive: true,
-      },
-      {
-        name: 'identify',
-        description: '사용자 기본 정보 (ID, 이름 등) 접근',
-        isDefault: true,
+        isDefault: false,
         isActive: true,
       },
     ];

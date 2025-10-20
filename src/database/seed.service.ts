@@ -36,11 +36,6 @@ export class SeedService {
       description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.EMAIL],
       isDefault: false,
     },
-    {
-      name: OAUTH2_SCOPES.IDENTIFY,
-      description: SCOPE_DESCRIPTIONS[OAUTH2_SCOPES.IDENTIFY],
-      isDefault: false,
-    },
   ] as const;
 
   constructor(
@@ -109,7 +104,7 @@ export class SeedService {
           'http://localhost:3000/callback',
         ],
         grants: ['authorization_code', 'refresh_token'],
-        scopes: [OAUTH2_SCOPES.IDENTIFY],
+        scopes: [OAUTH2_SCOPES.OPENID, OAUTH2_SCOPES.PROFILE],
         isActive: true,
         userId: firstUser.id, // Assign to the first user
       });
