@@ -132,9 +132,10 @@ export class AuthorizationController {
 
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
-    const backendUrl =
-      this.configService.get<string>('BACKEND_URL') || 'http://localhost:3000';
-    return `${frontendUrl}/auth/login?returnUrl=${encodeURIComponent(`${backendUrl}/oauth2/authorize?${params.toString()}`)}`;
+
+    const oauthAuthorizeUrl = `${frontendUrl}/oauth2/authorize?${params.toString()}`;
+
+    return `${frontendUrl}/auth/login?returnUrl=${encodeURIComponent(oauthAuthorizeUrl)}`;
   }
 
   private buildConsentRedirectUrl(
