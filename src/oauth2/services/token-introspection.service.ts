@@ -6,7 +6,6 @@ import { Token } from '../token.entity';
 import { Client } from '../client.entity';
 import { StructuredLogger } from '../../logging/structured-logger.service';
 import { TOKEN_INTROSPECTION_CONSTANTS } from '../../constants/jwt.constants';
-import { IdTokenPayload } from './id-token.service';
 
 export interface TokenIntrospectionResult {
   active: boolean;
