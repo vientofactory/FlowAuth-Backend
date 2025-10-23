@@ -145,6 +145,10 @@ export const OAUTH2_ERROR_MESSAGES = {
   PKCE_VERIFICATION_FAILED_S256:
     'PKCE 검증 실패: code verifier 해시가 code challenge와 일치하지 않습니다 (S256 방식)',
   UNSUPPORTED_PKCE_METHOD: '지원하지 않는 code challenge 방식입니다',
+  PKCE_PARAMETERS_MISMATCH:
+    'PKCE 파라미터 불일치: code_challenge와 code_challenge_method가 함께 제공되어야 합니다',
+  OPENID_SCOPE_REQUIRED: 'openid scope가 필요합니다',
+  INVALID_PKCE_LENGTH_S256: 'S256 방식에 대한 잘못된 code_challenge 길이입니다',
 } as const;
 
 // OAuth2 로그 메시지들
