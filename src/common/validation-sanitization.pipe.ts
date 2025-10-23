@@ -124,9 +124,14 @@ export class ValidationSanitizationPipe
       '__lookupSetter__',
       'valueOf',
       'toString',
+      'toLocaleString',
       'hasOwnProperty',
       'isPrototypeOf',
       'propertyIsEnumerable',
+      'call',
+      'apply',
+      'bind',
+      'then',
     ];
 
     const cleanObject: Record<string, unknown> = {};
@@ -233,6 +238,11 @@ export class ValidationSanitizationPipe
       /__lookupSetter__/i,
       /\.valueOf/i,
       /\.toString/i,
+      /\.toLocaleString/i,
+      /\.call/i,
+      /\.apply/i,
+      /\.bind/i,
+      /\.then/i,
       // Unicode and encoded variations
       /\\u005f\\u005f/i, // __
       /%5f%5f/i, // URL encoded __
