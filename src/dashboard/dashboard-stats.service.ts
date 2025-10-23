@@ -142,7 +142,7 @@ export class DashboardStatsService {
           .getRawMany();
 
       // 모든 기간을 채워서 결과 생성
-      const result: any[] = [];
+      const result: T[] = [];
       for (let i = 0; i < periods; i++) {
         const period = periodMapper(i);
         const existing = tokens.find((t) => t.period === period);
@@ -150,22 +150,22 @@ export class DashboardStatsService {
         result.push({
           [dateFormat.includes('%H') ? 'hour' : 'date']: period,
           count,
-        });
+        } as T);
       }
 
-      return result as T[];
+      return result;
     } catch (error) {
       this.logger.error('Error getting token issuance stats:', error);
       // 에러 발생 시 빈 결과 반환
-      const result: any[] = [];
+      const result: T[] = [];
       for (let i = 0; i < periods; i++) {
         const period = periodMapper(i);
         result.push({
           [dateFormat.includes('%H') ? 'hour' : 'date']: period,
           count: 0,
-        });
+        } as T);
       }
-      return result as T[];
+      return result;
     }
   }
 

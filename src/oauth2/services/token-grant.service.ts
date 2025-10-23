@@ -11,6 +11,7 @@ import {
   OAUTH2_ERROR_MESSAGES,
   OAuth2GrantType,
 } from '../../constants/oauth2.constants';
+import { safeCredentialCompare } from '../../utils/timing-security.util';
 
 @Injectable()
 export class TokenGrantService {
@@ -300,9 +301,25 @@ export class TokenGrantService {
       throw new BadRequestException('Invalid client');
     }
 
-    // Validate client secret if provided
-    if (clientSecret && client.clientSecret !== clientSecret) {
-      throw new BadRequestException('Invalid client credentials');
+    // For confidential clients, client secret is required and must match
+    if (client.isConfidential) {
+      if (!clientSecret) {
+        throw new BadRequestException(
+          'Client secret is required for confidential clients',
+        );
+      }
+      if (!safeCredentialCompare(clientSecret, client.clientSecret)) {
+        throw new BadRequestException('Invalid client credentials');
+      }
+    } else {
+      // For public clients, client secret should not be provided
+      // But we allow it to be provided for backward compatibility
+      if (clientSecret && client.clientSecret) {
+        // If both are provided, they must match
+        if (!safeCredentialCompare(clientSecret, client.clientSecret)) {
+          throw new BadRequestException('Invalid client credentials');
+        }
+      }
     }
 
     return client;

@@ -10,9 +10,6 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-
 // Test DTO classes
 class TestDto {
   @IsString()

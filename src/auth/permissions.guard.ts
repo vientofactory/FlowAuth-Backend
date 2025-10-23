@@ -46,7 +46,7 @@ export class PermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<RequestWithUser>();
     const user = request.user;
 
-    if (!user || user.permissions === undefined || user.permissions === null) {
+    if (user?.permissions === undefined || user.permissions === null) {
       throw new ForbiddenException('권한 정보가 없습니다.');
     }
 

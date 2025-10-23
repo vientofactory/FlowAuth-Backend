@@ -145,6 +145,10 @@ export const OAUTH2_ERROR_MESSAGES = {
   PKCE_VERIFICATION_FAILED_S256:
     'PKCE 검증 실패: code verifier 해시가 code challenge와 일치하지 않습니다 (S256 방식)',
   UNSUPPORTED_PKCE_METHOD: '지원하지 않는 code challenge 방식입니다',
+  PKCE_PARAMETERS_MISMATCH:
+    'PKCE 파라미터 불일치: code_challenge와 code_challenge_method가 함께 제공되어야 합니다',
+  OPENID_SCOPE_REQUIRED: 'openid scope가 필요합니다',
+  INVALID_PKCE_LENGTH_S256: 'S256 방식에 대한 잘못된 code_challenge 길이입니다',
 } as const;
 
 // OAuth2 로그 메시지들
@@ -160,9 +164,6 @@ export const OAUTH2_SCOPES = {
   OPENID: 'openid',
   PROFILE: 'profile',
   EMAIL: 'email',
-
-  // 계정 기본 정보 (레거시 호환성)
-  IDENTIFY: 'identify',
 } as const;
 
 // 스코프 설명
@@ -171,8 +172,10 @@ export const SCOPE_DESCRIPTIONS = {
   [OAUTH2_SCOPES.OPENID]: 'OpenID Connect 인증 및 기본 프로필 정보 읽기',
   [OAUTH2_SCOPES.PROFILE]:
     '사용자 프로필 정보 읽기 (이름, 생년월일, 지역, 사진 등)',
-  [OAUTH2_SCOPES.IDENTIFY]: '계정의 기본 정보 읽기 (사용자 ID, 이름 등)',
 } as const;
 
-// 기본 스코프 목록
-export const DEFAULT_SCOPES = [OAUTH2_SCOPES.IDENTIFY] as const;
+// 기본 스코프 목록 (OpenID Connect 표준)
+export const DEFAULT_SCOPES = [
+  OAUTH2_SCOPES.OPENID,
+  OAUTH2_SCOPES.PROFILE,
+] as const;

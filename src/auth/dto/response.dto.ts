@@ -1,6 +1,23 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
+ * 가용성 체크 응답 DTO
+ */
+export class AvailabilityResponseDto {
+  @ApiProperty({
+    description: '사용 가능 여부',
+    example: true,
+  })
+  available: boolean;
+
+  @ApiProperty({
+    description: '결과 메시지',
+    example: '사용 가능한 사용자명입니다.',
+  })
+  message: string;
+}
+
+/**
  * 사용자 정보 DTO
  */
 export class UserDto {

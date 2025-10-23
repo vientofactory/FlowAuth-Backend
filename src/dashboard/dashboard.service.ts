@@ -101,8 +101,8 @@ export class DashboardService {
         totalTokensIssued,
         expiredTokens,
         revokedTokens,
-        lastLoginDate: user?.lastLoginAt || null,
-        accountCreated: user?.createdAt || null,
+        lastLoginDate: user?.lastLoginAt ?? null,
+        accountCreated: user?.createdAt ?? null,
         tokenIssuanceByHour,
         tokenIssuanceByDay,
         clientUsageStats,
@@ -300,7 +300,7 @@ export class DashboardService {
             id: activityCounter++,
             type: 'token_revoked',
             description: `"${token.client?.name || '웹 애플리케이션'}" 토큰 취소됨`,
-            createdAt: token.revokedAt || new Date(), // 취소 시간이 없으면 현재 시간 사용
+            createdAt: token.revokedAt ?? new Date(), // 취소 시간이 없으면 현재 시간 사용
             resourceId: token.id,
             metadata: {
               clientName: token.client?.name,
@@ -421,7 +421,7 @@ export class DashboardService {
 
     return {
       success: true,
-      revokedTokensCount: result.affected || 0,
+      revokedTokensCount: result.affected ?? 0,
       message: '연결이 성공적으로 해제되었습니다.',
     };
   }

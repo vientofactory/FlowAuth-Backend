@@ -54,7 +54,6 @@ const SCOPE_FIELD_MAPPINGS: ScopeFieldMapping[] = [
     scope: 'email',
     fields: ['email', 'email_verified'],
   },
-  // 기존 호환성을 위한 스코프
   {
     scope: 'identify',
     fields: ['preferred_username', 'roles'],
@@ -212,7 +211,7 @@ export class OAuth2UserInfoBuilder {
           profile: `${process.env.BACKEND_URL || 'http://localhost:3000'}/users/${user.id}`,
           picture: user.avatar || undefined,
           updated_at: Math.floor(
-            (user.updatedAt?.getTime() || Date.now()) / 1000,
+            (user.updatedAt?.getTime() ?? Date.now()) / 1000,
           ),
           roles: [PermissionUtils.getRoleName(user.permissions)],
         };

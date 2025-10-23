@@ -113,7 +113,7 @@ export class TwoFactorService {
   async verifyToken(userId: number, token: string): Promise<boolean> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
 
-    if (!user || !user.twoFactorSecret) {
+    if (!user?.twoFactorSecret) {
       return false;
     }
 

@@ -3,26 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import * as crypto from 'crypto';
-import axios from 'axios';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
 import { JWT_CONSTANTS, CACHE_CONSTANTS } from '../../constants/jwt.constants';
 import { StructuredLogger } from '../../logging/structured-logger.service';
 import { JwtTokenService } from './jwt-token.service';
 
-interface JWKSKey {
-  kty: string;
-  kid: string;
-  n: string;
-  e: string;
-  alg: string;
-}
-
-interface JWKSResponse {
-  keys: JWKSKey[];
-}
-
-interface IdTokenPayload {
+export interface IdTokenPayload {
   iss: string;
   sub: string;
   aud: string;
@@ -44,7 +31,16 @@ interface IdTokenPayload {
   phone_number?: string;
   phone_number_verified?: boolean;
   // address scope claims
-  address?: any;
+  address?: AddressClaim;
+}
+
+export interface AddressClaim {
+  formatted?: string;
+  street_address?: string;
+  locality?: string;
+  region?: string;
+  postal_code?: string;
+  country?: string;
 }
 
 @Injectable()
@@ -86,7 +82,7 @@ export class IdTokenService {
     this.addClaimsBasedOnScopes(payload, user, scopes);
 
     return await this.jwtTokenService.signJwtWithRSA(
-      payload as Record<string, any>,
+      payload as unknown as Record<string, unknown>,
     );
   }
 
@@ -118,52 +114,38 @@ export class IdTokenService {
   }
 
   /**
-   * Fetch RSA public key from JWKS endpoint for ID token validation
+   * Get RSA public key from JWT service
    */
   private async getRsaPublicKey(kid: string): Promise<crypto.KeyObject> {
-    const baseUrl =
-      this.configService.get<string>('BACKEND_URL') || 'http://localhost:3000';
-    const jwksUrl = `${baseUrl}${JWT_CONSTANTS.JWKS_PATH}`;
-
     try {
-      // Check JWKS in cache
-      const cacheKey = `jwks:${jwksUrl}`;
-      let jwks: JWKSResponse | undefined =
+      // Check public key in cache first
+      const cacheKey = `rsa_public_key:${kid}`;
+      let publicKey: crypto.KeyObject | undefined =
         await this.cacheManager.get(cacheKey);
 
-      if (!jwks) {
-        // Fetch JWKS via HTTP request
-        const response = await axios.get(jwksUrl);
-        jwks = response.data as JWKSResponse;
-        await this.cacheManager.set(cacheKey, jwks, CACHE_CONSTANTS.JWKS_TTL);
-      }
+      if (!publicKey) {
+        // Get RSA public key from JWT service
+        publicKey = this.jwtTokenService.getRsaPublicKey();
 
-      const key = jwks.keys.find((k) => k.kid === kid);
-      if (!key) {
-        throw new Error(`Key with kid '${kid}' not found in JWKS`);
+        // Cache the public key to avoid repeated internal calls
+        await this.cacheManager.set(
+          cacheKey,
+          publicKey,
+          CACHE_CONSTANTS.JWKS_TTL,
+        );
       }
-
-      // Construct RSA public key
-      const publicKey = crypto.createPublicKey({
-        key: {
-          kty: key.kty,
-          n: key.n,
-          e: key.e,
-        },
-        format: 'jwk',
-      });
 
       return publicKey;
     } catch (error) {
       this.structuredLogger.error(
         {
-          message: 'Failed to fetch RSA public key',
+          message: 'Failed to get RSA public key internally',
           kid,
           error: error instanceof Error ? error.message : 'Unknown error',
         },
         'IdTokenService',
       );
-      throw new Error('Failed to fetch RSA public key');
+      throw new Error('Failed to get RSA public key');
     }
   }
 

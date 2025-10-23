@@ -238,7 +238,7 @@ export function isSafeUrl(
 
     // Hostname validation
     if (opts.validateHostname) {
-      if (!url.hostname || url.hostname.length === 0) {
+      if (url.hostname?.length === 0) {
         return false;
       }
 
@@ -427,10 +427,24 @@ function isPrivateNetwork(hostname: string): boolean {
  * OAuth2 redirect URI validation function
  */
 export function validateOAuth2RedirectUri(uri: string): boolean {
+  // Check if this is a localhost/loopback address for HTTP allowance only
+  const isLocalhost = uri.includes('localhost') || uri.includes('127.0.0.1');
+
+  // Check if this is IPv6 loopback for separate handling
+  const isIPv6Loopback = uri.includes('[::1]');
+
+  // For production, only allow HTTPS except for localhost
+  const allowHttp = process.env.NODE_ENV === 'development' || isLocalhost;
+
+  // Allow private networks only in development or for specific localhost cases
+  // Don't allow IPv6 loopback in production
+  const allowPrivateNetworks =
+    process.env.NODE_ENV === 'development' || (isLocalhost && !isIPv6Loopback);
+
   return isSafeUrl(uri, {
     allowedProtocols: ['https:', 'http:'],
-    allowHttp: process.env.NODE_ENV === 'development', // Allow HTTP only in development
-    allowPrivateNetworks: process.env.NODE_ENV === 'development',
+    allowHttp: allowHttp,
+    allowPrivateNetworks: allowPrivateNetworks,
     maxLength: 2048,
     validateHostname: true,
   });

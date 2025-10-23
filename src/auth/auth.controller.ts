@@ -17,6 +17,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBody,
+  ApiParam,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
@@ -29,6 +30,7 @@ import {
   TokenDto,
   LoginResponseDto,
   ClientCreateResponseDto,
+  AvailabilityResponseDto,
 } from './dto/response.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard, RequirePermissions } from './permissions.guard';
@@ -42,6 +44,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 import { ValidationHelpers } from './validation.helpers';
+import { ValidationService } from './services/validation.service';
+import { validateOAuth2RedirectUri } from '../utils/url-security.util';
 import {
   AdvancedRateLimitGuard,
   RateLimit,
@@ -80,12 +84,47 @@ export class AuthController {
     description: '요청 제한 초과 (1시간에 3회)',
   })
   @ApiBody({ type: CreateUserDto })
-  async register(
-    @Body(RecaptchaFieldSizeLimitPipe)
-    createUserDto: CreateUserDto,
-  ): Promise<User> {
+  async register(@Body() createUserDto: CreateUserDto): Promise<User> {
     const user = await this.authService.register(createUserDto);
     return user;
+  }
+
+  @Get('check-email/:email')
+  @ApiOperation({ summary: '이메일 가용성 확인' })
+  @ApiParam({
+    name: 'email',
+    description: '확인할 이메일 주소',
+    example: 'user@example.com',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '이메일 가용성 확인 결과',
+    type: AvailabilityResponseDto,
+  })
+  async checkEmail(
+    @Param('email') email: string,
+  ): Promise<AvailabilityResponseDto> {
+    const result = await this.authService.checkEmailAvailability(email);
+    return result;
+  }
+
+  @Get('check-username/:username')
+  @ApiOperation({ summary: '사용자명 가용성 확인' })
+  @ApiParam({
+    name: 'username',
+    description: '확인할 사용자명',
+    example: 'johndoe',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '사용자명 가용성 확인 결과',
+    type: AvailabilityResponseDto,
+  })
+  async checkUsername(
+    @Param('username') username: string,
+  ): Promise<AvailabilityResponseDto> {
+    const result = await this.authService.checkUsernameAvailability(username);
+    return result;
   }
 
   @Post('login')
@@ -93,7 +132,7 @@ export class AuthController {
     ...RATE_LIMIT_CONFIGS.AUTH_LOGIN,
     keyGenerator: KEY_GENERATORS.IP_USER_AGENT,
   })
-  @ApiOperation({ summary: '사용자 로그인 (고급 보안)' })
+  @ApiOperation({ summary: '사용자 로그인' })
   @ApiResponse({
     status: 200,
     description: '로그인 성공',
@@ -162,10 +201,10 @@ export class AuthController {
     }
 
     // 이메일 형식 검증
-    ValidationHelpers.validateEmail(email.trim());
+    ValidationService.validateEmail(email.trim());
 
     // 2FA 토큰 형식 검증
-    ValidationHelpers.validateTwoFactorToken(token.trim());
+    ValidationService.validateTwoFactorToken(token.trim());
 
     const result = await this.authService.verifyTwoFactorToken(
       email.trim(),
@@ -266,10 +305,10 @@ export class AuthController {
     }
 
     // 이메일 형식 검증
-    ValidationHelpers.validateEmail(email.trim());
+    ValidationService.validateEmail(email.trim());
 
     // 백업 코드 형식 검증
-    ValidationHelpers.validateBackupCode(backupCode.trim());
+    ValidationService.validateBackupCode(backupCode.trim());
 
     const result = await this.authService.verifyBackupCode(
       email.trim(),
@@ -394,7 +433,7 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
   ) {
     const client = await this.authService.getClientById(
-      ValidationHelpers.parseIdParam(id),
+      ValidationService.validateIdParam(id),
       req.user.id,
     );
     return {
@@ -456,7 +495,7 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.authService.updateClientStatus(
-      ValidationHelpers.parseIdParam(id),
+      ValidationService.validateIdParam(id),
       body.isActive,
       req.user.id,
     );
@@ -527,49 +566,25 @@ export class AuthController {
 
     // redirectUris 검증
     if (updateData.redirectUris !== undefined) {
-      if (!Array.isArray(updateData.redirectUris)) {
-        throw new BadRequestException('redirectUris는 배열이어야 합니다.');
-      }
       for (const uri of updateData.redirectUris) {
-        if (typeof uri !== 'string' || !uri.trim()) {
-          throw new BadRequestException(
-            'redirectUris의 각 항목은 비어있지 않은 문자열이어야 합니다.',
-          );
-        }
-        // 간단한 URL 형식 검증
-        try {
-          new URL(uri.trim());
-        } catch {
-          throw new BadRequestException(`잘못된 URL 형식: ${uri}`);
+        if (!validateOAuth2RedirectUri(uri)) {
+          throw new BadRequestException(`Invalid redirect URI: ${uri}`);
         }
       }
     }
 
     // scopes 검증
     if (updateData.scopes !== undefined) {
-      if (!Array.isArray(updateData.scopes)) {
-        throw new BadRequestException('scopes는 배열이어야 합니다.');
-      }
-      for (const scope of updateData.scopes) {
-        if (typeof scope !== 'string' || !scope.trim()) {
-          throw new BadRequestException(
-            'scopes의 각 항목은 비어있지 않은 문자열이어야 합니다.',
-          );
-        }
-      }
+      ValidationService.validateStringArray(updateData.scopes, 'scopes');
     }
 
     // name 검증
     if (updateData.name !== undefined) {
-      if (typeof updateData.name !== 'string' || !updateData.name.trim()) {
-        throw new BadRequestException(
-          'name은 비어있지 않은 문자열이어야 합니다.',
-        );
-      }
+      ValidationService.validateRequiredString(updateData.name, 'name');
     }
 
     return this.authService.updateClient(
-      ValidationHelpers.parseIdParam(id),
+      ValidationService.validateIdParam(id),
       updateData,
       req.user.id,
     );
@@ -637,7 +652,7 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
   ) {
     const client = await this.authService.resetClientSecret(
-      ValidationHelpers.parseIdParam(id),
+      ValidationService.validateIdParam(id),
       req.user.id,
     );
     return {
@@ -695,7 +710,7 @@ export class AuthController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.authService.removeClientLogo(
-      ValidationHelpers.parseIdParam(id),
+      ValidationService.validateIdParam(id),
       req.user.id,
     );
   }
@@ -734,7 +749,7 @@ OAuth2 클라이언트를 삭제합니다.
   ) {
     // 관리자 권한으로 모든 클라이언트 삭제 가능
     await this.authService.deleteClient(
-      ValidationHelpers.parseIdParam(id),
+      ValidationService.validateIdParam(id),
       req.user.id,
     );
     return { message: 'Client deleted successfully' };
@@ -774,7 +789,7 @@ OAuth2 클라이언트를 삭제합니다.
   ) {
     // 일반 사용자는 자신의 클라이언트만 삭제 가능
     await this.authService.deleteClient(
-      ValidationHelpers.parseIdParam(id),
+      ValidationService.validateIdParam(id),
       req.user.id,
     );
     return { message: 'Client deleted successfully' };
@@ -817,7 +832,7 @@ OAuth2 클라이언트를 삭제합니다.
   ) {
     await this.authService.revokeToken(
       req.user.id,
-      ValidationHelpers.parseIdParam(tokenId),
+      ValidationService.validateIdParam(tokenId),
     );
     return { message: 'Token revoked successfully' };
   }

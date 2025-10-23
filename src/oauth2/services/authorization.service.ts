@@ -18,8 +18,6 @@ export class AuthorizationService {
   private readonly logger = new Logger(AuthorizationService.name);
 
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
     @InjectRepository(Client)
     private readonly clientRepository: Repository<Client>,
     private readonly authCodeService: AuthorizationCodeService,
@@ -212,7 +210,7 @@ export class AuthorizationService {
       (!codeChallenge && codeChallengeMethod)
     ) {
       throw new BadRequestException(
-        'Both code_challenge and code_challenge_method must be provided together',
+        OAUTH2_ERROR_MESSAGES.PKCE_PARAMETERS_MISMATCH,
       );
     }
 
@@ -257,14 +255,14 @@ export class AuthorizationService {
       (!codeChallenge && codeChallengeMethod)
     ) {
       throw new BadRequestException(
-        'Both code_challenge and code_challenge_method must be provided together',
+        OAUTH2_ERROR_MESSAGES.PKCE_PARAMETERS_MISMATCH,
       );
     }
 
     // Require openid scope for ID token issuance
     if (!requestedScopes.includes('openid')) {
       throw new BadRequestException(
-        'response_type=code id_token requires openid scope',
+        OAUTH2_ERROR_MESSAGES.OPENID_SCOPE_REQUIRED,
       );
     }
 
@@ -358,12 +356,16 @@ export class AuthorizationService {
       // Validate code challenge format (base64url encoded)
       const base64UrlRegex = /^[A-Za-z0-9\-_]+$/;
       if (!base64UrlRegex.test(codeChallenge)) {
-        throw new BadRequestException('Invalid code_challenge format');
+        throw new BadRequestException(
+          OAUTH2_ERROR_MESSAGES.INVALID_PKCE_FORMAT_S256,
+        );
       }
 
       // Validate code challenge length (43-128 characters for SHA256)
       if (codeChallenge.length < 43 || codeChallenge.length > 128) {
-        throw new BadRequestException('Invalid code_challenge length');
+        throw new BadRequestException(
+          OAUTH2_ERROR_MESSAGES.INVALID_PKCE_LENGTH_S256,
+        );
       }
     }
 
@@ -371,7 +373,7 @@ export class AuthorizationService {
       // Only S256 is supported (SHA256)
       if (codeChallengeMethod !== 'S256') {
         throw new BadRequestException(
-          'Only S256 code_challenge_method is supported',
+          OAUTH2_ERROR_MESSAGES.UNSUPPORTED_PKCE_METHOD,
         );
       }
     }

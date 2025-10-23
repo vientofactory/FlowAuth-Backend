@@ -65,6 +65,12 @@ export class UserManagementService {
     });
 
     if (existingUser) {
+      if (existingUser.email === email) {
+        throw new ConflictException('이미 사용중인 이메일입니다.');
+      }
+      if (existingUser.username === username) {
+        throw new ConflictException('이미 사용중인 사용자명입니다.');
+      }
       throw new ConflictException(AUTH_ERROR_MESSAGES.USER_ALREADY_EXISTS);
     }
 

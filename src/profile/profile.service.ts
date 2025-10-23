@@ -288,7 +288,7 @@ export class ProfileService {
     excludeUserId?: number,
   ): Promise<{ available: boolean; message: string }> {
     // 입력 검증
-    if (!username || username.trim().length === 0) {
+    if (username?.trim().length === 0) {
       return { available: false, message: '사용자명을 입력해주세요.' };
     }
 

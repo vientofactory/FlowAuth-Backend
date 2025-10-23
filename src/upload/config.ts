@@ -124,16 +124,37 @@ export const UPLOAD_CONFIG = {
   },
 } as const;
 
+/**
+ * Helper class for type-safe upload configuration access
+ */
+class UploadConfigHelper {
+  private static readonly FILE_TYPES_MAP = new Map(
+    Object.entries(UPLOAD_CONFIG.fileTypes),
+  );
+
+  static getFileTypeConfig(type: keyof typeof UPLOAD_CONFIG.fileTypes) {
+    const config = this.FILE_TYPES_MAP.get(type);
+    if (!config) {
+      throw new Error(`Invalid file type: ${type}`);
+    }
+    return config;
+  }
+
+  static isValidFileType(
+    type: string,
+  ): type is keyof typeof UPLOAD_CONFIG.fileTypes {
+    return this.FILE_TYPES_MAP.has(
+      type as keyof typeof UPLOAD_CONFIG.fileTypes,
+    );
+  }
+}
+
 // Helper functions
 export const getUploadPath = (
   type: keyof typeof UPLOAD_CONFIG.fileTypes,
 ): string => {
-  // Safe object access to prevent injection
-  // eslint-disable-next-line security/detect-object-injection
-  const fileTypeConfig = UPLOAD_CONFIG.fileTypes[type];
-  if (!fileTypeConfig) {
-    throw new Error(`Invalid file type: ${type}`);
-  }
+  // Type-safe configuration access
+  const fileTypeConfig = UploadConfigHelper.getFileTypeConfig(type);
 
   // Use safePath to prevent path traversal attacks
   try {
@@ -149,23 +170,17 @@ export const getFileUrl = (
   type: keyof typeof UPLOAD_CONFIG.fileTypes,
   filename: string,
 ): string => {
-  // eslint-disable-next-line security/detect-object-injection
-  const fileTypeConfig = UPLOAD_CONFIG.fileTypes[type];
-  if (!fileTypeConfig) {
-    throw new Error(`Invalid file type: ${type}`);
-  }
+  // Type-safe configuration access
+  const fileTypeConfig = UploadConfigHelper.getFileTypeConfig(type);
   const destination = fileTypeConfig.destination;
-  // 백엔드 서버의 호스트를 포함한 절대 URL 반환
-  const backendHost = process.env.BACKEND_HOST || 'http://localhost:3000';
+  // Return absolute URL including backend server host
+  const backendHost = process.env.BACKEND_HOST ?? 'http://localhost:3000';
   return `${backendHost}/uploads/${destination}/${filename}`;
 };
 
 export const getFileLimits = (type: keyof typeof UPLOAD_CONFIG.fileTypes) => {
-  // eslint-disable-next-line security/detect-object-injection
-  const config = UPLOAD_CONFIG.fileTypes[type];
-  if (!config) {
-    throw new Error(`Invalid file type: ${type}`);
-  }
+  // Type-safe configuration access
+  const config = UploadConfigHelper.getFileTypeConfig(type);
   return {
     fileSize: config.maxSize,
     files: 1,

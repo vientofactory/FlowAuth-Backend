@@ -13,10 +13,15 @@ import {
 } from '../constants/security.constants';
 
 @Injectable()
-export class ValidationSanitizationPipe implements PipeTransform<any> {
+export class ValidationSanitizationPipe
+  implements PipeTransform<unknown, unknown>
+{
   private readonly logger = new Logger(ValidationSanitizationPipe.name);
 
-  async transform(value: any, metadata: ArgumentMetadata): Promise<any> {
+  async transform(
+    value: unknown,
+    metadata: ArgumentMetadata,
+  ): Promise<unknown> {
     const { metatype } = metadata;
     if (!metatype || !this.toValidate(metatype)) {
       return value;
@@ -67,7 +72,7 @@ export class ValidationSanitizationPipe implements PipeTransform<any> {
       if (error.children && error.children.length > 0) {
         acc[error.property] = this.formatErrors(error.children);
       } else {
-        acc[error.property] = Object.values(error.constraints || {});
+        acc[error.property] = Object.values(error.constraints ?? {});
       }
       return acc;
     }, {});
@@ -119,9 +124,14 @@ export class ValidationSanitizationPipe implements PipeTransform<any> {
       '__lookupSetter__',
       'valueOf',
       'toString',
+      'toLocaleString',
       'hasOwnProperty',
       'isPrototypeOf',
       'propertyIsEnumerable',
+      'call',
+      'apply',
+      'bind',
+      'then',
     ];
 
     const cleanObject: Record<string, unknown> = {};
@@ -228,6 +238,11 @@ export class ValidationSanitizationPipe implements PipeTransform<any> {
       /__lookupSetter__/i,
       /\.valueOf/i,
       /\.toString/i,
+      /\.toLocaleString/i,
+      /\.call/i,
+      /\.apply/i,
+      /\.bind/i,
+      /\.then/i,
       // Unicode and encoded variations
       /\\u005f\\u005f/i, // __
       /%5f%5f/i, // URL encoded __

@@ -24,6 +24,8 @@ import { ProfileService } from './profile.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../types/auth.types';
 import { User } from '../auth/user.entity';
+import { validateFileEnhanced } from '../upload/validators';
+import { UPLOAD_ERRORS } from '../upload/types';
 
 @Controller('profile')
 @ApiTags('Profile')
@@ -215,6 +217,30 @@ export class ProfileController {
     @Request() req: AuthenticatedRequest,
     @UploadedFile() file: Express.Multer.File,
   ): Promise<{ avatarUrl: string; message: string }> {
+    if (!file) {
+      throw UPLOAD_ERRORS.NO_FILE_UPLOADED;
+    }
+
+    // Enhanced file validation with content type security
+    // Buffer analysis is already enabled by default in validators
+    const validationResult = await validateFileEnhanced(file, 'avatar', {
+      enableContentValidation: true,
+    });
+
+    // Debug: Log buffer analysis status if validation has issues (development only)
+    if (!validationResult.isValid || validationResult.warnings.length > 0) {
+      const { logBufferAnalysisStatus } = await import(
+        '../utils/buffer-analysis.engine'
+      );
+      logBufferAnalysisStatus(); // This will only log in development
+    }
+
+    if (!validationResult.isValid) {
+      throw new Error(
+        `File validation failed: ${validationResult.errors.join(', ')}`,
+      );
+    }
+
     const avatarUrl = await this.profileService.uploadAvatar(req.user.id, file);
     return {
       avatarUrl,

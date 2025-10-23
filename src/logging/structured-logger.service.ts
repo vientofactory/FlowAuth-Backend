@@ -2,6 +2,10 @@ import { Injectable, Inject, LoggerService } from '@nestjs/common';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 
+interface LogDetails {
+  [key: string]: unknown;
+}
+
 @Injectable()
 export class StructuredLogger implements LoggerService {
   constructor(
@@ -9,32 +13,28 @@ export class StructuredLogger implements LoggerService {
     private readonly logger: Logger,
   ) {}
 
-  log(message: any, context?: string): void {
+  log(message: unknown, context?: string): void {
     this.logger.info(String(message), { context });
   }
 
-  error(message: any, trace?: string, context?: string): void {
+  error(message: unknown, trace?: string, context?: string): void {
     this.logger.error(String(message), { context, trace });
   }
 
-  warn(message: any, context?: string): void {
+  warn(message: unknown, context?: string): void {
     this.logger.warn(String(message), { context });
   }
 
-  debug(message: any, context?: string): void {
+  debug(message: unknown, context?: string): void {
     this.logger.debug(String(message), { context });
   }
 
-  verbose(message: any, context?: string): void {
+  verbose(message: unknown, context?: string): void {
     this.logger.verbose(String(message), { context });
   }
 
   // Structured logging methods
-  logSecurityEvent(
-    event: string,
-    details: Record<string, any>,
-    context?: string,
-  ): void {
+  logSecurityEvent(event: string, details: LogDetails, context?: string): void {
     this.logger.info('SECURITY_EVENT', {
       event,
       ...details,
@@ -77,11 +77,7 @@ export class StructuredLogger implements LoggerService {
     });
   }
 
-  logError(
-    error: Error,
-    context?: string,
-    additionalData?: Record<string, any>,
-  ): void {
+  logError(error: Error, context?: string, additionalData?: LogDetails): void {
     this.logger.error('APPLICATION_ERROR', {
       message: error.message,
       stack: error.stack,
@@ -105,11 +101,7 @@ export class StructuredLogger implements LoggerService {
     });
   }
 
-  logSecurity(
-    event: string,
-    details: Record<string, any>,
-    context?: string,
-  ): void {
+  logSecurity(event: string, details: LogDetails, context?: string): void {
     this.logger.warn('SECURITY_ALERT', {
       event,
       severity: 'HIGH',

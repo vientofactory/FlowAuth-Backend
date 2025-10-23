@@ -67,7 +67,7 @@ export class ImageProcessingService {
 
       // Generate unique filename using UUID
       const fileExtension =
-        file.originalname.split('.').pop()?.toLowerCase() || '';
+        file.originalname.split('.').pop()?.toLowerCase() ?? '';
       const uniqueId = uuidv4();
 
       // Determine output format based on input and supported formats
@@ -317,7 +317,7 @@ export class ImageProcessingService {
       const processedBuffer = await sharpInstance.toBuffer();
 
       // Validate output buffer
-      if (!processedBuffer || processedBuffer.length === 0) {
+      if (processedBuffer?.length === 0) {
         throw new FileUploadError(
           'Image processing resulted in empty buffer',
           'EMPTY_OUTPUT_BUFFER',
@@ -406,9 +406,9 @@ export class ImageProcessingService {
       'image/tiff': 'jpeg', // Convert TIFF to JPEG
     };
 
-    // Try to determine format from MIME type first
-    // eslint-disable-next-line security/detect-object-injection
-    const formatFromMime = mimeToFormat[mimeType];
+    // Try to determine format from MIME type first using Map for type safety
+    const mimeToFormatMap = new Map(Object.entries(mimeToFormat));
+    const formatFromMime = mimeToFormatMap.get(mimeType);
 
     // If MIME type gives us a supported format, use it
     if (
@@ -434,8 +434,9 @@ export class ImageProcessingService {
       tif: 'jpeg',
     };
 
-    // eslint-disable-next-line security/detect-object-injection
-    const formatFromExtension = extensionToFormat[fileExtension];
+    // Use Map for type-safe extension lookup
+    const extensionToFormatMap = new Map(Object.entries(extensionToFormat));
+    const formatFromExtension = extensionToFormatMap.get(fileExtension);
 
     // If extension gives us a supported format, use it
     if (
@@ -465,8 +466,9 @@ export class ImageProcessingService {
       avif: 'avif',
     };
 
-    // eslint-disable-next-line security/detect-object-injection
-    return extensionMap[format] || 'jpg';
+    // Use Map for type-safe format extension lookup
+    const extensionMapObj = new Map(Object.entries(extensionMap));
+    return extensionMapObj.get(format) ?? 'jpg';
   }
 
   /**
@@ -476,8 +478,12 @@ export class ImageProcessingService {
     type: keyof typeof UPLOAD_CONFIG.fileTypes,
     filename: string,
   ): string {
-    // eslint-disable-next-line security/detect-object-injection
-    const destination = UPLOAD_CONFIG.fileTypes[type].destination;
-    return `/uploads/${destination}/${filename}`;
+    // Use type-safe config access
+    const fileTypesMap = new Map(Object.entries(UPLOAD_CONFIG.fileTypes));
+    const config = fileTypesMap.get(type);
+    if (!config) {
+      throw new Error(`Invalid file type: ${type}`);
+    }
+    return `/uploads/${config.destination}/${filename}`;
   }
 }

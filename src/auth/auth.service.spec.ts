@@ -14,6 +14,7 @@ import { RecaptchaService } from '../utils/recaptcha.util';
 import { UserAuthService } from './services/user-auth.service';
 import { ClientAuthService } from './services/client-auth.service';
 import { TwoFactorAuthService } from './services/two-factor-auth.service';
+import { ValidationService } from './services/validation.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -107,6 +108,13 @@ describe('AuthService', () => {
           useValue: {
             verifyTwoFactorToken: jest.fn(),
             verifyBackupCode: jest.fn(),
+          },
+        },
+        {
+          provide: ValidationService,
+          useValue: {
+            checkEmailAvailability: jest.fn(),
+            checkUsernameAvailability: jest.fn(),
           },
         },
         {

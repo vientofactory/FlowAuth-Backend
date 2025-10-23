@@ -31,7 +31,7 @@ import {
 } from '../auth/permissions.guard';
 import { PERMISSIONS } from '../constants/auth.constants';
 import { FileUploadResponseDto } from './dto/response.dto';
-import { validateFile, isValidFilename } from './validators';
+import { isValidFilename, validateFileEnhanced } from './validators';
 
 /**
  * 로고 업로드 설정 정보를 가져오는 헬퍼 함수
@@ -134,17 +134,39 @@ export class UploadController {
       throw UPLOAD_ERRORS.NO_FILE_UPLOADED;
     }
 
-    // Validate file using centralized validator
-    const validationResult = validateFile(file, 'logo');
+    // Enhanced file validation with content type security
+    // Buffer analysis is already enabled by default in validators
+    const validationResult = await validateFileEnhanced(file, 'logo', {
+      enableContentValidation: true,
+    });
+
+    // Debug: Log buffer analysis status if validation has issues (development only)
+    if (!validationResult.isValid || validationResult.warnings.length > 0) {
+      const { logBufferAnalysisStatus } = await import(
+        '../utils/buffer-analysis.engine'
+      );
+      logBufferAnalysisStatus(); // This will only log in development
+    }
+
     if (!validationResult.isValid) {
-      throw new Error(`파일 검증 실패: ${validationResult.errors.join(', ')}`);
+      this.logger.error({
+        message: 'File validation failed',
+        errors: validationResult.errors,
+        filename: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+      });
+      throw new Error(
+        `File validation failed: ${validationResult.errors.join(', ')}`,
+      );
     }
 
     // Log warnings if any
     if (validationResult.warnings.length > 0) {
       this.logger.warn({
-        message: '파일 업로드 경고',
+        message: 'File validation warnings found',
         warnings: validationResult.warnings,
+        filename: file.originalname,
       });
     }
 

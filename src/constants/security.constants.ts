@@ -7,7 +7,11 @@ import type { Request } from 'express';
 interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
-    [key: string]: any;
+    sub?: string;
+    client_id?: string;
+    scopes?: string[];
+    token_type?: string;
+    [key: string]: unknown;
   };
 }
 
@@ -188,8 +192,8 @@ export const KEY_GENERATORS = {
 
   // 사용자 ID 기반 (인증된 사용자)
   USER_ID: (req: AuthenticatedRequest) => {
-    const userId = req.user?.id || 'anonymous';
-    return `rate_limit:user:${userId}:${req.path || 'unknown'}`;
+    const userId = req.user?.id ?? 'anonymous';
+    return `rate_limit:user:${userId}:${req.path ?? 'unknown'}`;
   },
 
   // Client ID 기반 (OAuth2)

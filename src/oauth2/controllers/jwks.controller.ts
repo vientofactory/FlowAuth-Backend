@@ -3,11 +3,37 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
+// RFC 7517 JWK (JSON Web Key) Interface
+interface JWK {
+  kty: string; // Key Type (RSA, EC, oct, etc.)
+  use?: string; // Public Key Use (sig, enc)
+  key_ops?: string[]; // Key Operations
+  alg?: string; // Algorithm
+  kid?: string; // Key ID
+  x5u?: string; // X.509 URL
+  x5c?: string[]; // X.509 Certificate Chain
+  x5t?: string; // X.509 Certificate SHA-1 Thumbprint
+  'x5t#S256'?: string; // X.509 Certificate SHA-256 Thumbprint
+  // RSA Key Parameters
+  n?: string; // Modulus
+  e?: string; // Exponent
+  d?: string; // Private Exponent
+  p?: string; // First Prime Factor
+  q?: string; // Second Prime Factor
+  dp?: string; // First Factor CRT Exponent
+  dq?: string; // Second Factor CRT Exponent
+  qi?: string; // First CRT Coefficient
+  // EC Key Parameters
+  crv?: string; // Curve
+  x?: string; // X Coordinate
+  y?: string; // Y Coordinate
+}
+
 @ApiTags('OpenID Connect JWKS')
 @Controller('.well-known')
 export class JwksController {
   private readonly logger = new Logger(JwksController.name);
-  private jwk: any;
+  private jwk: JWK;
 
   constructor(private readonly configService: ConfigService) {
     // 애플리케이션 시작 시 JWK 생성 또는 환경 변수에서 로드
@@ -26,11 +52,11 @@ export class JwksController {
         const jwk = publicKey.export({ format: 'jwk' });
 
         this.jwk = {
-          kty: jwk.kty,
+          kty: jwk.kty!,
           use: 'sig',
           kid: 'rsa-key-env',
-          n: jwk.n,
-          e: jwk.e,
+          n: jwk.n!,
+          e: jwk.e!,
           alg: 'RS256',
         };
       } catch (error) {
