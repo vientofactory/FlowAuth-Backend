@@ -96,8 +96,8 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
           const [headerClientId, headerClientSecret] = credentials.split(':');
 
           // Use credentials from header if not provided in body
-          if (!clientId) clientId = headerClientId;
-          if (!clientSecret) clientSecret = headerClientSecret;
+          clientId ??= headerClientId;
+          clientSecret ??= headerClientSecret;
         } catch (error) {
           this.logger.warn('Failed to parse Authorization header', error);
           return {

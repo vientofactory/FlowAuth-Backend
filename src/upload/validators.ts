@@ -728,7 +728,7 @@ export function isFileContentSecure(
     return false;
   }
 
-  const mimeType = declaredMimeType || file.mimetype;
+  const mimeType = declaredMimeType ?? file.mimetype;
   if (!mimeType) {
     return false;
   }
@@ -762,7 +762,7 @@ export async function analyzeFileContent(
     return null;
   }
 
-  const mimeType = declaredMimeType || file.mimetype;
+  const mimeType = declaredMimeType ?? file.mimetype;
   if (!mimeType) {
     return null;
   }

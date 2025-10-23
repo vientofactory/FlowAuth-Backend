@@ -72,7 +72,7 @@ export class ValidationSanitizationPipe
       if (error.children && error.children.length > 0) {
         acc[error.property] = this.formatErrors(error.children);
       } else {
-        acc[error.property] = Object.values(error.constraints || {});
+        acc[error.property] = Object.values(error.constraints ?? {});
       }
       return acc;
     }, {});

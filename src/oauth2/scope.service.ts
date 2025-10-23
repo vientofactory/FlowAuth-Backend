@@ -265,7 +265,7 @@ export class ScopeService implements OnApplicationBootstrap {
     }
 
     // 캐시에 없으면 메모리 캐시에서 반환
-    return this.scopeCache.get(name) || null;
+    return this.scopeCache.get(name) ?? null;
   }
 
   /**
