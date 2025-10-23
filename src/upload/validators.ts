@@ -275,14 +275,14 @@ export class FileUploadValidator {
       // Buffer analysis is already enabled in constructor, no need to call enableBufferAnalysis() again
       const contentValidation = await this.contentValidator.validateFileContent(
         file.buffer,
-        file.mimetype,
         file.originalname,
+        file.mimetype,
       );
 
       const isContentSafe = this.contentValidator.isFileContentSafe(
         file.buffer,
-        file.originalname,
         file.mimetype,
+        file.originalname,
       );
 
       if (!isContentSafe) {
@@ -775,8 +775,8 @@ export async function analyzeFileContent(
     });
     return await validator.validateFileContent(
       file.buffer,
-      mimeType,
       file.originalname,
+      mimeType,
     );
   } catch (error) {
     // Log error and return null as fallback
