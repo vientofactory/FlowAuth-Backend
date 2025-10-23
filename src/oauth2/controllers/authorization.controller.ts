@@ -62,7 +62,7 @@ export class AuthorizationController {
     req: ExpressRequest,
   ): Promise<User | null> {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!authHeader?.startsWith('Bearer ')) {
       return null;
     }
 

@@ -24,7 +24,7 @@ export class ValidationService {
    */
   async checkEmailAvailability(email: string): Promise<AvailabilityResult> {
     // 입력 검증
-    if (!email || email.trim().length === 0) {
+    if (email?.trim().length === 0) {
       return {
         available: false,
         message: VALIDATION_CONSTANTS.EMAIL.ERROR_MESSAGES.REQUIRED,
@@ -66,7 +66,7 @@ export class ValidationService {
     username: string,
   ): Promise<AvailabilityResult> {
     // 입력 검증
-    if (!username || username.trim().length === 0) {
+    if (username?.trim().length === 0) {
       return {
         available: false,
         message: VALIDATION_CONSTANTS.USERNAME.ERROR_MESSAGES.REQUIRED,

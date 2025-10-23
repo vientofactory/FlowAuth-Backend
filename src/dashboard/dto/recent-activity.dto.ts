@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+// Metadata definition for various activity types
+type ActivityMetadata =
+  | { clientName?: string; clientId?: number } // client_created, client_updated
+  | { tokenType?: string; clientName?: string } // token_created, token_revoked
+  | Record<string, unknown>; // generic metadata
+
 export class RecentActivityDto {
   @ApiProperty({
     description: '활동 ID',
@@ -51,5 +57,5 @@ export class RecentActivityDto {
     example: { clientName: 'My App' },
     required: false,
   })
-  metadata?: Record<string, any>;
+  metadata?: ActivityMetadata;
 }

@@ -7,7 +7,11 @@ import type { Request } from 'express';
 interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
-    [key: string]: any;
+    sub?: string;
+    client_id?: string;
+    scopes?: string[];
+    token_type?: string;
+    [key: string]: unknown;
   };
 }
 

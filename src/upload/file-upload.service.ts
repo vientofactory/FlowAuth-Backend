@@ -13,7 +13,7 @@ import {
   MulterFileFilterCallback,
   FileUploadError,
 } from './types';
-import { UPLOAD_CONFIG, getUploadPath } from './config';
+import { UPLOAD_CONFIG, getUploadPath, getFileUrl } from './config';
 import { fileUploadValidator } from './validators';
 import { ImageProcessingService } from './image-processing.service';
 
@@ -93,9 +93,10 @@ export class FileUploadService {
     type: keyof typeof UPLOAD_CONFIG.fileTypes,
     filename: string,
   ): string {
-    // eslint-disable-next-line security/detect-object-injection
-    const destination = UPLOAD_CONFIG.fileTypes[type].destination;
-    return `/uploads/${destination}/${filename}`;
+    // Use type-safe helper function (returns relative path)
+    const fullUrl = getFileUrl(type, filename);
+    // Remove backend host part and return only relative path
+    return fullUrl.replace(/^https?:\/\/[^/]+/, '');
   }
 
   /**

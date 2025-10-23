@@ -17,7 +17,7 @@ export class JwtTokenService {
   /**
    * Sign JWT with RSA private key
    */
-  async signJwtWithRSA(payload: Record<string, any>): Promise<string> {
+  async signJwtWithRSA(payload: Record<string, unknown>): Promise<string> {
     const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
 
     if (privateKeyPem) {

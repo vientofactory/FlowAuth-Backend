@@ -339,7 +339,7 @@ describe('FileUploadValidator with Path Security', () => {
 
         // Test undefined size
         const fileWithUndefinedSize = createMockFile('test.jpg');
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+
         delete (fileWithUndefinedSize as any).size;
         const undefinedResult = validator.validateFile(
           fileWithUndefinedSize,
@@ -416,7 +416,7 @@ describe('FileUploadValidator with Path Security', () => {
     describe('Configuration Edge Cases', () => {
       it('should handle missing upload config gracefully', () => {
         const file = createMockFile('test.jpg');
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
         const result = validator.validateFile(file, 'nonexistent' as any);
 
         expect(result.isValid).toBe(false);

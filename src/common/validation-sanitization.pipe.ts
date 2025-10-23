@@ -13,10 +13,15 @@ import {
 } from '../constants/security.constants';
 
 @Injectable()
-export class ValidationSanitizationPipe implements PipeTransform<any> {
+export class ValidationSanitizationPipe
+  implements PipeTransform<unknown, unknown>
+{
   private readonly logger = new Logger(ValidationSanitizationPipe.name);
 
-  async transform(value: any, metadata: ArgumentMetadata): Promise<any> {
+  async transform(
+    value: unknown,
+    metadata: ArgumentMetadata,
+  ): Promise<unknown> {
     const { metatype } = metadata;
     if (!metatype || !this.toValidate(metatype)) {
       return value;

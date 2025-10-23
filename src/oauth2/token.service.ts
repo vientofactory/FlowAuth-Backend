@@ -13,7 +13,7 @@ import { StructuredLogger } from '../logging/structured-logger.service';
 import { TOKEN_TYPES } from '../constants/auth.constants';
 import { OAuth2TokenService } from './services/oauth2-token.service';
 import { TokenRevocationService } from './services/token-revocation.service';
-import { IdTokenService } from './services/id-token.service';
+import { IdTokenService, IdTokenPayload } from './services/id-token.service';
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -171,7 +171,7 @@ export class TokenService {
     idToken: string,
     expectedClientId: string,
     expectedNonce?: string,
-  ): Promise<any> {
+  ): Promise<IdTokenPayload> {
     try {
       return await this.idTokenService.validateIdToken(
         idToken,

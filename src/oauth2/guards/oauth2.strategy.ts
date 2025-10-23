@@ -118,7 +118,7 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
         // Implicit grant tokens are not stored in database but have scopes in JWT
         if (payload.scope && typeof payload.scope === 'string') {
           payload.scopes = payload.scope.split(' ').filter((s) => s.length > 0);
-        } else if (!payload.scopes || payload.scopes.length === 0) {
+        } else if (payload.scopes?.length === 0) {
           this.logger.warn('OAuth2 token without jti has no scopes', {
             clientId: payload.client_id,
             sub: payload.sub,

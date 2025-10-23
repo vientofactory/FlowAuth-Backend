@@ -238,7 +238,7 @@ export function isSafeUrl(
 
     // Hostname validation
     if (opts.validateHostname) {
-      if (!url.hostname || url.hostname.length === 0) {
+      if (url.hostname?.length === 0) {
         return false;
       }
 

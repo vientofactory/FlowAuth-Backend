@@ -6,6 +6,7 @@ import { Token } from '../token.entity';
 import { Client } from '../client.entity';
 import { StructuredLogger } from '../../logging/structured-logger.service';
 import { TOKEN_INTROSPECTION_CONSTANTS } from '../../constants/jwt.constants';
+import { IdTokenPayload } from './id-token.service';
 
 export interface TokenIntrospectionResult {
   active: boolean;
@@ -18,6 +19,15 @@ export interface TokenIntrospectionResult {
   username?: string;
   email?: string;
   email_verified?: boolean;
+}
+
+interface AccessTokenPayload {
+  client_id?: string;
+  exp?: number;
+  iat?: number;
+  sub?: string;
+  scopes?: string[];
+  [key: string]: unknown;
 }
 
 @Injectable()
@@ -94,14 +104,29 @@ export class TokenIntrospectionService {
       }
 
       // ID Token validation (RSA signature + claims validation)
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const payload: any = await this.tokenService.validateIdToken(
+      const payload = await this.tokenService.validateIdToken(
         token,
         clientId,
         undefined,
       );
 
-      /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+      // Safe claim key mapping
+      const CLAIM_KEYS = {
+        USERNAME: TOKEN_INTROSPECTION_CONSTANTS.CLAIMS.USERNAME,
+        EMAIL_VERIFIED: TOKEN_INTROSPECTION_CONSTANTS.CLAIMS.EMAIL_VERIFIED,
+      } as const;
+
+      // Type-safe claim extraction using Map-based safe access
+      const claimMap = new Map(Object.entries(payload));
+
+      const username = claimMap.has(CLAIM_KEYS.USERNAME)
+        ? (claimMap.get(CLAIM_KEYS.USERNAME) as string)
+        : payload.name;
+
+      const emailVerified = claimMap.has(CLAIM_KEYS.EMAIL_VERIFIED)
+        ? (claimMap.get(CLAIM_KEYS.EMAIL_VERIFIED) as boolean)
+        : payload.email_verified;
+
       return {
         active: true,
         client_id: payload.aud,
@@ -109,14 +134,10 @@ export class TokenIntrospectionService {
         iat: payload.iat,
         sub: payload.sub,
         token_type: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_TYPES.ID_TOKEN,
-        username:
-          payload[TOKEN_INTROSPECTION_CONSTANTS.CLAIMS.USERNAME] ||
-          payload.name,
+        username: username ?? undefined,
         email: payload.email,
-        email_verified:
-          payload[TOKEN_INTROSPECTION_CONSTANTS.CLAIMS.EMAIL_VERIFIED],
+        email_verified: emailVerified,
       };
-      /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
     } catch (error) {
       this.structuredLogger.warn(
         {
@@ -137,15 +158,19 @@ export class TokenIntrospectionService {
   ): Promise<TokenIntrospectionResult> {
     try {
       // Access Token validation (signature + claims)
-      const payload = await this.tokenService.validateToken(token);
+      const rawPayload = await this.tokenService.validateToken(token);
 
-      if (!payload) {
+      if (!rawPayload) {
         return { active: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_STATUS.INACTIVE };
       }
 
+      // Type-safe payload conversion (safe type conversion through unknown)
+      const payload = rawPayload as unknown as AccessTokenPayload;
+
       // Check if client exists
+      const clientId = payload.client_id ?? '';
       const client = await this.clientRepository.findOne({
-        where: { clientId: payload.client_id || '' },
+        where: { clientId },
       });
       if (!client) {
         return { active: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_STATUS.INACTIVE };
@@ -153,13 +178,15 @@ export class TokenIntrospectionService {
 
       return {
         active: true,
-        client_id: payload.client_id || undefined,
+        client_id: payload.client_id,
         exp: payload.exp,
         iat: payload.iat,
-        sub: payload.sub || undefined,
-        scope: payload.scopes?.join(' '),
+        sub: payload.sub,
+        scope: Array.isArray(payload.scopes)
+          ? payload.scopes.join(' ')
+          : undefined,
         token_type: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_TYPES.ACCESS_TOKEN,
-        username: payload.sub || undefined, // 사용자 ID를 username으로 사용
+        username: payload.sub, // Use user ID as username
       };
     } catch (error) {
       this.structuredLogger.warn(

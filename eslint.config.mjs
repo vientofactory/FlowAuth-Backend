@@ -26,13 +26,21 @@ export default tseslint.config(
       },
     },
   },
+
   {
     rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unsafe-assignment': 'warn',
+      '@typescript-eslint/no-unsafe-member-access': 'warn',
+      '@typescript-eslint/no-unsafe-call': 'warn',
+      '@typescript-eslint/no-unsafe-return': 'warn',
+      '@typescript-eslint/no-unsafe-argument': 'warn',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/require-await': 'warn',
-      // Security rules
+
+      // Security Rules
       'security/detect-object-injection': 'error',
+      'security/detect-non-literal-fs-filename': 'error',
       'security/detect-non-literal-regexp': 'warn',
       'security/detect-unsafe-regex': 'error',
       'security/detect-buffer-noassert': 'error',
@@ -42,17 +50,51 @@ export default tseslint.config(
       'security/detect-no-csrf-before-method-override': 'error',
       'security/detect-pseudoRandomBytes': 'error',
       'security/detect-possible-timing-attacks': 'warn',
+
+      '@typescript-eslint/prefer-nullish-coalescing': 'warn',
+      '@typescript-eslint/prefer-optional-chain': 'warn',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
     },
   },
-  // Scoped overrides for external library usage
+
   {
-    files: ['src/auth/**/*.ts', 'test/**/*.ts'],
+    files: [
+      'src/oauth2/services/token-introspection.service.ts',
+      'src/oauth2/exceptions/oauth2.exception.ts',
+      'src/upload/config.ts',
+      'src/upload/file-upload.service.ts',
+      'src/upload/image-processing.service.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+      'security/detect-object-injection': 'error',
+    },
+  },
+
+  // Test Files
+  {
+    files: ['src/auth/**/*.ts', 'test/**/*.ts', '**/*.spec.ts', '**/*.test.ts'],
     rules: {
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+
+  {
+    files: [
+      'src/**/*.entity.ts',
+      'src/database/**/*.ts',
+      'src/migrations/**/*.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'warn',
+      '@typescript-eslint/no-unsafe-member-access': 'warn',
     },
   },
 );

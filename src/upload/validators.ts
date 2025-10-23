@@ -112,7 +112,7 @@ export class FileUploadValidator {
   validateFilename(filename: string): FilenameValidationResult {
     try {
       // Check for empty filename
-      if (!filename || filename.trim().length === 0) {
+      if (filename?.trim().length === 0) {
         return {
           isValid: false,
           error: 'Filename is empty.',
@@ -256,7 +256,7 @@ export class FileUploadValidator {
     contentValidation?: FileContentValidationResult;
   }> {
     try {
-      if (!file || !file.mimetype || !file.buffer) {
+      if (!file?.mimetype || !file.buffer) {
         return {
           isValid: false,
           error: 'File content cannot be analyzed',
@@ -319,7 +319,7 @@ export class FileUploadValidator {
     allowedTypes: readonly string[],
   ): { isValid: boolean; error?: string } {
     try {
-      if (!file || !file.mimetype) {
+      if (!file?.mimetype) {
         return {
           isValid: false,
           error: 'File type cannot be determined.',
@@ -414,7 +414,7 @@ export class FileUploadValidator {
     warning?: string;
   } {
     try {
-      if (!file || !file.originalname || !file.mimetype) {
+      if (!file?.originalname || !file.mimetype) {
         return {
           isValid: false,
           error: 'File information cannot be determined.',

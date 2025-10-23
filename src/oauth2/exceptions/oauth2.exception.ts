@@ -9,7 +9,30 @@ export interface OAuth2ErrorResponse {
 }
 
 /**
- * RFC 6749 표준 OAuth2 에러 처리 클래스
+ * Helper class for type-safe OAuth2 constants access
+ */
+class OAuth2ConstantsHelper {
+  private static readonly ERROR_MAP = new Map(
+    Object.entries(OAUTH2_CONSTANTS.ERRORS),
+  );
+
+  private static readonly ERROR_DESCRIPTION_MAP = new Map(
+    Object.entries(OAUTH2_CONSTANTS.ERROR_DESCRIPTIONS),
+  );
+
+  static getErrorCode(error: keyof typeof OAUTH2_CONSTANTS.ERRORS): string {
+    return this.ERROR_MAP.get(error) ?? 'invalid_request';
+  }
+
+  static getErrorDescription(
+    error: keyof typeof OAUTH2_CONSTANTS.ERRORS,
+  ): string {
+    return this.ERROR_DESCRIPTION_MAP.get(error) ?? 'An error occurred';
+  }
+}
+
+/**
+ * RFC 6749 standard OAuth2 error handling class
  */
 export class OAuth2Exception extends HttpException {
   constructor(
@@ -18,14 +41,10 @@ export class OAuth2Exception extends HttpException {
     state?: string,
     statusCode: HttpStatus = HttpStatus.BAD_REQUEST,
   ) {
-    // Safe object access using type assertion
-    // eslint-disable-next-line security/detect-object-injection
-    const errorCode = OAUTH2_CONSTANTS.ERRORS[error] || 'invalid_request';
+    // Type-safe constants access
+    const errorCode = OAuth2ConstantsHelper.getErrorCode(error);
     const errorDescription =
-      description ||
-      // eslint-disable-next-line security/detect-object-injection
-      OAUTH2_CONSTANTS.ERROR_DESCRIPTIONS[error] ||
-      'An error occurred';
+      description ?? OAuth2ConstantsHelper.getErrorDescription(error);
 
     const response: OAuth2ErrorResponse = {
       error: errorCode,
@@ -41,7 +60,7 @@ export class OAuth2Exception extends HttpException {
 }
 
 /**
- * OAuth2 Authorization 엔드포인트 관련 에러들
+ * OAuth2 Authorization endpoint related errors
  */
 export class OAuth2AuthorizationException extends OAuth2Exception {
   constructor(
@@ -54,7 +73,7 @@ export class OAuth2AuthorizationException extends OAuth2Exception {
 }
 
 /**
- * OAuth2 Token 엔드포인트 관련 에러들
+ * OAuth2 Token endpoint related errors
  */
 export class OAuth2TokenException extends OAuth2Exception {
   constructor(
@@ -71,7 +90,7 @@ export class OAuth2TokenException extends OAuth2Exception {
 }
 
 /**
- * OAuth2 리소스 접근 관련 에러들
+ * OAuth2 resource access related errors
  */
 export class OAuth2ResourceException extends OAuth2Exception {
   constructor(
@@ -83,11 +102,11 @@ export class OAuth2ResourceException extends OAuth2Exception {
 }
 
 /**
- * OAuth2 에러 응답 헬퍼 함수들
+ * OAuth2 error response helper functions
  */
 export class OAuth2ErrorHelper {
   /**
-   * Authorization Code 관련 에러 생성
+   * Authorization Code related error generation
    */
   static invalidRequest(
     description?: string,
@@ -152,7 +171,7 @@ export class OAuth2ErrorHelper {
   }
 
   /**
-   * Token 엔드포인트 관련 에러 생성
+   * Token endpoint related error generation
    */
   static invalidClient(description?: string): OAuth2TokenException {
     return new OAuth2TokenException('INVALID_CLIENT', description);
@@ -167,7 +186,7 @@ export class OAuth2ErrorHelper {
   }
 
   /**
-   * 리소스 접근 관련 에러 생성
+   * Resource access related error generation
    */
   static invalidToken(description?: string): OAuth2ResourceException {
     return new OAuth2ResourceException('INVALID_TOKEN', description);
@@ -178,7 +197,7 @@ export class OAuth2ErrorHelper {
   }
 
   /**
-   * 에러 응답을 리다이렉트 URL과 함께 생성
+   * Generate error response with redirect URL
    */
   static createRedirectError(
     redirectUri: string,
@@ -187,8 +206,7 @@ export class OAuth2ErrorHelper {
     state?: string,
   ): string {
     const params = new URLSearchParams({
-      // eslint-disable-next-line security/detect-object-injection
-      error: OAUTH2_CONSTANTS.ERRORS[error] || 'invalid_request',
+      error: OAuth2ConstantsHelper.getErrorCode(error),
     });
 
     if (description) {
@@ -204,7 +222,7 @@ export class OAuth2ErrorHelper {
   }
 
   /**
-   * Fragment 방식으로 에러 응답 생성 (Implicit Grant용)
+   * Generate error response in fragment format (for Implicit Grant)
    */
   static createFragmentError(
     redirectUri: string,
@@ -213,8 +231,7 @@ export class OAuth2ErrorHelper {
     state?: string,
   ): string {
     const params = new URLSearchParams({
-      // eslint-disable-next-line security/detect-object-injection
-      error: OAUTH2_CONSTANTS.ERRORS[error] || 'invalid_request',
+      error: OAuth2ConstantsHelper.getErrorCode(error),
     });
 
     if (description) {

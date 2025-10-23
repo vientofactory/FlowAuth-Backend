@@ -73,7 +73,7 @@ export class ValidationHelpers {
     const token = authHeader.substring(
       VALIDATION_CONSTANTS.AUTHORIZATION.BEARER_PREFIX.length,
     );
-    if (!token || token.trim().length === 0) {
+    if (token?.trim().length === 0) {
       throw new BadRequestException(
         VALIDATION_CONSTANTS.AUTHORIZATION.ERROR_MESSAGES.TOKEN_EMPTY,
       );

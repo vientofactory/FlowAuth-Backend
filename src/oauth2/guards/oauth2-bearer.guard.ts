@@ -65,12 +65,12 @@ export class OAuth2BearerGuard extends AuthGuard('oauth2') {
     }
   }
 
-  private isValidOAuth2Payload(payload: any): payload is OAuth2JwtPayload {
+  private isValidOAuth2Payload(payload: unknown): payload is OAuth2JwtPayload {
     if (!payload || typeof payload !== 'object') {
       return false;
     }
 
-    const p = payload as Record<string, any>;
+    const p = payload as Record<string, unknown>;
 
     return (
       (typeof p.sub === 'string' || p.sub === null) &&

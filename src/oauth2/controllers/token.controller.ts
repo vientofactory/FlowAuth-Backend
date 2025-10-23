@@ -87,7 +87,7 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
       let clientId = tokenDto.client_id;
       let clientSecret = tokenDto.client_secret;
 
-      if (authHeader && authHeader.startsWith('Basic ')) {
+      if (authHeader?.startsWith('Basic ')) {
         try {
           const base64Credentials = authHeader.substring(6);
           const credentials = Buffer.from(base64Credentials, 'base64').toString(

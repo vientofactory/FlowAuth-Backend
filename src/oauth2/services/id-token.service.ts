@@ -9,7 +9,7 @@ import { JWT_CONSTANTS, CACHE_CONSTANTS } from '../../constants/jwt.constants';
 import { StructuredLogger } from '../../logging/structured-logger.service';
 import { JwtTokenService } from './jwt-token.service';
 
-interface IdTokenPayload {
+export interface IdTokenPayload {
   iss: string;
   sub: string;
   aud: string;
@@ -31,7 +31,16 @@ interface IdTokenPayload {
   phone_number?: string;
   phone_number_verified?: boolean;
   // address scope claims
-  address?: any;
+  address?: AddressClaim;
+}
+
+export interface AddressClaim {
+  formatted?: string;
+  street_address?: string;
+  locality?: string;
+  region?: string;
+  postal_code?: string;
+  country?: string;
 }
 
 @Injectable()
@@ -73,7 +82,7 @@ export class IdTokenService {
     this.addClaimsBasedOnScopes(payload, user, scopes);
 
     return await this.jwtTokenService.signJwtWithRSA(
-      payload as Record<string, any>,
+      payload as unknown as Record<string, unknown>,
     );
   }
 
