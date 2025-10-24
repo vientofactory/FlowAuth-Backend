@@ -747,12 +747,32 @@ OAuth2 클라이언트를 삭제합니다.
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ) {
-    // 관리자 권한으로 모든 클라이언트 삭제 가능
-    await this.authService.deleteClient(
-      ValidationService.validateIdParam(id),
-      req.user.id,
-    );
-    return { message: 'Client deleted successfully' };
+    console.log('[Auth Controller] Delete client request received:', {
+      id,
+      userId: req.user?.id,
+      userPermissions: req.user?.permissions,
+    });
+
+    try {
+      const validatedId = ValidationService.validateIdParam(id);
+      console.log('[Auth Controller] ID validation passed:', validatedId);
+
+      // 관리자 권한으로 모든 클라이언트 삭제 가능
+      await this.authService.deleteClient(validatedId, req.user.id);
+      console.log(
+        '[Auth Controller] Client deleted successfully:',
+        validatedId,
+      );
+      return { message: 'Client deleted successfully' };
+    } catch (error) {
+      console.error('[Auth Controller] Delete client failed:', {
+        id,
+        userId: req.user?.id,
+        error: error.message,
+        stack: error.stack,
+      });
+      throw error;
+    }
   }
 
   @Delete('clients/:id/delete-own')

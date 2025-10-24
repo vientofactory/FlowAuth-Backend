@@ -24,9 +24,16 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _status?: number,
   ): TUser {
+    console.log('[JwtAuthGuard] handleRequest called:', {
+      hasError: !!err,
+      hasUser: !!user,
+      info: info,
+    });
+
     try {
       // If there's a passport error, throw it
       if (err) {
+        console.log('[JwtAuthGuard] Passport error:', err);
         throw err;
       }
 
@@ -46,11 +53,20 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
           }
         }
 
+        console.log(
+          '[JwtAuthGuard] No user found, throwing error:',
+          errorMessage,
+        );
         throw new UnauthorizedException(errorMessage);
       }
 
+      console.log(
+        '[JwtAuthGuard] Authentication successful for user:',
+        user.id,
+      );
       return user as TUser;
     } catch (error) {
+      console.log('[JwtAuthGuard] Authentication failed:', error);
       if (error instanceof UnauthorizedException) {
         throw error;
       }

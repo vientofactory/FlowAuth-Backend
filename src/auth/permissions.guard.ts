@@ -34,19 +34,29 @@ export class PermissionsGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
+    console.log('[PermissionsGuard] canActivate called');
+
     const permissionConfig = this.reflector.getAllAndOverride<{
       permissions: number[];
       requireAll: boolean;
     }>(PERMISSIONS_KEY, [context.getHandler(), context.getClass()]);
 
+    console.log('[PermissionsGuard] Permission config:', permissionConfig);
+
     if (!permissionConfig) {
+      console.log('[PermissionsGuard] No permission config, allowing access');
       return true; // 권한 요구사항이 없으면 통과
     }
 
     const request = context.switchToHttp().getRequest<RequestWithUser>();
     const user = request.user;
 
+    console.log('[PermissionsGuard] User permissions:', user?.permissions);
+
     if (user?.permissions === undefined || user.permissions === null) {
+      console.log(
+        '[PermissionsGuard] No permissions info, throwing ForbiddenException',
+      );
       throw new ForbiddenException('권한 정보가 없습니다.');
     }
 
@@ -61,11 +71,15 @@ export class PermissionsGuard implements CanActivate {
     }
 
     if (typeof userPermissions !== 'number' || isNaN(userPermissions)) {
+      console.log(
+        '[PermissionsGuard] Invalid permissions format, throwing ForbiddenException',
+      );
       throw new ForbiddenException('권한 정보가 올바르지 않습니다.');
     }
 
     // ADMIN 권한이 있는 경우 모든 권한 체크 통과
     if (PermissionUtils.isAdmin(userPermissions)) {
+      console.log('[PermissionsGuard] User is admin, allowing access');
       return true;
     }
 
@@ -74,10 +88,21 @@ export class PermissionsGuard implements CanActivate {
       ? PermissionUtils.hasAllPermissions(userPermissions, permissions)
       : PermissionUtils.hasAnyPermission(userPermissions, permissions);
 
+    console.log('[PermissionsGuard] Permission check result:', {
+      requiredPermissions: permissions,
+      userPermissions,
+      requireAll,
+      hasPermission,
+    });
+
     if (!hasPermission) {
+      console.log(
+        '[PermissionsGuard] Insufficient permissions, throwing ForbiddenException',
+      );
       throw new ForbiddenException('필요한 권한이 없습니다.');
     }
 
+    console.log('[PermissionsGuard] Permission check passed');
     return true;
   }
 }

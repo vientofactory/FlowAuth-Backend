@@ -5,6 +5,13 @@
 
 FlowAuth의 Fastify 기반 백엔드 API 서버입니다. NestJS와 TypeORM을 기반으로 OAuth2 및 OpenID Connect 인증 시스템을 구현합니다. Fastify 플랫폼 어댑터 도입은 아직 실험적 단계이며, 런타임에서 잠재적으로 발생할 수 있는 문제에 대해 주의가 필요합니다.
 
+## Well-known Problems
+
+아래는 Fastify 플랫폼 어댑터 적용 후 정상적으로 요청을 처리할 수 없는 엔드포인트 기록입니다. 현재 디버깅을 진행하고 있으며, 문제가 해결되기 전까지 아래 엔드포인트가 필요한 기능은 작동하지 않을 수 있습니다.
+
+- 애플리케이션 삭제(`DELETE /auth/client/:id`): 알 수 없는 이유로 400 Bad Request 발생
+- 애플리케이션 연결 해제(`DELETE /dashboard/connected-apps/:id`): 알 수 없는 이유로 400 Bad Request 발생
+
 ## 기술 스택
 
 - **Framework**: [NestJS](https://nestjs.com/)
