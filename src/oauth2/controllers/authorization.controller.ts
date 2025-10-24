@@ -9,7 +9,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
-import type { Request as ExpressRequest, Response } from 'express';
+import type { Request as ExpressRequest } from 'express';
+import type { FastifyReply } from 'fastify';
 import { OAuth2Service } from '../oauth2.service';
 import { AuthorizationService } from '../services/authorization.service';
 import { JwtService } from '@nestjs/jwt';
@@ -131,7 +132,7 @@ export class AuthorizationController {
     }
 
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
 
     const oauthAuthorizeUrl = `${frontendUrl}/oauth2/authorize?${params.toString()}`;
 
@@ -166,7 +167,7 @@ export class AuthorizationController {
     }
 
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
     return `${frontendUrl}/oauth2/authorize?${params.toString()}`;
   }
 
@@ -254,7 +255,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
   async authorize(
     @Query() authorizeDto: AuthorizeRequestDto,
     @Request() req: ExpressRequest,
-    @Res() res: Response,
+    @Res() reply: FastifyReply,
   ): Promise<void> {
     try {
       // Validate basic OAuth2 parameters
@@ -266,16 +267,18 @@ OAuth2 Authorization Code Flow의 시작점입니다.
       if (!user) {
         // Redirect to login with return URL
         const loginUrl = this.buildLoginRedirectUrl(authorizeDto);
-        return res.redirect(loginUrl);
+        reply.status(302).header('Location', loginUrl).send();
+        return;
       }
 
       // Handle the authorization flow
       // User is authenticated, so redirect to consent page
       const consentUrl = this.buildConsentRedirectUrl(authorizeDto);
-      return res.redirect(consentUrl);
+      reply.status(302).header('Location', consentUrl).send();
+      return;
     } catch {
       this.handleAuthorizeError(
-        res,
+        reply,
         authorizeDto.redirect_uri,
         OAUTH2_CONSTANTS.ERRORS.SERVER_ERROR,
         OAUTH2_CONSTANTS.ERROR_DESCRIPTIONS.SERVER_ERROR,
@@ -285,7 +288,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
   }
 
   private handleAuthorizeError(
-    res: Response,
+    reply: FastifyReply,
     redirectUri: string,
     error: string,
     errorDescription: string,
@@ -296,7 +299,7 @@ OAuth2 Authorization Code Flow의 시작점입니다.
       const allowedRedirectUri = this.validateRedirectUriForError(redirectUri);
       if (!allowedRedirectUri) {
         // If redirect URI is invalid, return generic error without redirect
-        res.status(400).json({
+        reply.code(400).send({
           error: 'invalid_request',
           error_description: 'Invalid redirect URI',
         });
@@ -336,10 +339,10 @@ OAuth2 Authorization Code Flow의 시작점입니다.
         redirectUrl.searchParams.set('state', state);
       }
 
-      res.redirect(redirectUrl.toString());
+      reply.status(302).header('Location', redirectUrl.toString()).send();
     } catch {
       // If redirect fails, return JSON error
-      res.status(400).json({
+      reply.code(400).send({
         error: 'invalid_request',
         error_description: 'Invalid redirect URI',
       });

@@ -1,6 +1,9 @@
-# FlowAuth Backend
+# FlowAuth Fastify Backend (WIP)
 
-FlowAuth의 백엔드 API 서버입니다. NestJS와 TypeORM을 기반으로 OAuth2 및 OpenID Connect 인증 시스템을 구현합니다.
+> [!WARNING]
+> 이 백엔드 서버는 Fastify 플랫폼 어댑터를 사용하여 NestJS로 구현된 실험적 버전입니다. 일부 기능이 완전히 테스트되지 않았거나 예상대로 작동하지 않을 수 있습니다. 프로덕션 환경에서 사용하기 전에 충분한 테스트와 검증이 필요합니다.
+
+FlowAuth의 Fastify 기반 백엔드 API 서버입니다. NestJS와 TypeORM을 기반으로 OAuth2 및 OpenID Connect 인증 시스템을 구현합니다. Fastify 플랫폼 어댑터 도입은 아직 실험적 단계이며, 런타임에서 잠재적으로 발생할 수 있는 문제에 대해 주의가 필요합니다.
 
 ## 기술 스택
 

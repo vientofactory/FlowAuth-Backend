@@ -1,11 +1,5 @@
-import {
-  Injectable,
-  NestMiddleware,
-  BadRequestException,
-  PipeTransform,
-  Logger,
-} from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import { BadRequestException, PipeTransform, Logger } from '@nestjs/common';
+import { FastifyRequest, FastifyReply } from 'fastify';
 
 // 크기 제한 오류 클래스
 class SizeLimitError extends Error {
@@ -30,70 +24,6 @@ export const DEFAULT_SIZE_LIMITS: Required<SizeLimitConfig> = {
   maxHeaderSize: 8192, // 8KB
   maxFieldLength: 1000, // 1KB
 };
-
-@Injectable()
-export class SizeLimitMiddleware implements NestMiddleware {
-  private readonly logger = new Logger(SizeLimitMiddleware.name);
-  constructor(private config: SizeLimitConfig = {}) {}
-
-  use(req: Request, res: Response, next: NextFunction): void {
-    const limits = { ...DEFAULT_SIZE_LIMITS, ...this.config };
-
-    try {
-      // URL 길이 검사
-      if (req.url && req.url.length > limits.maxUrlLength) {
-        throw new BadRequestException(
-          `URL too long. Maximum length is ${limits.maxUrlLength} characters`,
-        );
-      }
-
-      // 헤더 크기 검사
-      const headersSize = JSON.stringify(req.headers).length;
-      if (headersSize > limits.maxHeaderSize) {
-        throw new BadRequestException(
-          `Headers too large. Maximum size is ${limits.maxHeaderSize} bytes`,
-        );
-      }
-
-      // Content-Length 검사 (요청 본문이 있는 경우)
-      const contentLength = parseInt(req.headers['content-length'] ?? '0', 10);
-      if (contentLength > limits.maxBodySize) {
-        throw new BadRequestException(
-          `Request body too large. Maximum size is ${limits.maxBodySize} bytes`,
-        );
-      }
-
-      next();
-    } catch (error) {
-      // 에러 로깅
-      this.logger.warn('Size limit violation:', {
-        url: req.url,
-        method: req.method,
-        contentLength: req.headers['content-length'],
-        userAgent: req.headers['user-agent'],
-        ip: this.getClientIP(req),
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new BadRequestException('Request validation failed');
-    }
-  }
-
-  private getClientIP(req: Request): string {
-    return (
-      ((req.headers['cf-connecting-ip'] as string) ||
-        (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-        (req.headers['x-real-ip'] as string) ||
-        req.connection.remoteAddress) ??
-      req.socket.remoteAddress ??
-      'unknown'
-    );
-  }
-}
 
 // 필드별 크기 제한 파이프 (기본값 사용)
 export class FieldSizeLimitPipe implements PipeTransform {
@@ -145,17 +75,21 @@ export function createSizeLimitMiddleware(config: SizeLimitConfig = {}) {
   const limits = { ...DEFAULT_SIZE_LIMITS, ...config };
   const logger = new Logger('SizeLimitMiddleware');
 
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    done: () => void,
+  ): void => {
     try {
       // URL 길이 검사
-      if (req.url && req.url.length > limits.maxUrlLength) {
+      if (request.url && request.url.length > limits.maxUrlLength) {
         throw new SizeLimitError(
           `URL too long. Maximum length is ${limits.maxUrlLength} characters`,
         );
       }
 
       // 헤더 크기 검사
-      const headersSize = JSON.stringify(req.headers).length;
+      const headersSize = JSON.stringify(request.headers).length;
       if (headersSize > limits.maxHeaderSize) {
         throw new SizeLimitError(
           `Headers too large. Maximum size is ${limits.maxHeaderSize} bytes`,
@@ -163,22 +97,25 @@ export function createSizeLimitMiddleware(config: SizeLimitConfig = {}) {
       }
 
       // Content-Length 검사 (요청 본문이 있는 경우)
-      const contentLength = parseInt(req.headers['content-length'] ?? '0', 10);
+      const contentLength = parseInt(
+        request.headers['content-length'] ?? '0',
+        10,
+      );
       if (contentLength > limits.maxBodySize) {
         throw new SizeLimitError(
           `Request body too large. Maximum size is ${limits.maxBodySize} bytes`,
         );
       }
 
-      next();
+      done();
     } catch (error) {
       // 에러 로깅
       logger.warn('Size limit violation:', {
-        url: req.url,
-        method: req.method,
-        contentLength: req.headers['content-length'],
-        userAgent: req.headers['user-agent'],
-        ip: getClientIP(req),
+        url: request.url,
+        method: request.method,
+        contentLength: request.headers['content-length'],
+        userAgent: request.headers['user-agent'],
+        ip: getClientIP(request),
         error: error instanceof Error ? error.message : 'Unknown error',
       });
 
@@ -186,7 +123,7 @@ export function createSizeLimitMiddleware(config: SizeLimitConfig = {}) {
         error instanceof SizeLimitError
           ? error.message
           : 'Request validation failed';
-      res.status(400).json({
+      reply.code(400).send({
         statusCode: 400,
         message,
         error: 'Bad Request',
@@ -195,13 +132,12 @@ export function createSizeLimitMiddleware(config: SizeLimitConfig = {}) {
   };
 }
 
-function getClientIP(req: Request): string {
+function getClientIP(request: FastifyRequest): string {
   return (
-    ((req.headers['cf-connecting-ip'] as string) ||
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      (req.headers['x-real-ip'] as string) ||
-      req.connection.remoteAddress) ??
-    req.socket.remoteAddress ??
+    (request.headers['cf-connecting-ip'] as string) ||
+    (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+    (request.headers['x-real-ip'] as string) ||
+    request.ip ||
     'unknown'
   );
 }

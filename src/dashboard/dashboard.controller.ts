@@ -7,6 +7,7 @@ import {
   Delete,
   Param,
   Body,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -150,9 +151,26 @@ export class DashboardController {
     @Request() req: AuthenticatedRequest,
     @Param('clientId') clientId: string,
   ): Promise<RevokeConnectionResponseDto> {
-    return this.dashboardService.revokeConnection(
-      req.user.id,
-      parseInt(clientId, 10),
-    );
+    console.log('[Revoke Connection] Request received:', {
+      userId: req.user.id,
+      clientId,
+      userPermissions: req.user.permissions,
+    });
+
+    // Validate clientId parameter
+    const clientIdNum = parseInt(clientId, 10);
+    if (isNaN(clientIdNum) || clientIdNum <= 0) {
+      console.log('[Revoke Connection] Invalid clientId:', clientId);
+      throw new BadRequestException(
+        'Invalid client ID: must be a positive number',
+      );
+    }
+
+    console.log('[Revoke Connection] Calling service with:', {
+      userId: req.user.id,
+      clientIdNum,
+    });
+
+    return this.dashboardService.revokeConnection(req.user.id, clientIdNum);
   }
 }

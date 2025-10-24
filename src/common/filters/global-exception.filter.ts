@@ -6,7 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { FastifyReply } from 'fastify';
 import { QueryFailedError } from 'typeorm';
 
 export interface ErrorResponse {
@@ -22,7 +22,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
+    const response = ctx.getResponse<FastifyReply>();
     const request = ctx.getRequest<Request>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
@@ -78,7 +78,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       errorResponse.path = request.url;
     }
 
-    response.status(status).json(errorResponse);
+    response.code(status).send(errorResponse);
   }
 
   private getErrorType(status: number): string {

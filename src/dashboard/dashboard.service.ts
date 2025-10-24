@@ -407,6 +407,11 @@ export class DashboardService {
     userId: number,
     clientId: number,
   ): Promise<RevokeConnectionResponseDto> {
+    console.log('[Revoke Connection Service] Starting revoke for:', {
+      userId,
+      clientId,
+    });
+
     // 해당 사용자의 해당 클라이언트에 대한 모든 토큰을 취소
     const result = await this.tokenRepository.update(
       {
@@ -418,6 +423,10 @@ export class DashboardService {
         isRevoked: true,
       },
     );
+
+    console.log('[Revoke Connection Service] Update result:', {
+      affected: result.affected,
+    });
 
     return {
       success: true,

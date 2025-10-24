@@ -7,24 +7,33 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { Reflector } from '@nestjs/core';
-import helmet from 'helmet';
-import cookieParser from 'cookie-parser';
+import fastifyHelmet from '@fastify/helmet';
+import { HelmetOptions } from 'helmet';
+import fastifyCookie from '@fastify/cookie';
 import { join } from 'path';
-import { Request, Response, NextFunction } from 'express';
-import { NestExpressApplication } from '@nestjs/platform-express';
+import fastifyStatic, { FastifyStaticOptions } from '@fastify/static';
 import { setupSwagger } from './config/swagger.setup';
 import { ValidationSanitizationPipe } from './common/validation-sanitization.pipe';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { createSizeLimitMiddleware } from './common/middleware/size-limit.middleware';
 import { SIZE_LIMIT_CONFIGS } from './constants/security.constants';
 import { CorsService, corsConfig, CorsConfig } from './config/cors';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
+import { FastifyPluginCallback } from 'fastify';
 
 /**
  * FlowAuth Application Bootstrap
  * OAuth2 인증 시스템의 메인 진입점
  */
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Create NestJS Fastify application instance
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    new FastifyAdapter(),
+  );
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
@@ -54,7 +63,7 @@ async function bootstrap(): Promise<void> {
 /**
  * Configure application middleware, security, and features
  */
-function configureApp(app: NestExpressApplication): void {
+function configureApp(app: NestFastifyApplication): void {
   // Security configuration
   configureSecurity(app);
 
@@ -77,79 +86,101 @@ function configureApp(app: NestExpressApplication): void {
 /**
  * Configure security middleware (Helmet)
  */
-function configureSecurity(app: NestExpressApplication): void {
+function configureSecurity(app: NestFastifyApplication): void {
+  const instance = app.getHttpAdapter().getInstance();
   const isProduction = process.env.NODE_ENV === 'production';
 
-  app.use(
-    helmet({
-      // Content Security Policy
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: [
-            "'self'",
-            "'unsafe-inline'", // For development - should be removed in production
-            'https://cdnjs.cloudflare.com',
-          ],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          fontSrc: ["'self'", 'https:', 'data:'],
-          connectSrc: ["'self'"],
-          mediaSrc: ["'self'"],
-          objectSrc: ["'none'"],
-          childSrc: ["'none'"],
-          frameAncestors: ["'none'"],
-          baseUri: ["'self'"],
-          formAction: ["'self'"],
-        },
+  const helmetOptions: HelmetOptions = {
+    // Content Security Policy
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'", // For development - should be removed in production
+          'https://cdnjs.cloudflare.com',
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        fontSrc: ["'self'", 'https:', 'data:'],
+        connectSrc: ["'self'"],
+        mediaSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        childSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
       },
+    },
 
-      // HTTP Strict Transport Security (only in production)
-      hsts: isProduction
-        ? {
-            maxAge: 31536000, // 1 year
-            includeSubDomains: true,
-            preload: true,
-          }
-        : false,
+    // HTTP Strict Transport Security (only in production)
+    hsts: isProduction
+      ? {
+          maxAge: 31536000, // 1 year
+          includeSubDomains: true,
+          preload: true,
+        }
+      : false,
 
-      // Cross-Origin policies
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
-      crossOriginEmbedderPolicy: false, // Allow cross-origin embedding for uploads
+    // Cross-Origin policies
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginEmbedderPolicy: false, // Allow cross-origin embedding for uploads
 
-      // Prevent MIME type sniffing
-      noSniff: true,
+    // Prevent MIME type sniffing
+    noSniff: true,
 
-      // Prevent clickjacking
-      frameguard: { action: 'deny' },
+    // Prevent clickjacking
+    frameguard: { action: 'deny' },
 
-      // Remove X-Powered-By header
-      hidePoweredBy: true,
+    // Remove X-Powered-By header
+    hidePoweredBy: true,
 
-      // Referrer Policy
-      referrerPolicy: { policy: ['no-referrer', 'same-origin'] },
-    }),
-  );
+    // Referrer Policy
+    referrerPolicy: { policy: ['no-referrer', 'same-origin'] },
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+  void instance.register(fastifyHelmet as any, helmetOptions as any);
 }
 
 /**
  * Configure basic middleware
  */
-function configureMiddleware(app: NestExpressApplication): void {
-  // Cookie parser middleware
-  app.use(cookieParser());
+function configureMiddleware(app: NestFastifyApplication): void {
+  const instance = app.getHttpAdapter().getInstance();
 
-  // Request size limiting middleware
-  app.use('/auth', createSizeLimitMiddleware(SIZE_LIMIT_CONFIGS.AUTH));
-  app.use('/oauth2', createSizeLimitMiddleware(SIZE_LIMIT_CONFIGS.OAUTH2));
-  app.use('/api', createSizeLimitMiddleware(SIZE_LIMIT_CONFIGS.DEFAULT));
+  // Register cookie plugin
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+  void instance.register(fastifyCookie);
+
+  // Size limit hooks
+  instance.addHook('preHandler', (request, reply, done) => {
+    if (request.url.startsWith('/auth')) {
+      createSizeLimitMiddleware(SIZE_LIMIT_CONFIGS.AUTH)(request, reply, done);
+    } else if (request.url.startsWith('/oauth2')) {
+      createSizeLimitMiddleware(SIZE_LIMIT_CONFIGS.OAUTH2)(
+        request,
+        reply,
+        done,
+      );
+    } else if (request.url.startsWith('/api')) {
+      createSizeLimitMiddleware(SIZE_LIMIT_CONFIGS.DEFAULT)(
+        request,
+        reply,
+        done,
+      );
+    } else {
+      done();
+    }
+  });
 }
 
 /**
  * Configure static file serving with CORS headers
  */
-function configureStaticFiles(app: NestExpressApplication): void {
+function configureStaticFiles(app: NestFastifyApplication): void {
   const configService = app.get(ConfigService);
+  const instance = app.getHttpAdapter().getInstance();
 
   // Update corsConfig with current environment values
   const currentCorsConfig: CorsConfig = {
@@ -158,57 +189,72 @@ function configureStaticFiles(app: NestExpressApplication): void {
     nodeEnv: configService.get<string>('NODE_ENV') ?? 'development',
   };
 
+  // Register fastify-static plugin for serving static files
+  const staticOptions: FastifyStaticOptions = {
+    root: join(process.cwd(), 'uploads'),
+    prefix: '/uploads/',
+    // do not allow directory listing
+    wildcard: false,
+    // let our CORS/cache middleware set headers (don't override)
+    decorateReply: false,
+  };
+  void instance.register(
+    fastifyStatic as FastifyPluginCallback<FastifyStaticOptions>,
+    staticOptions,
+  );
+
   // Custom CORS middleware for uploads path (both API and static files)
-  app.use('/uploads', (req: Request, res: Response, next: NextFunction) => {
-    const origin = req.headers.origin;
-
-    // Set CORS headers with origin validation using CORS service
-    if (CorsService.isOriginAllowed(origin, currentCorsConfig)) {
-      res.header('Access-Control-Allow-Origin', origin);
-    }
-    res.header('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
-    res.header(
-      'Access-Control-Allow-Headers',
-      'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma',
-    );
-    res.header(
-      'Access-Control-Expose-Headers',
-      'Content-Length, Content-Type, ETag, Last-Modified',
-    );
-    res.header('Access-Control-Max-Age', '86400');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Vary', 'Origin');
-    res.header('Cross-Origin-Resource-Policy', 'cross-origin');
-
-    // Set cache headers only for static file requests (not API endpoints)
-    if (
-      req.method === 'GET' &&
-      !req.path.endsWith('/logo') &&
-      !req.path.endsWith('/config')
-    ) {
-      res.header('Cache-Control', 'public, max-age=31536000, immutable');
-    }
-
-    // Handle preflight requests
-    if (req.method === 'OPTIONS') {
-      res.status(200).end();
+  instance.addHook('preHandler', (request, reply, done) => {
+    if (!request.url.startsWith('/uploads')) {
+      done();
       return;
     }
 
-    next();
-  });
+    const origin = request.headers.origin;
 
-  // Serve static files
-  app.useStaticAssets(join(process.cwd(), 'uploads'), {
-    prefix: '/uploads/',
+    // Set CORS headers with origin validation using CORS service
+    if (CorsService.isOriginAllowed(origin, currentCorsConfig)) {
+      reply.header('Access-Control-Allow-Origin', origin!);
+    }
+    reply.header('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
+    reply.header(
+      'Access-Control-Allow-Headers',
+      'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma',
+    );
+    reply.header(
+      'Access-Control-Expose-Headers',
+      'Content-Length, Content-Type, ETag, Last-Modified',
+    );
+    reply.header('Access-Control-Max-Age', '86400');
+    reply.header('Access-Control-Allow-Credentials', 'true');
+    reply.header('Vary', 'Origin');
+    reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    // Set cache headers only for static file requests (not API endpoints)
+    if (
+      request.method === 'GET' &&
+      !request.url.endsWith('/logo') &&
+      !request.url.endsWith('/config')
+    ) {
+      reply.header('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+
+    // Handle preflight requests
+    if (request.method === 'OPTIONS') {
+      reply.code(200).send();
+      return;
+    }
+
+    done();
   });
 }
 
 /**
  * Configure CORS for OAuth2/OpenID Connect endpoints
  */
-function configureCORS(app: NestExpressApplication): void {
+function configureCORS(app: NestFastifyApplication): void {
   const configService = app.get(ConfigService);
+  const instance = app.getHttpAdapter().getInstance();
 
   // Update corsConfig with current environment values
   const currentCorsConfig: CorsConfig = {
@@ -218,13 +264,16 @@ function configureCORS(app: NestExpressApplication): void {
   };
 
   // Apply CORS middleware using the new service
-  app.use(CorsService.createCorsMiddleware(currentCorsConfig));
+  instance.addHook(
+    'preHandler',
+    CorsService.createCorsMiddleware(currentCorsConfig),
+  );
 }
 
 /**
  * Configure validation and serialization
  */
-function configureValidation(app: NestExpressApplication): void {
+function configureValidation(app: NestFastifyApplication): void {
   // Global exception filter for consistent error handling
   app.useGlobalFilters(new GlobalExceptionFilter());
 

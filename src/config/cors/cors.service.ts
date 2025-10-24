@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import {
   CorsConfig,
   OAUTH_CLIENT_ORIGINS,
@@ -12,8 +12,6 @@ import {
  * CORS service for OAuth2/OpenID Connect provider
  */
 export class CorsService {
-  private readonly logger = new Logger(CorsService.name);
-
   /**
    * Get allowed origins from environment variables
    */
@@ -91,22 +89,22 @@ export class CorsService {
   static createCorsMiddleware(config: CorsConfig) {
     const logger = new Logger('CORS');
 
-    return (req: Request, res: Response, next: NextFunction) => {
-      const origin = req.headers.origin;
-      const path = req.path;
+    return (request: FastifyRequest, reply: FastifyReply, done: () => void) => {
+      const origin = request.headers.origin;
+      const path = request.url;
 
       // OAuth2/OpenID Connect public endpoints - allow all origins
       if (CorsService.isPublicOAuthEndpoint(path)) {
-        res.header('Access-Control-Allow-Origin', origin || '*');
-        res.header('Access-Control-Allow-Credentials', 'true');
+        reply.header('Access-Control-Allow-Origin', origin ?? '*');
+        reply.header('Access-Control-Allow-Credentials', 'true');
       } else if (CorsService.isOriginAllowed(origin, config)) {
         // Protected endpoints - check origin
-        res.header('Access-Control-Allow-Origin', origin);
-        res.header('Access-Control-Allow-Credentials', 'true');
+        reply.header('Access-Control-Allow-Origin', origin);
+        reply.header('Access-Control-Allow-Credentials', 'true');
       } else if (origin) {
         // Reject unauthorized origin for protected endpoints
         logger.warn(`CORS blocked: ${origin} -> ${path}`);
-        res.status(403).json({
+        reply.code(403).send({
           error: 'forbidden',
           error_description: `Origin '${origin}' not allowed for this endpoint`,
         });
@@ -114,19 +112,22 @@ export class CorsService {
       }
 
       // Set common CORS headers
-      res.header('Access-Control-Allow-Methods', CORS_HEADERS.ALLOW_METHODS);
-      res.header('Access-Control-Allow-Headers', CORS_HEADERS.ALLOW_HEADERS);
-      res.header('Access-Control-Expose-Headers', CORS_HEADERS.EXPOSE_HEADERS);
-      res.header('Access-Control-Max-Age', CORS_HEADERS.MAX_AGE);
-      res.header('Vary', 'Origin');
+      reply.header('Access-Control-Allow-Methods', CORS_HEADERS.ALLOW_METHODS);
+      reply.header('Access-Control-Allow-Headers', CORS_HEADERS.ALLOW_HEADERS);
+      reply.header(
+        'Access-Control-Expose-Headers',
+        CORS_HEADERS.EXPOSE_HEADERS,
+      );
+      reply.header('Access-Control-Max-Age', CORS_HEADERS.MAX_AGE);
+      reply.header('Vary', 'Origin');
 
       // Handle preflight requests
-      if (req.method === 'OPTIONS') {
-        res.status(200).end();
+      if (request.method === 'OPTIONS') {
+        reply.code(200).send();
         return;
       }
 
-      next();
+      done();
     };
   }
 }
