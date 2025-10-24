@@ -170,13 +170,13 @@ export class TokenGrantService {
     const tokenResult = await this.tokenService.createToken(
       authCode.user,
       client,
-      authCode.scopes || [],
+      authCode.scopes ?? [],
       authCode.nonce,
       authCode.authTime,
     );
 
     this.logger.log(
-      `Tokens issued for user ${authCode.user.id} with scopes: ${(authCode.scopes || []).join(', ')}`,
+      `Tokens issued for user ${authCode.user.id} with scopes: ${(authCode.scopes ?? []).join(', ')}`,
     );
 
     return {
@@ -184,7 +184,7 @@ export class TokenGrantService {
       token_type: tokenResult.tokenType,
       expires_in: tokenResult.expiresIn,
       refresh_token: tokenResult.refreshToken,
-      scope: (authCode.scopes || []).join(' '),
+      scope: (authCode.scopes ?? []).join(' '),
       id_token: tokenResult.idToken,
     };
   }
@@ -221,7 +221,7 @@ export class TokenGrantService {
     // Use the existing refreshToken method from TokenService
     const tokenResult = await this.tokenService.refreshToken(
       refresh_token,
-      client_id || '',
+      client_id ?? '',
     );
 
     if (!tokenResult) {

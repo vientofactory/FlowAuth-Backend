@@ -121,9 +121,9 @@ export class ConsentController {
     }
 
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
     const backendUrl =
-      this.configService.get<string>('BACKEND_URL') || 'http://localhost:3000';
+      this.configService.get<string>('BACKEND_URL') ?? 'http://localhost:3000';
     return `${frontendUrl}/auth/login?returnUrl=${encodeURIComponent(`${backendUrl}/oauth2/authorize?${params.toString()}`)}`;
   }
 

@@ -22,7 +22,7 @@ export class DiscoveryController {
   getOpenIdConfiguration() {
     try {
       const baseUrl =
-        this.configService.get<string>('BACKEND_URL') ||
+        this.configService.get<string>('BACKEND_URL') ??
         'http://localhost:3000';
 
       const configuration = {

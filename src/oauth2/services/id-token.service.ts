@@ -61,7 +61,7 @@ export class IdTokenService {
     authTime?: number,
   ): Promise<string> {
     const baseUrl =
-      this.configService.get<string>('BACKEND_URL') || 'http://localhost:3000';
+      this.configService.get<string>('BACKEND_URL') ?? 'http://localhost:3000';
 
     // Define standard ID token claims
     const payload: IdTokenPayload = {
@@ -98,9 +98,9 @@ export class IdTokenService {
     if (scopes.includes('profile')) {
       payload.name = user.username || '';
       payload.preferred_username = user.username || '';
-      payload.given_name = user.firstName || '';
-      payload.family_name = user.lastName || '';
-      payload.picture = user.avatar || '';
+      payload.given_name = user.firstName ?? '';
+      payload.family_name = user.lastName ?? '';
+      payload.picture = user.avatar ?? '';
       payload.updated_at = user.updatedAt
         ? Math.floor(user.updatedAt.getTime() / 1000)
         : undefined;

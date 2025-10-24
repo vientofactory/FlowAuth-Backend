@@ -67,6 +67,6 @@ export class TokenRevocationService {
     const result = await this.tokenRepository.delete({
       expiresAt: LessThan(now),
     });
-    return result.affected || 0;
+    return result.affected ?? 0;
   }
 }

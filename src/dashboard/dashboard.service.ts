@@ -6,7 +6,6 @@ import type { Cache } from 'cache-manager';
 import { Client } from '../oauth2/client.entity';
 import { User } from '../auth/user.entity';
 import { Token } from '../oauth2/token.entity';
-import { TokenService } from '../oauth2/token.service';
 import { DashboardStatsService } from './dashboard-stats.service';
 import { DashboardAnalyticsService } from './dashboard-analytics.service';
 import { DashboardStatsResponseDto } from './dto/dashboard-stats.dto';
@@ -30,7 +29,6 @@ export class DashboardService {
     private userRepository: Repository<User>,
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
-    private tokenService: TokenService,
     private dashboardStatsService: DashboardStatsService,
     private dashboardAnalyticsService: DashboardAnalyticsService,
     private cacheManagerService: CacheManagerService,
@@ -279,7 +277,7 @@ export class DashboardService {
         activities.push({
           id: activityCounter++,
           type: 'token_created',
-          description: `"${token.client?.name || '웹 애플리케이션'}" 토큰 발급됨`,
+          description: `"${token.client?.name ?? '웹 애플리케이션'}" 토큰 발급됨`,
           createdAt: token.createdAt,
           resourceId: token.id,
           metadata: {
@@ -299,7 +297,7 @@ export class DashboardService {
           activities.push({
             id: activityCounter++,
             type: 'token_revoked',
-            description: `"${token.client?.name || '웹 애플리케이션'}" 토큰 취소됨`,
+            description: `"${token.client?.name ?? '웹 애플리케이션'}" 토큰 취소됨`,
             createdAt: token.revokedAt ?? new Date(), // 취소 시간이 없으면 현재 시간 사용
             resourceId: token.id,
             metadata: {
@@ -365,7 +363,7 @@ export class DashboardService {
           name: token.client.name,
           description: token.client.description,
           logoUrl: token.client.logoUri,
-          scopes: token.scopes || [],
+          scopes: token.scopes ?? [],
           connectedAt: token.createdAt,
           lastUsedAt: undefined, // Token 엔티티에 lastUsedAt 필드가 없음
           expiresAt: token.expiresAt,

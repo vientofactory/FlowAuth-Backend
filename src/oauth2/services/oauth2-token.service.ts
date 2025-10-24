@@ -90,7 +90,7 @@ export class OAuth2TokenService {
         expiresAt,
         refreshExpiresAt,
         scopes,
-        user: user || undefined,
+        user: user ?? undefined,
         client,
         tokenType: TOKEN_TYPES.OAUTH2,
         tokenFamily,
@@ -248,9 +248,9 @@ export class OAuth2TokenService {
 
       // Generate new tokens
       const newAccessToken = this.generateAccessTokenWithJti(
-        token.user || null,
+        token.user ?? null,
         token.client,
-        token.scopes || [],
+        token.scopes ?? [],
         token.id,
       );
       const newRefreshToken = this.generateRefreshToken();
@@ -272,7 +272,7 @@ export class OAuth2TokenService {
         expiresAt: newExpiresAt,
         refreshExpiresAt: newRefreshExpiresAt,
         scopes: token.scopes,
-        user: token.user || undefined,
+        user: token.user ?? undefined,
         client: token.client,
         tokenType: TOKEN_TYPES.OAUTH2,
         tokenFamily: token.tokenFamily,
@@ -286,7 +286,7 @@ export class OAuth2TokenService {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
         expiresIn: this.getAccessTokenExpirySeconds(),
-        scopes: token.scopes || [],
+        scopes: token.scopes ?? [],
         tokenType: JWT_CONSTANTS.TOKEN_TYPE,
       };
     });
@@ -298,7 +298,7 @@ export class OAuth2TokenService {
     scopes: string[],
   ): string {
     const payload = {
-      sub: user?.id?.toString() || client.clientId,
+      sub: user?.id?.toString() ?? client.clientId,
       client_id: client.clientId,
       scope: scopes.join(' '),
       token_type: 'Bearer',
@@ -314,7 +314,7 @@ export class OAuth2TokenService {
     jti: number,
   ): string {
     const payload = {
-      sub: user?.id?.toString() || client.clientId,
+      sub: user?.id?.toString() ?? client.clientId,
       client_id: client.clientId,
       scope: scopes.join(' '),
       token_type: 'Bearer',
@@ -329,11 +329,11 @@ export class OAuth2TokenService {
   }
 
   private getAccessTokenExpiryHours(): number {
-    return this.configService.get<number>('ACCESS_TOKEN_EXPIRY_HOURS') || 1;
+    return this.configService.get<number>('ACCESS_TOKEN_EXPIRY_HOURS') ?? 1;
   }
 
   private getRefreshTokenExpiryDays(): number {
-    return this.configService.get<number>('REFRESH_TOKEN_EXPIRY_DAYS') || 30;
+    return this.configService.get<number>('REFRESH_TOKEN_EXPIRY_DAYS') ?? 30;
   }
 
   private getAccessTokenExpirySeconds(): number {

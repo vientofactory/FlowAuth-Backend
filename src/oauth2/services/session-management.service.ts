@@ -182,7 +182,7 @@ export class SessionManagementService {
     sessionId: string,
     salt?: string,
   ): string {
-    const actualSalt = salt || crypto.randomBytes(16).toString('hex');
+    const actualSalt = salt ?? crypto.randomBytes(16).toString('hex');
     const hash = crypto
       .createHash('sha256')
       .update(clientId + ' ' + sessionId + ' ' + actualSalt)

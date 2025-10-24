@@ -131,7 +131,7 @@ export class AuthorizationController {
     }
 
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
 
     const oauthAuthorizeUrl = `${frontendUrl}/oauth2/authorize?${params.toString()}`;
 
@@ -166,7 +166,7 @@ export class AuthorizationController {
     }
 
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
     return `${frontendUrl}/oauth2/authorize?${params.toString()}`;
   }
 

@@ -27,8 +27,7 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
   ) {
-    const jwtSecret =
-      configService.get<string>('JWT_SECRET') || 'your-secret-key';
+    const jwtSecret = configService.get<string>('JWT_SECRET') ?? '';
 
     const options: StrategyOptions = {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -112,7 +111,7 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
         }
 
         // Add scopes from token to payload for scope validation
-        payload.scopes = token.scopes || [];
+        payload.scopes = token.scopes ?? [];
       } else {
         // For implicit grant tokens without jti, extract scopes from JWT payload
         // Implicit grant tokens are not stored in database but have scopes in JWT

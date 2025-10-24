@@ -42,8 +42,6 @@ import {
   type TokenType,
 } from '../constants/auth.constants';
 import { ConfigService } from '@nestjs/config';
-
-import { ValidationHelpers } from './validation.helpers';
 import { ValidationService } from './services/validation.service';
 import { validateOAuth2RedirectUri } from '../utils/url-security.util';
 import {
@@ -237,7 +235,7 @@ export class AuthController {
     @Request() req: ExpressRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const token = ValidationHelpers.extractBearerToken(req);
+    const token = ValidationService.extractBearerToken(req);
     const result = this.authService.logout(token);
 
     res.clearCookie('token', {
@@ -263,7 +261,7 @@ export class AuthController {
     description: '유효하지 않은 토큰',
   })
   refresh(@Request() req: ExpressRequest) {
-    const token = ValidationHelpers.extractBearerToken(req);
+    const token = ValidationService.extractBearerToken(req);
     return this.authService.refreshToken(token);
   }
 
@@ -363,7 +361,7 @@ export class AuthController {
     return {
       id: client.id,
       clientId: client.clientId,
-      clientSecret: client.clientSecret || undefined,
+      clientSecret: client.clientSecret ?? undefined,
       name: client.name,
       description: client.description,
       createdAt: client.createdAt,
@@ -392,7 +390,7 @@ export class AuthController {
     description: '권한이 없음',
   })
   async getClients(@Request() req: any) {
-    ValidationHelpers.validateAuthenticatedRequest(req);
+    ValidationService.validateAuthenticatedRequest(req);
     const clients = await this.authService.getClients(req.user.id);
     return clients.map((client) => ({
       id: client.id,
