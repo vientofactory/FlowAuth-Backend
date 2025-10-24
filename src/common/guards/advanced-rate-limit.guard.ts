@@ -58,7 +58,7 @@ export class AdvancedRateLimitGuard implements CanActivate {
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
           message:
-            config.message || 'Too many requests, please try again later',
+            config.message ?? 'Too many requests, please try again later',
           error: 'Too Many Requests',
         },
         HttpStatus.TOO_MANY_REQUESTS,
@@ -77,19 +77,19 @@ export class AdvancedRateLimitGuard implements CanActivate {
     }
 
     const ip = this.getClientIP(request);
-    const userAgent = request.headers['user-agent'] || 'unknown';
-    const path = (request.route as { path?: string })?.path || request.path;
+    const userAgent = request.headers['user-agent'] ?? 'unknown';
+    const path = (request.route as { path?: string })?.path ?? request.path;
 
     return `rate_limit:${ip}:${this.hashString(userAgent)}:${path}`;
   }
 
   private getClientIP(request: Request): string {
     return (
-      (request.headers['cf-connecting-ip'] as string) ||
-      (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      (request.headers['x-real-ip'] as string) ||
-      request.connection.remoteAddress ||
-      request.socket.remoteAddress ||
+      ((request.headers['cf-connecting-ip'] as string) ||
+        (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+        (request.headers['x-real-ip'] as string) ||
+        request.connection.remoteAddress) ??
+      request.socket.remoteAddress ??
       'unknown'
     );
   }
@@ -111,7 +111,7 @@ export class AdvancedRateLimitGuard implements CanActivate {
     const now = Date.now();
     const windowStart = now - config.windowMs;
 
-    const requests = (await this.cacheManager.get<number[]>(key)) || [];
+    const requests = (await this.cacheManager.get<number[]>(key)) ?? [];
 
     const validRequests = requests.filter(
       (timestamp) => timestamp > windowStart,

@@ -155,7 +155,7 @@ function configureStaticFiles(app: NestExpressApplication): void {
   const currentCorsConfig: CorsConfig = {
     ...corsConfig,
     frontendUrl: configService.get<string>('FRONTEND_URL'),
-    nodeEnv: configService.get<string>('NODE_ENV') || 'development',
+    nodeEnv: configService.get<string>('NODE_ENV') ?? 'development',
   };
 
   // Custom CORS middleware for uploads path (both API and static files)
@@ -214,7 +214,7 @@ function configureCORS(app: NestExpressApplication): void {
   const currentCorsConfig: CorsConfig = {
     ...corsConfig,
     frontendUrl: configService.get<string>('FRONTEND_URL'),
-    nodeEnv: configService.get<string>('NODE_ENV') || 'development',
+    nodeEnv: configService.get<string>('NODE_ENV') ?? 'development',
   };
 
   // Apply CORS middleware using the new service

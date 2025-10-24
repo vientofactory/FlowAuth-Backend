@@ -202,7 +202,7 @@ export const KEY_GENERATORS = {
     try {
       const body = req.body as { client_id?: string };
       const query = req.query as { client_id?: string };
-      clientId = body?.client_id || query?.client_id || 'unknown';
+      clientId = body?.client_id ?? query?.client_id ?? 'unknown';
     } catch {
       clientId = 'unknown';
     }
@@ -212,7 +212,7 @@ export const KEY_GENERATORS = {
   // IP + User Agent 기반 (봇 탐지)
   IP_USER_AGENT: (req: AuthenticatedRequest) => {
     const ip = getClientIp(req);
-    const userAgent = req.headers['user-agent'] || 'unknown';
+    const userAgent = req.headers['user-agent'] ?? 'unknown';
     const hash = crypto
       .createHash('md5')
       .update(userAgent)

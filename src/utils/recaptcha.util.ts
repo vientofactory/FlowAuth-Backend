@@ -57,7 +57,7 @@ export class RecaptchaService {
 
       // v2 호환성을 위한 기본 검증
       if (!data.success) {
-        const errorCodes = data['error-codes']?.join(', ') || 'Unknown error';
+        const errorCodes = data['error-codes']?.join(', ') ?? 'Unknown error';
         this.logger.error(`reCAPTCHA verification failed: ${errorCodes}`);
 
         // 키 타입 오류인 경우 더 자세한 로깅

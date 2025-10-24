@@ -56,7 +56,7 @@ export class SizeLimitMiddleware implements NestMiddleware {
       }
 
       // Content-Length 검사 (요청 본문이 있는 경우)
-      const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+      const contentLength = parseInt(req.headers['content-length'] ?? '0', 10);
       if (contentLength > limits.maxBodySize) {
         throw new BadRequestException(
           `Request body too large. Maximum size is ${limits.maxBodySize} bytes`,
@@ -85,11 +85,11 @@ export class SizeLimitMiddleware implements NestMiddleware {
 
   private getClientIP(req: Request): string {
     return (
-      (req.headers['cf-connecting-ip'] as string) ||
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      (req.headers['x-real-ip'] as string) ||
-      req.connection.remoteAddress ||
-      req.socket.remoteAddress ||
+      ((req.headers['cf-connecting-ip'] as string) ||
+        (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+        (req.headers['x-real-ip'] as string) ||
+        req.connection.remoteAddress) ??
+      req.socket.remoteAddress ??
       'unknown'
     );
   }
@@ -163,7 +163,7 @@ export function createSizeLimitMiddleware(config: SizeLimitConfig = {}) {
       }
 
       // Content-Length 검사 (요청 본문이 있는 경우)
-      const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+      const contentLength = parseInt(req.headers['content-length'] ?? '0', 10);
       if (contentLength > limits.maxBodySize) {
         throw new SizeLimitError(
           `Request body too large. Maximum size is ${limits.maxBodySize} bytes`,
@@ -197,11 +197,11 @@ export function createSizeLimitMiddleware(config: SizeLimitConfig = {}) {
 
 function getClientIP(req: Request): string {
   return (
-    (req.headers['cf-connecting-ip'] as string) ||
-    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-    (req.headers['x-real-ip'] as string) ||
-    req.connection.remoteAddress ||
-    req.socket.remoteAddress ||
+    ((req.headers['cf-connecting-ip'] as string) ||
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      (req.headers['x-real-ip'] as string) ||
+      req.connection.remoteAddress) ??
+    req.socket.remoteAddress ??
     'unknown'
   );
 }

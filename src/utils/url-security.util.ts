@@ -61,7 +61,7 @@ function isIPv6Address(hostname: string): boolean {
   }
 
   // Check for double colon compression
-  const doubleColonCount = (cleanHostname.match(/::/g) || []).length;
+  const doubleColonCount = (cleanHostname.match(/::/g) ?? []).length;
   if (doubleColonCount > 1) {
     return false; // Only one :: allowed
   }
