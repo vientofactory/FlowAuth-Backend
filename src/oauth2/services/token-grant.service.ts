@@ -175,17 +175,39 @@ export class TokenGrantService {
       authCode.authTime,
     );
 
-    this.logger.log(
-      `Tokens issued for user ${authCode.user.id} with scopes: ${(authCode.scopes ?? []).join(', ')}`,
-    );
-
-    return {
+    const response: TokenResponseDto = {
       access_token: tokenResult.accessToken,
       token_type: tokenResult.tokenType,
       expires_in: tokenResult.expiresIn,
       refresh_token: tokenResult.refreshToken,
       scope: (authCode.scopes ?? []).join(' '),
     };
+
+    // Hybrid Flow의 경우 ID token도 포함
+    if (
+      authCode.responseType === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN
+    ) {
+      if (!authCode.nonce) {
+        throw new BadRequestException('Nonce is required for hybrid flow');
+      }
+
+      // ID token 생성
+      const idToken = await this.tokenService.generateIdToken(
+        authCode.user,
+        client,
+        authCode.scopes ?? [],
+        authCode.nonce,
+        authCode.authTime,
+      );
+
+      response.id_token = idToken;
+    }
+
+    this.logger.log(
+      `Tokens issued for user ${authCode.user.id} with scopes: ${(authCode.scopes ?? []).join(', ')}`,
+    );
+
+    return response;
   }
 
   private async handleRefreshTokenGrant(

@@ -44,6 +44,9 @@ export class AuthorizationCode {
   @Column({ type: 'bigint', nullable: true })
   authTime?: number;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  responseType?: string;
+
   @Column({ type: 'tinyint', default: 0 })
   isUsed: boolean;
 

@@ -152,6 +152,7 @@ export class AuthorizationService {
         code_challenge,
         code_challenge_method,
         nonce,
+        response_type,
       );
     } else if (
       response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN
@@ -198,6 +199,7 @@ export class AuthorizationService {
     codeChallenge?: string,
     codeChallengeMethod?: string,
     nonce?: string,
+    responseType?: string,
   ): Promise<AuthorizeResponseDto> {
     // PKCE parameter validation (OPTIONAL but RECOMMENDED for security)
     if (codeChallenge || codeChallengeMethod) {
@@ -224,6 +226,7 @@ export class AuthorizationService {
       codeChallenge,
       codeChallengeMethod,
       nonce,
+      responseType,
     );
     this.logger.log(`Authorization code created: ${authCode.code}`);
 
@@ -276,6 +279,7 @@ export class AuthorizationService {
       codeChallenge,
       codeChallengeMethod,
       nonce,
+      OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN,
     );
     this.logger.log(
       `Authorization code created for hybrid flow: ${authCode.code}`,

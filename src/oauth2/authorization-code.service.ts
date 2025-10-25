@@ -34,6 +34,7 @@ export class AuthorizationCodeService {
     codeChallenge?: string,
     codeChallengeMethod?: string,
     nonce?: string,
+    responseType?: string,
   ): Promise<AuthorizationCode> {
     const code = this.generateCode();
 
@@ -50,6 +51,7 @@ export class AuthorizationCodeService {
       codeChallengeMethod,
       nonce,
       authTime: Math.floor(Date.now() / 1000),
+      responseType,
       user,
       client,
     });
