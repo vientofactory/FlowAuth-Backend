@@ -8,7 +8,7 @@ import { Token } from './token.entity';
 import { User } from '../auth/user.entity';
 import { Client } from './client.entity';
 import { OAuth2JwtPayload } from '../types/oauth2.types';
-import { CACHE_CONSTANTS } from '../constants/jwt.constants';
+import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
 import { StructuredLogger } from '../logging/structured-logger.service';
 import { TOKEN_TYPES } from '../constants/auth.constants';
 import { OAuth2TokenService } from './services/oauth2-token.service';
@@ -113,9 +113,9 @@ export class TokenService {
 
       // 유효한 토큰을 캐시에 저장 (5분)
       await this.cacheManager.set(
-        `token:${accessToken}`,
+        CACHE_KEYS.oauth2.token(accessToken),
         decoded,
-        CACHE_CONSTANTS.TOKEN_VALIDATION_TTL,
+        CACHE_CONFIG.TTL.TOKEN_VALIDATION,
       );
 
       return decoded;

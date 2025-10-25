@@ -41,6 +41,11 @@ export const DASHBOARD_CONFIG = {
     BATCH_SIZE: 100,
     TIMEOUT: 30000, // 30초
   },
+
+  ACTIVITIES: {
+    DEFAULT_LIMIT: 10,
+    MAX_LIMIT: 50,
+  },
 } as const;
 
 /**

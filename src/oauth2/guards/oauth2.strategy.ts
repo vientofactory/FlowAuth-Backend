@@ -13,12 +13,12 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { Token } from '../token.entity';
 import { AUTH_ERROR_MESSAGES } from '../../constants/auth.constants';
+import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { OAuth2JwtPayload } from '../../types/oauth2.types';
 
 @Injectable()
 export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
   private readonly logger = new Logger(OAuth2Strategy.name);
-  private readonly TOKEN_CACHE_TTL = 300; // 5 minutes cache for token validation
 
   constructor(
     @InjectRepository(Token)
@@ -70,7 +70,7 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
               await this.cacheManager.set(
                 cacheKey,
                 token,
-                this.TOKEN_CACHE_TTL,
+                CACHE_CONFIG.TTL.TOKEN_VALIDATION,
               );
             }
           }

@@ -19,8 +19,8 @@ import {
   USER_TYPES,
   USER_TYPE_PERMISSIONS,
   PERMISSION_UTILS,
-  CACHE_CONSTANTS,
 } from '../../constants/auth.constants';
+import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { TwoFactorService } from '../two-factor.service';
 import { FileUploadService } from '../../upload/file-upload.service';
 import { RecaptchaService } from '../../utils/recaptcha.util';
@@ -135,7 +135,7 @@ export class UserManagementService {
     }
 
     // Cache the result
-    await this.cacheManager.set(cacheKey, user, CACHE_CONSTANTS.USER_CACHE_TTL);
+    await this.cacheManager.set(cacheKey, user, CACHE_CONFIG.TTL.USER_PROFILE);
     return user;
   }
 

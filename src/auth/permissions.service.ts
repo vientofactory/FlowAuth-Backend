@@ -5,7 +5,8 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { User } from './user.entity';
 import { PermissionUtils } from '../utils/permission.util';
-import { ROLE_PERMISSIONS, CACHE_CONSTANTS } from '../constants/auth.constants';
+import { ROLE_PERMISSIONS } from '../constants/auth.constants';
+import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
 
 @Injectable()
 export class PermissionsService {
@@ -22,7 +23,7 @@ export class PermissionsService {
    * 사용자 권한 조회 (캐싱 적용)
    */
   async getUserPermissions(userId: number): Promise<number> {
-    const cacheKey = `permissions:${userId}`;
+    const cacheKey = CACHE_KEYS.auth.permissions(userId);
 
     // 캐시에서 먼저 조회
     const cached = await this.cacheManager.get<number>(cacheKey);
@@ -44,7 +45,7 @@ export class PermissionsService {
     await this.cacheManager.set(
       cacheKey,
       user.permissions,
-      CACHE_CONSTANTS.PERMISSIONS_CACHE_TTL,
+      CACHE_CONFIG.TTL.USER_PERMISSIONS,
     );
     return user.permissions;
   }
@@ -56,7 +57,7 @@ export class PermissionsService {
     const oldPermissions = await this.getUserPermissions(userId);
     await this.userRepository.update(userId, { permissions });
     // 권한 변경 시 캐시 무효화
-    await this.cacheManager.del(`permissions:${userId}`);
+    await this.cacheManager.del(CACHE_KEYS.auth.permissions(userId));
 
     // 권한 변경 로그
     this.logger.log(
@@ -148,7 +149,7 @@ export class PermissionsService {
    * 사용자 권한 캐시 무효화
    */
   async invalidateUserCache(userId: number): Promise<void> {
-    await this.cacheManager.del(`permissions:${userId}`);
+    await this.cacheManager.del(CACHE_KEYS.auth.permissions(userId));
   }
 
   /**

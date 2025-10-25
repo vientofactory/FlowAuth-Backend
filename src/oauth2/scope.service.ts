@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
+import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
 import { Scope } from './scope.entity';
 
 @Injectable()
@@ -57,11 +58,15 @@ export class ScopeService implements OnApplicationBootstrap {
       });
 
       // Redis에 캐시 저장 (TTL: 1시간)
-      await this.cacheManager.set('scopes:all', this.allScopesCache, 3600000);
+      await this.cacheManager.set(
+        CACHE_KEYS.oauth2.scopes.all(),
+        this.allScopesCache,
+        CACHE_CONFIG.TTL.SCOPES_ALL,
+      );
       await this.cacheManager.set(
         'scopes:default',
         this.defaultScopesCache,
-        3600000,
+        CACHE_CONFIG.TTL.SCOPES_ALL,
       );
 
       // 개별 스코프도 캐시
@@ -147,7 +152,9 @@ export class ScopeService implements OnApplicationBootstrap {
     await this.ensureCacheInitialized();
 
     // Redis 캐시에서 먼저 확인
-    const cachedScopes = await this.cacheManager.get<Scope[]>('scopes:all');
+    const cachedScopes = await this.cacheManager.get<Scope[]>(
+      CACHE_KEYS.oauth2.scopes.all(),
+    );
     if (cachedScopes) {
       return cachedScopes;
     }

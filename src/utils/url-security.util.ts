@@ -23,6 +23,8 @@
  * - Focuses on structural validation and security-relevant ranges
  */
 
+import { URL_SECURITY_REGEX } from '../constants/security.constants';
+
 /**
  * Check if hostname is a valid IPv4 address
  */
@@ -67,7 +69,9 @@ function isIPv6Address(hostname: string): boolean {
   }
 
   // Handle IPv4-mapped IPv6 addresses (e.g., ::ffff:192.0.2.1)
-  const ipv4MappedMatch = cleanHostname.match(/^(.+):(\d+\.\d+\.\d+\.\d+)$/);
+  const ipv4MappedMatch = cleanHostname.match(
+    URL_SECURITY_REGEX.IPV4_MAPPED_MATCH,
+  );
   if (ipv4MappedMatch) {
     const [, ipv6Part, ipv4Part] = ipv4MappedMatch;
     if (!isIPv4Address(ipv4Part)) {
@@ -124,7 +128,7 @@ function isValidHexPart(part: string): boolean {
   }
 
   // Must contain only hexadecimal characters
-  return /^[0-9a-fA-F]+$/.test(part);
+  return URL_SECURITY_REGEX.IPV6_HEX_PART.test(part);
 }
 
 /**
@@ -268,7 +272,7 @@ export function isSafeUrl(
             return false;
           }
           // Labels allow only letters, numbers, and hyphens
-          if (!/^[a-zA-Z0-9-]+$/.test(label)) {
+          if (!URL_SECURITY_REGEX.DOMAIN_LABEL.test(label)) {
             return false;
           }
           // Cannot start or end with hyphen
@@ -303,8 +307,7 @@ export function isSafeUrl(
  * Check if an IPv4 address is in private/local ranges
  */
 function isPrivateIPv4(hostname: string): boolean {
-  const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-  const ipv4Match = hostname.match(ipv4Regex);
+  const ipv4Match = hostname.match(URL_SECURITY_REGEX.IPV4_ADDRESS);
 
   if (!ipv4Match) {
     return false;
@@ -394,7 +397,7 @@ function isPrivateNetwork(hostname: string): boolean {
     // Handle both dotted decimal and hex representations
     // Examples: ::ffff:192.168.1.1 or ::ffff:c0a8:101
     const ipv4MappedMatch = normalizedIPv6.match(
-      /(?:::|^0*:0*:0*:0*:0*:)ffff:(\d+\.\d+\.\d+\.\d+)$/i,
+      URL_SECURITY_REGEX.IPV4_MAPPED_IPV6,
     );
     if (ipv4MappedMatch) {
       return isPrivateIPv4(ipv4MappedMatch[1]);
@@ -402,7 +405,7 @@ function isPrivateNetwork(hostname: string): boolean {
 
     // IPv4-mapped with hex representation (after URL parsing)
     const ipv4MappedHexMatch = normalizedIPv6.match(
-      /(?:::|^0*:0*:0*:0*:0*:)ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i,
+      URL_SECURITY_REGEX.IPV4_MAPPED_IPV6_HEX,
     );
     if (ipv4MappedHexMatch) {
       const part1 = parseInt(ipv4MappedHexMatch[1], 16);
@@ -413,7 +416,7 @@ function isPrivateNetwork(hostname: string): boolean {
 
     // IPv4-compatible IPv6 addresses (deprecated)
     const ipv4CompatMatch = normalizedIPv6.match(
-      /(?:::|^0*:0*:0*:0*:0*:0*:)(\d+\.\d+\.\d+\.\d+)$/,
+      URL_SECURITY_REGEX.IPV4_COMPATIBLE_IPV6,
     );
     if (ipv4CompatMatch) {
       return isPrivateIPv4(ipv4CompatMatch[1]);

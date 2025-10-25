@@ -1,5 +1,6 @@
 import * as bcrypt from 'bcrypt';
 import { AUTH_CONSTANTS } from '../../constants/auth.constants';
+import { PASSWORD_VALIDATION } from '../../constants/validation.constants';
 
 export class PasswordUtils {
   /**
@@ -26,31 +27,31 @@ export class PasswordUtils {
     isValid: boolean;
     message?: string;
   } {
-    if (password.length < 8) {
+    if (password.length < PASSWORD_VALIDATION.MIN_LENGTH) {
       return {
         isValid: false,
-        message: 'Password must be at least 8 characters long',
+        message: PASSWORD_VALIDATION.ERRORS.TOO_SHORT,
       };
     }
 
-    if (!/(?=.*[a-z])/.test(password)) {
+    if (!PASSWORD_VALIDATION.LOWERCASE_PATTERN.test(password)) {
       return {
         isValid: false,
-        message: 'Password must contain at least one lowercase letter',
+        message: PASSWORD_VALIDATION.ERRORS.NO_LOWERCASE,
       };
     }
 
-    if (!/(?=.*[A-Z])/.test(password)) {
+    if (!PASSWORD_VALIDATION.UPPERCASE_PATTERN.test(password)) {
       return {
         isValid: false,
-        message: 'Password must contain at least one uppercase letter',
+        message: PASSWORD_VALIDATION.ERRORS.NO_UPPERCASE,
       };
     }
 
-    if (!/(?=.*\d)/.test(password)) {
+    if (!PASSWORD_VALIDATION.DIGIT_PATTERN.test(password)) {
       return {
         isValid: false,
-        message: 'Password must contain at least one number',
+        message: PASSWORD_VALIDATION.ERRORS.NO_DIGIT,
       };
     }
 

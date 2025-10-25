@@ -4,7 +4,10 @@ import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { User } from '../auth/user.entity';
-import { CACHE_KEYS, DASHBOARD_CONFIG } from './dashboard.constants';
+import {
+  CACHE_KEYS as DASHBOARD_CACHE_KEYS,
+  DASHBOARD_CONFIG,
+} from './dashboard.constants';
 
 // Redis 클라이언트 인터페이스 정의
 interface RedisClient {
@@ -40,7 +43,7 @@ export class CacheManagerService {
    */
   async invalidateUserStatsCache(userId: number): Promise<void> {
     try {
-      const cacheKey = CACHE_KEYS.stats(userId);
+      const cacheKey = DASHBOARD_CACHE_KEYS.stats(userId);
       await this.cacheManager.del(cacheKey);
     } catch (error) {
       this.logger.warn('Failed to invalidate user stats cache:', error);
@@ -56,7 +59,7 @@ export class CacheManagerService {
       const commonLimits = [5, 10, 20, 50];
       await Promise.all(
         commonLimits.map((limit) =>
-          this.cacheManager.del(CACHE_KEYS.activities(userId, limit)),
+          this.cacheManager.del(DASHBOARD_CACHE_KEYS.activities(userId, limit)),
         ),
       );
     } catch (error) {
@@ -69,7 +72,7 @@ export class CacheManagerService {
    */
   async invalidateUserProfileCache(userId: number): Promise<void> {
     try {
-      const cacheKey = CACHE_KEYS.user(userId);
+      const cacheKey = DASHBOARD_CACHE_KEYS.user(userId);
       await this.cacheManager.del(cacheKey);
     } catch (error) {
       this.logger.warn('Failed to invalidate user profile cache:', error);
@@ -81,7 +84,7 @@ export class CacheManagerService {
    */
   async invalidateUserPermissionsCache(userId: number): Promise<void> {
     try {
-      const cacheKey = CACHE_KEYS.permissions(userId);
+      const cacheKey = DASHBOARD_CACHE_KEYS.permissions(userId);
       await this.cacheManager.del(cacheKey);
     } catch (error) {
       this.logger.warn('Failed to invalidate user permissions cache:', error);

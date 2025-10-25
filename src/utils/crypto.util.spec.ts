@@ -1,4 +1,5 @@
 import { CryptoUtils } from '../utils/crypto.util';
+import { CRYPTO_VALIDATION } from '../constants/validation.constants';
 
 describe('CryptoUtils', () => {
   describe('generateRandomString', () => {
@@ -65,7 +66,7 @@ describe('CryptoUtils', () => {
       expect(result.length).toBeLessThanOrEqual(128);
 
       // Should only contain valid characters for base64url
-      const base64urlRegex = /^[A-Za-z0-9_-]+$/;
+      const base64urlRegex = CRYPTO_VALIDATION.BASE64URL_REGEX;
       expect(result).toMatch(base64urlRegex);
     });
 
@@ -85,7 +86,7 @@ describe('CryptoUtils', () => {
       // S256 challenge should be base64url encoded SHA256 hash (43 characters)
       expect(result).toHaveLength(43);
 
-      const base64urlRegex = /^[A-Za-z0-9_-]+$/;
+      const base64urlRegex = CRYPTO_VALIDATION.BASE64URL_REGEX;
       expect(result).toMatch(base64urlRegex);
     });
 

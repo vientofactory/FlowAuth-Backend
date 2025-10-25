@@ -5,7 +5,8 @@ import type { Cache } from 'cache-manager';
 import * as crypto from 'crypto';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
-import { JWT_CONSTANTS, CACHE_CONSTANTS } from '../../constants/jwt.constants';
+import { JWT_CONSTANTS } from '../../constants/jwt.constants';
+import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { StructuredLogger } from '../../logging/structured-logger.service';
 import { JwtTokenService } from './jwt-token.service';
 
@@ -131,7 +132,7 @@ export class IdTokenService {
         await this.cacheManager.set(
           cacheKey,
           publicKey,
-          CACHE_CONSTANTS.JWKS_TTL,
+          CACHE_CONFIG.TTL.STATIC_DATA,
         );
       }
 

@@ -20,7 +20,8 @@ import { AuditLogService } from '../common/audit-log.service';
 import { AuditEventType } from '../common/audit-log.entity';
 import { TokenAnalyticsService } from './token-analytics.service';
 import { SecurityMetricsService } from './security-metrics.service';
-import { DASHBOARD_CONFIG, CACHE_KEYS } from './dashboard.constants';
+import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
+import { DASHBOARD_CONFIG } from './dashboard.constants';
 
 @Injectable()
 export class DashboardService {
@@ -44,7 +45,7 @@ export class DashboardService {
   ) {}
 
   async getDashboardStats(userId: number): Promise<DashboardStatsResponseDto> {
-    const cacheKey = CACHE_KEYS.stats(userId);
+    const cacheKey = CACHE_KEYS.dashboard.stats(userId);
 
     try {
       // 캐시에서 먼저 조회
@@ -118,7 +119,11 @@ export class DashboardService {
       };
 
       // 결과를 캐시에 저장
-      await this.cacheManager.set(cacheKey, result, DASHBOARD_CONFIG.CACHE.TTL);
+      await this.cacheManager.set(
+        cacheKey,
+        result,
+        CACHE_CONFIG.TTL.DASHBOARD_STATS,
+      );
       return result;
     } catch (error) {
       this.logger.error('Failed to get dashboard stats:', error);
@@ -150,7 +155,19 @@ export class DashboardService {
     userId: number,
     limit: number = 10,
   ): Promise<RecentActivityDto[]> {
-    const cacheKey = CACHE_KEYS.activities(userId, limit);
+    // 입력된 limit 정리 및 상한 적용 (과도한 조회 방지)
+    let sanitizedLimit = Number(limit) || 10;
+    sanitizedLimit = Math.max(1, Math.floor(sanitizedLimit));
+    const configuredMax = DASHBOARD_CONFIG.ACTIVITIES.MAX_LIMIT;
+
+    if (sanitizedLimit > configuredMax) {
+      sanitizedLimit = configuredMax;
+    }
+
+    // 이후 로직은 sanitizedLimit을 사용
+    limit = sanitizedLimit;
+
+    const cacheKey = CACHE_KEYS.dashboard.activities(userId, limit);
 
     try {
       // 캐시에서 먼저 조회
@@ -202,7 +219,11 @@ export class DashboardService {
       const result = activities.slice(0, limit);
 
       // 결과를 캐시에 저장 (2분 TTL)
-      await this.cacheManager.set(cacheKey, result, 120000);
+      await this.cacheManager.set(
+        cacheKey,
+        result,
+        CACHE_CONFIG.TTL.DASHBOARD_ACTIVITIES,
+      );
       return result;
     } catch (error) {
       this.logger.error('Failed to get recent activities:', error);
@@ -582,7 +603,7 @@ export class DashboardService {
    * 고급 통계 대시보드 조회
    */
   async getAdvancedDashboardStats(userId: number, days: number = 30) {
-    const cacheKey = CACHE_KEYS.advancedStats(userId, days);
+    const cacheKey = CACHE_KEYS.dashboard.advancedStats(userId, days);
 
     try {
       // 캐시에서 먼저 조회
@@ -605,7 +626,11 @@ export class DashboardService {
       };
 
       // 캐시에 저장 (10분)
-      await this.cacheManager.set(cacheKey, result, 10 * 60 * 1000);
+      await this.cacheManager.set(
+        cacheKey,
+        result,
+        CACHE_CONFIG.TTL.DASHBOARD_ADVANCED_STATS,
+      );
 
       return result;
     } catch (error) {

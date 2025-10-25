@@ -5,6 +5,7 @@ import type { Cache } from 'cache-manager';
 import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
+import { CACHE_CONFIG } from '../../constants/cache.constants';
 
 @Injectable()
 export class JwtTokenService {
@@ -87,7 +88,7 @@ export class JwtTokenService {
     await this.cacheManager.set(
       cacheKey,
       keyPair,
-      JWT_CONSTANTS.TIME.ONE_HOUR_MILLISECONDS,
+      CACHE_CONFIG.TTL.STATIC_DATA,
     ); // 1 hour cache
 
     return keyPair;
