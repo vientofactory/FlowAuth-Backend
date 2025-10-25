@@ -2,6 +2,8 @@
 -- Description: Updates foreign key constraints for token and authorization_code tables to use CASCADE DELETE
 -- Date: 2025-10-25
 
+USE flowauth;
+
 -- Update token table foreign key to CASCADE DELETE
 -- Step 1: Drop existing foreign key
 ALTER TABLE token DROP FOREIGN KEY `FK_8139f8b076cfd8723e992c9d9ff`;

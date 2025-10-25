@@ -2,6 +2,8 @@
 -- Description: Creates the audit_log table and its foreign key constraints
 -- Date: 2025-10-25
 
+USE flowauth;
+
 -- Create audit_log table
 CREATE TABLE IF NOT EXISTS `audit_log` (
   `id` int NOT NULL AUTO_INCREMENT,
