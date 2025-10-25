@@ -51,7 +51,7 @@ export class AuthorizationCode {
   @JoinColumn()
   user: User;
 
-  @ManyToOne(() => Client)
+  @ManyToOne(() => Client, { onDelete: 'CASCADE' })
   @JoinColumn()
   client: Client;
 

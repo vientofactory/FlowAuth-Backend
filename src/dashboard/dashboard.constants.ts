@@ -55,4 +55,6 @@ export const CACHE_KEYS = {
     `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.USER}:${userId}`,
   permissions: (userId: number) =>
     `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.PERMISSIONS}:${userId}`,
+  advancedStats: (userId: number, days: number) =>
+    `advanced_stats:${userId}:${days}`,
 } as const;

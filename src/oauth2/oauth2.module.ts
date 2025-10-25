@@ -34,6 +34,7 @@ import { OAuth2UserInfoBuilder } from './utils/oauth2-userinfo.util';
 import { AppConfigService } from '../config/app-config.service';
 import { LoggingModule } from '../logging/logging.module';
 import { CacheConfigModule } from '../cache/cache-config.module';
+import { CommonModule } from '../common/common.module';
 import { JWT_CONSTANTS } from '../constants/auth.constants';
 
 @Module({
@@ -42,10 +43,11 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
     ScheduleModule.forRoot(),
     LoggingModule,
     CacheConfigModule,
+    CommonModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
         secret:
-          configService.get<string>('JWT_SECRET') ||
+          configService.get<string>('JWT_SECRET') ??
           JWT_CONSTANTS.SECRET_KEY_FALLBACK,
         signOptions: { expiresIn: JWT_CONSTANTS.EXPIRES_IN },
       }),

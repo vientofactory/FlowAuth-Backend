@@ -14,6 +14,8 @@ import { TOKEN_TYPES } from '../../constants/auth.constants';
 import { StructuredLogger } from '../../logging/structured-logger.service';
 import { IdTokenService } from './id-token.service';
 import { safeTokenCompare } from '../../utils/timing-security.util';
+import { AuditLogService } from '../../common/audit-log.service';
+import { AuditLog } from '../../common/audit-log.entity';
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -40,6 +42,7 @@ export class OAuth2TokenService {
     private configService: ConfigService,
     private structuredLogger: StructuredLogger,
     private idTokenService: IdTokenService,
+    private auditLogService: AuditLogService,
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
   ) {}
@@ -98,6 +101,27 @@ export class OAuth2TokenService {
       });
 
       await manager.save(Token, token);
+
+      // 감사 로그 기록
+      if (user) {
+        try {
+          await this.auditLogService.create(
+            AuditLog.createTokenIssuedEvent(
+              user.id,
+              client.id,
+              scopes,
+              undefined, // IP 주소는 추후 request context에서 가져올 수 있음
+            ),
+          );
+        } catch (error) {
+          // 감사 로그 기록 실패해도 토큰 발급은 계속 진행
+          this.structuredLogger.logError(error as Error, 'OAuth2TokenService', {
+            operation: 'createAuditLog',
+            userId: user.id,
+            clientId: client.id,
+          });
+        }
+      }
 
       // Regenerate access token with jti for revocation capability
       const finalAccessToken = this.generateAccessTokenWithJti(

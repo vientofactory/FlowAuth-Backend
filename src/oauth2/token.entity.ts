@@ -73,7 +73,7 @@ export class Token {
   @JoinColumn()
   user?: User;
 
-  @ManyToOne(() => Client, { nullable: true })
+  @ManyToOne(() => Client, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn()
   client?: Client;
 

@@ -246,13 +246,7 @@ export class ClientAuthService {
       }
     }
 
-    // Delete related authorization codes
-    await this.authorizationCodeRepository.delete({ client: { id } });
-
-    // Delete related tokens
-    await this.tokenRepository.delete({ client: { id } });
-
-    // Delete the client
+    // Delete the client (related tokens and authorization codes will be deleted automatically due to CASCADE DELETE)
     await this.clientRepository.remove(client);
   }
 }

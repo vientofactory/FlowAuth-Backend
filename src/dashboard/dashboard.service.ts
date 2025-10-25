@@ -16,6 +16,10 @@ import {
   RevokeConnectionResponseDto,
 } from './dto/connected-apps.dto';
 import { CacheManagerService } from './cache-manager.service';
+import { AuditLogService } from '../common/audit-log.service';
+import { AuditEventType } from '../common/audit-log.entity';
+import { TokenAnalyticsService } from './token-analytics.service';
+import { SecurityMetricsService } from './security-metrics.service';
 import { DASHBOARD_CONFIG, CACHE_KEYS } from './dashboard.constants';
 
 @Injectable()
@@ -32,6 +36,9 @@ export class DashboardService {
     private dashboardStatsService: DashboardStatsService,
     private dashboardAnalyticsService: DashboardAnalyticsService,
     private cacheManagerService: CacheManagerService,
+    private auditLogService: AuditLogService,
+    private tokenAnalyticsService: TokenAnalyticsService,
+    private securityMetricsService: SecurityMetricsService,
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
   ) {}
@@ -152,6 +159,127 @@ export class DashboardService {
         return cached;
       }
 
+      // 감사 로그에서 실제 활동 데이터 조회
+      const [auditLogs] = await this.auditLogService.getUserAuditLogs(userId, {
+        limit,
+        eventTypes: [
+          AuditEventType.USER_LOGIN,
+          AuditEventType.TOKEN_ISSUED,
+          AuditEventType.TOKEN_REVOKED,
+          AuditEventType.CLIENT_CREATED,
+          AuditEventType.CLIENT_UPDATED,
+        ],
+      });
+
+      // 감사 로그를 RecentActivityDto 형식으로 변환
+      const activities: RecentActivityDto[] = auditLogs.map((log) => ({
+        id: log.id,
+        type: this.mapAuditEventTypeToActivityType(log.eventType),
+        description: log.description,
+        createdAt: log.createdAt,
+        resourceId: log.resourceId ?? undefined,
+        metadata: {
+          ...log.metadata,
+          ipAddress: log.ipAddress,
+          userAgent: log.userAgent,
+          severity: log.severity,
+        },
+      }));
+
+      // 기존 로직과의 호환성을 위해 기본 활동들도 추가 (감사 로그에 없는 경우)
+      if (activities.length < limit) {
+        await this.addLegacyActivities(
+          userId,
+          activities,
+          limit - activities.length,
+        );
+      }
+
+      // 시간순으로 정렬 (최신순)
+      activities.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+      // 제한된 개수만큼 반환
+      const result = activities.slice(0, limit);
+
+      // 결과를 캐시에 저장 (2분 TTL)
+      await this.cacheManager.set(cacheKey, result, 120000);
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to get recent activities:', error);
+      // 에러 발생 시 레거시 방식으로 폴백
+      return this.getRecentActivitiesLegacy(userId, limit);
+    }
+  }
+
+  /**
+   * 감사 로그 이벤트 타입을 활동 타입으로 매핑
+   */
+  private mapAuditEventTypeToActivityType(
+    eventType: AuditEventType,
+  ): RecentActivityDto['type'] {
+    switch (eventType) {
+      case AuditEventType.USER_LOGIN:
+        return 'login';
+      case AuditEventType.TOKEN_ISSUED:
+        return 'token_created';
+      case AuditEventType.TOKEN_REVOKED:
+        return 'token_revoked';
+      case AuditEventType.CLIENT_CREATED:
+        return 'client_created';
+      case AuditEventType.CLIENT_UPDATED:
+        return 'client_updated';
+      default:
+        return 'login'; // 기본값으로 login 반환
+    }
+  }
+
+  /**
+   * 감사 로그가 부족할 경우 레거시 활동 추가
+   */
+  private async addLegacyActivities(
+    userId: number,
+    activities: RecentActivityDto[],
+    remainingCount: number,
+  ): Promise<void> {
+    const existingIds = new Set(activities.map((a) => a.id));
+
+    // 계정 생성 활동 추가 (없는 경우)
+    const accountUser = await this.userRepository.findOne({
+      where: { id: userId },
+      select: ['createdAt'],
+    });
+
+    if (
+      accountUser?.createdAt &&
+      !activities.some((a) => a.type === 'account_created')
+    ) {
+      const newId = Math.max(...existingIds, 0) + 1;
+      activities.push({
+        id: newId,
+        type: 'account_created',
+        description: '계정 생성됨',
+        createdAt: accountUser.createdAt,
+        metadata: {
+          userId,
+          activity: '새로운 사용자 계정이 생성되었습니다.',
+          details: {
+            createdAt: accountUser.createdAt,
+          },
+        },
+      });
+      existingIds.add(newId);
+      if (activities.length >= remainingCount) return;
+    }
+  }
+
+  /**
+   * 레거시 방식으로 활동 조회 (폴백용)
+   */
+  private async getRecentActivitiesLegacy(
+    userId: number,
+    limit: number = 10,
+  ): Promise<RecentActivityDto[]> {
+    try {
       const activities: RecentActivityDto[] = [];
       let activityCounter = 1;
 
@@ -175,7 +303,7 @@ export class DashboardService {
         });
       }
 
-      // 1.5. 계정 생성 활동 (한 번만 표시)
+      // 1.5. 계정 생성 활동
       const accountUser = await this.userRepository.findOne({
         where: { id: userId },
         select: ['createdAt'],
@@ -210,7 +338,7 @@ export class DashboardService {
           'description',
         ],
         order: { updatedAt: 'DESC' },
-        take: 5,
+        take: 3,
       });
 
       recentClients.forEach((client) => {
@@ -269,7 +397,7 @@ export class DashboardService {
           'expiresAt',
         ],
         order: { createdAt: 'DESC' },
-        take: 5,
+        take: 3,
       });
 
       recentTokens.forEach((token) => {
@@ -298,7 +426,7 @@ export class DashboardService {
             id: activityCounter++,
             type: 'token_revoked',
             description: `"${token.client?.name ?? '웹 애플리케이션'}" 토큰 취소됨`,
-            createdAt: token.revokedAt ?? new Date(), // 취소 시간이 없으면 현재 시간 사용
+            createdAt: token.revokedAt ?? new Date(),
             resourceId: token.id,
             metadata: {
               clientName: token.client?.name,
@@ -318,14 +446,9 @@ export class DashboardService {
       activities.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
       // 제한된 개수만큼 반환
-      const result = activities.slice(0, limit);
-
-      // 결과를 캐시에 저장 (2분 TTL)
-      await this.cacheManager.set(cacheKey, result, 120000);
-      return result;
+      return activities.slice(0, limit);
     } catch (error) {
-      this.logger.error('Failed to get recent activities:', error);
-      // 에러 발생 시 빈 배열 반환
+      this.logger.error('Failed to get recent activities (legacy):', error);
       return [];
     }
   }
@@ -422,5 +545,72 @@ export class DashboardService {
       revokedTokensCount: result.affected ?? 0,
       message: '연결이 성공적으로 해제되었습니다.',
     };
+  }
+
+  /**
+   * 토큰 분석 메트릭스 조회
+   */
+  async getTokenAnalytics(userId: number, days: number = 30) {
+    return {
+      usagePatterns: await this.tokenAnalyticsService.getTokenUsagePatterns(
+        userId,
+        days,
+      ),
+      clientPerformance:
+        await this.tokenAnalyticsService.getClientPerformanceMetrics(userId),
+      userActivity:
+        await this.tokenAnalyticsService.getUserActivityMetrics(userId),
+      systemHealth:
+        await this.tokenAnalyticsService.getSystemHealthMetrics(userId),
+    };
+  }
+
+  /**
+   * 보안 메트릭스 조회
+   */
+  async getSecurityMetrics(userId: number, days: number = 30) {
+    return {
+      metrics: await this.securityMetricsService.getSecurityMetrics(
+        userId,
+        days,
+      ),
+      trends: await this.securityMetricsService.getSecurityTrends(userId, days),
+    };
+  }
+
+  /**
+   * 고급 통계 대시보드 조회
+   */
+  async getAdvancedDashboardStats(userId: number, days: number = 30) {
+    const cacheKey = CACHE_KEYS.advancedStats(userId, days);
+
+    try {
+      // 캐시에서 먼저 조회
+      const cached = await this.cacheManager.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // 병렬로 데이터 조회
+      const [tokenAnalytics, securityMetrics] = await Promise.all([
+        this.getTokenAnalytics(userId, days),
+        this.getSecurityMetrics(userId, days),
+      ]);
+
+      const result = {
+        tokenAnalytics,
+        securityMetrics,
+        generatedAt: new Date(),
+        period: `${days} days`,
+      };
+
+      // 캐시에 저장 (10분)
+      await this.cacheManager.set(cacheKey, result, 10 * 60 * 1000);
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error getting advanced dashboard stats:', error);
+      throw error;
+    }
   }
 }

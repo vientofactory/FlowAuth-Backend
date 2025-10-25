@@ -155,4 +155,119 @@ export class DashboardController {
       parseInt(clientId, 10),
     );
   }
+
+  @Get('analytics/token')
+  @RequirePermissions(PERMISSIONS.READ_DASHBOARD)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '토큰 분석 메트릭스',
+    description: `
+사용자의 토큰 사용 패턴과 성능 메트릭스를 조회합니다.
+
+**포함 정보:**
+- 시간별/요일별 토큰 사용 패턴
+- 클라이언트별 성능 메트릭스
+- 사용자 활동 메트릭스
+- 시스템 건강 상태
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '토큰 분석 메트릭스 조회 성공',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    type: Number,
+    description: '분석 기간 (일) - 기본값: 30',
+  })
+  async getTokenAnalytics(
+    @Request() req: AuthenticatedRequest,
+    @Query('days') days?: string,
+  ) {
+    const daysNum = days ? parseInt(days, 10) : 30;
+    return this.dashboardService.getTokenAnalytics(req.user.id, daysNum);
+  }
+
+  @Get('analytics/security')
+  @RequirePermissions(PERMISSIONS.READ_DASHBOARD)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '보안 메트릭스',
+    description: `
+보안 관련 메트릭스와 트렌드를 조회합니다.
+
+**포함 정보:**
+- 보안 알림 통계
+- 위험 사용자/클라이언트 분석
+- 보안 점수 및 위협 수준
+- 시간별 보안 트렌드
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '보안 메트릭스 조회 성공',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    type: Number,
+    description: '분석 기간 (일) - 기본값: 30',
+  })
+  async getSecurityMetrics(
+    @Request() req: AuthenticatedRequest,
+    @Query('days') days?: string,
+  ) {
+    const daysNum = days ? parseInt(days, 10) : 30;
+    return this.dashboardService.getSecurityMetrics(req.user.id, daysNum);
+  }
+
+  @Get('analytics/advanced')
+  @RequirePermissions(PERMISSIONS.READ_DASHBOARD)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: '고급 통계 대시보드',
+    description: `
+토큰 분석과 보안 메트릭스를 통합한 고급 통계 정보를 조회합니다.
+
+**포함 정보:**
+- 토큰 사용 패턴 분석
+- 클라이언트 성능 메트릭스
+- 보안 알림 및 트렌드
+- 시스템 건강 상태
+- 위험 분석
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: '고급 통계 대시보드 조회 성공',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    type: Number,
+    description: '분석 기간 (일) - 기본값: 30',
+  })
+  async getAdvancedDashboardStats(
+    @Request() req: AuthenticatedRequest,
+    @Query('days') days?: string,
+  ) {
+    const daysNum = days ? parseInt(days, 10) : 30;
+    return this.dashboardService.getAdvancedDashboardStats(
+      req.user.id,
+      daysNum,
+    );
+  }
 }
