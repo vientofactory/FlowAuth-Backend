@@ -210,7 +210,37 @@ CREATE TABLE `scope` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-> **참고**: 위 SQL 쿼리문들은 TypeORM 마이그레이션에서 자동으로 생성되는 것과 동일합니다. 수동으로 테이블을 생성할 때만 사용하세요.
+#### 6. 감사 로그 테이블 (AuditLog)
+
+```sql
+CREATE TABLE `audit_log` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `eventType` varchar(50) NOT NULL,
+  `severity` varchar(20) NOT NULL DEFAULT 'low',
+  `description` text NOT NULL,
+  `metadata` json DEFAULT NULL,
+  `ipAddress` varchar(45) DEFAULT NULL,
+  `userAgent` varchar(500) DEFAULT NULL,
+  `httpMethod` varchar(10) DEFAULT NULL,
+  `endpoint` varchar(500) DEFAULT NULL,
+  `responseStatus` int DEFAULT NULL,
+  `userId` int DEFAULT NULL,
+  `clientId` int DEFAULT NULL,
+  `resourceId` int DEFAULT NULL,
+  `resourceType` varchar(100) DEFAULT NULL,
+  `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  KEY `IDX_audit_log_user_created` (`userId`, `createdAt`),
+  KEY `IDX_audit_log_client_created` (`clientId`, `createdAt`),
+  KEY `IDX_audit_log_event_created` (`eventType`, `createdAt`),
+  KEY `IDX_audit_log_severity_created` (`severity`, `createdAt`),
+  KEY `IDX_audit_log_ip` (`ipAddress`),
+  KEY `FK_audit_log_user` (`userId`),
+  KEY `FK_audit_log_client` (`clientId`),
+  CONSTRAINT `FK_audit_log_user` FOREIGN KEY (`userId`) REFERENCES `user` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `FK_audit_log_client` FOREIGN KEY (`clientId`) REFERENCES `client` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
 
 ### 4. 개발 서버 실행
 
