@@ -128,7 +128,7 @@ export class AuthorizationCodeService {
     const result = await this.authCodeRepository.delete({
       expiresAt: LessThan(now),
     });
-    return result.affected || 0;
+    return result.affected ?? 0;
   }
 
   private generateCode(): string {
