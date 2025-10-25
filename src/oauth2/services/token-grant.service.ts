@@ -185,7 +185,6 @@ export class TokenGrantService {
       expires_in: tokenResult.expiresIn,
       refresh_token: tokenResult.refreshToken,
       scope: (authCode.scopes ?? []).join(' '),
-      id_token: tokenResult.idToken,
     };
   }
 
