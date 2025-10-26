@@ -1,7 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, MoreThan } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { AuditLog, AuditEventType, AuditSeverity } from './audit-log.entity';
+import { CACHE_KEYS } from '../constants/cache.constants';
 
 @Injectable()
 export class AuditLogService {
@@ -10,6 +13,8 @@ export class AuditLogService {
   constructor(
     @InjectRepository(AuditLog)
     private auditLogRepository: Repository<AuditLog>,
+    @Inject(CACHE_MANAGER)
+    private cacheManager: Cache,
   ) {}
 
   /**
@@ -18,7 +23,29 @@ export class AuditLogService {
   async create(auditLogData: Partial<AuditLog>): Promise<AuditLog> {
     try {
       const auditLog = this.auditLogRepository.create(auditLogData);
-      return await this.auditLogRepository.save(auditLog);
+      const savedAuditLog = await this.auditLogRepository.save(auditLog);
+
+      // 감사 로그 기록 시 관련 캐시 무효화 (사용자 활동 캐시)
+      if (savedAuditLog.userId) {
+        try {
+          const commonLimits = [10, 20, 50];
+          for (const limit of commonLimits) {
+            const cacheKey = CACHE_KEYS.dashboard.activities(
+              savedAuditLog.userId,
+              limit,
+            );
+            await this.cacheManager.del(cacheKey);
+          }
+        } catch (cacheError) {
+          // 캐시 무효화 실패는 로그만 기록하고 감사 로그 생성은 계속 진행
+          this.logger.warn(
+            'Failed to invalidate activity cache after audit log creation:',
+            cacheError,
+          );
+        }
+      }
+
+      return savedAuditLog;
     } catch (error) {
       this.logger.error('Failed to create audit log:', error);
       throw error;
@@ -68,6 +95,48 @@ export class AuditLogService {
         severity,
       });
     }
+
+    if (startDate && endDate) {
+      queryBuilder.andWhere('audit.createdAt BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      });
+    } else if (startDate) {
+      queryBuilder.andWhere('audit.createdAt >= :startDate', { startDate });
+    } else if (endDate) {
+      queryBuilder.andWhere('audit.createdAt <= :endDate', { endDate });
+    }
+
+    return await queryBuilder.getManyAndCount();
+  }
+
+  /**
+   * 사용자별 실패한 인증 시도 조회 (metadata.username으로 필터링)
+   */
+  async getFailedAuthAttemptsByUsername(
+    username: string,
+    options: {
+      limit?: number;
+      offset?: number;
+      startDate?: Date;
+      endDate?: Date;
+    } = {},
+  ): Promise<[AuditLog[], number]> {
+    const { limit = 50, offset = 0, startDate, endDate } = options;
+
+    const queryBuilder = this.auditLogRepository
+      .createQueryBuilder('audit')
+      .leftJoinAndSelect('audit.user', 'user')
+      .leftJoinAndSelect('audit.client', 'client')
+      .where('audit.eventType = :eventType', {
+        eventType: AuditEventType.FAILED_AUTH_ATTEMPT,
+      })
+      .andWhere("JSON_EXTRACT(audit.metadata, '$.username') = :username", {
+        username,
+      })
+      .orderBy('audit.createdAt', 'DESC')
+      .limit(limit)
+      .offset(offset);
 
     if (startDate && endDate) {
       queryBuilder.andWhere('audit.createdAt BETWEEN :startDate AND :endDate', {

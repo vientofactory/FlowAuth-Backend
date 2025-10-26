@@ -5,9 +5,10 @@ import {
   BadRequestException,
   Logger,
   Inject,
+  InternalServerErrorException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { User } from '../user.entity';
@@ -24,6 +25,12 @@ import {
   validateWebUrl,
 } from '../../utils/url-security.util';
 import { FileUploadService } from '../../upload/file-upload.service';
+import { AuditLogService } from '../../common/audit-log.service';
+import {
+  AuditEventType,
+  AuditSeverity,
+  RESOURCE_TYPES,
+} from '../../common/audit-log.entity';
 
 @Injectable()
 export class ClientAuthService {
@@ -34,13 +41,12 @@ export class ClientAuthService {
     private userRepository: Repository<User>,
     @InjectRepository(Client)
     private clientRepository: Repository<Client>,
-    @InjectRepository(Token)
-    private tokenRepository: Repository<Token>,
-    @InjectRepository(AuthorizationCode)
-    private authorizationCodeRepository: Repository<AuthorizationCode>,
+    @InjectDataSource()
+    private dataSource: DataSource,
     private fileUploadService: FileUploadService,
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
+    private auditLogService: AuditLogService,
   ) {}
 
   async createClient(
@@ -56,7 +62,7 @@ export class ClientAuthService {
       throw new NotFoundException('User not found');
     }
 
-    // Check if user has permission to create clients (ADMIN 우회 포함)
+    // Check if user has permission to create clients
     if (
       !PermissionUtils.isAdmin(user.permissions) &&
       !PermissionUtils.hasPermission(user.permissions, PERMISSIONS.WRITE_CLIENT)
@@ -120,7 +126,37 @@ export class ClientAuthService {
       user,
     });
 
-    return this.clientRepository.save(client);
+    const savedClient = await this.clientRepository.save(client);
+
+    // Record audit log for client creation
+    try {
+      await this.auditLogService.create({
+        eventType: AuditEventType.CLIENT_CREATED,
+        severity: AuditSeverity.MEDIUM,
+        description: `OAuth2 클라이언트 "${name}"가 생성되었습니다.`,
+        userId,
+        clientId: savedClient.id,
+        resourceId: savedClient.id,
+        resourceType: RESOURCE_TYPES.CLIENT,
+        metadata: {
+          clientName: name,
+          clientId: savedClient.clientId,
+          redirectUris: redirectUris.length,
+          grants: grants.join(', '),
+          scopes: clientScopes.join(', '),
+          hasLogo: !!logoUri,
+          hasTerms: !!termsOfServiceUri,
+          hasPolicy: !!policyUri,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        'Failed to create audit log for client creation:',
+        error,
+      );
+    }
+
+    return savedClient;
   }
 
   async getClients(userId: number): Promise<Client[]> {
@@ -159,7 +195,33 @@ export class ClientAuthService {
     client.clientSecret = newClientSecret;
     client.updatedAt = new Date();
 
-    return this.clientRepository.save(client);
+    const updatedClient = await this.clientRepository.save(client);
+
+    // Record audit log for client secret reset
+    try {
+      await this.auditLogService.create({
+        eventType: AuditEventType.CLIENT_UPDATED,
+        severity: AuditSeverity.HIGH,
+        description: `OAuth2 클라이언트 "${client.name}"의 시크릿이 재설정되었습니다.`,
+        userId,
+        clientId: id,
+        resourceId: id,
+        resourceType: RESOURCE_TYPES.CLIENT,
+        metadata: {
+          clientName: client.name,
+          clientId: client.clientId,
+          action: 'SECRET_RESET',
+          previousSecretLast4: client.clientSecret?.slice(-4),
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        'Failed to create audit log for client secret reset:',
+        error,
+      );
+    }
+
+    return updatedClient;
   }
 
   async removeClientLogo(id: number, userId: number): Promise<Client> {
@@ -191,62 +253,135 @@ export class ClientAuthService {
   }
 
   async deleteClient(id: number, requestUserId: number): Promise<void> {
-    const client = await this.clientRepository.findOne({
-      where: { id },
-      relations: ['user'],
-    });
+    return this.dataSource.transaction(async (manager) => {
+      const client = await manager.findOne(Client, {
+        where: { id },
+        relations: ['user'],
+      });
 
-    if (!client) {
-      throw new NotFoundException('Client not found');
-    }
+      if (!client) {
+        throw new NotFoundException('Client not found');
+      }
 
-    // Get requesting user information
-    const requestUser = await this.userRepository.findOne({
-      where: { id: requestUserId },
-      select: ['id', 'permissions'],
-    });
+      // Get requesting user information
+      const requestUser = await manager.findOne(User, {
+        where: { id: requestUserId },
+        select: ['id', 'permissions'],
+      });
 
-    if (!requestUser) {
-      throw new NotFoundException('User not found');
-    }
+      if (!requestUser) {
+        throw new NotFoundException('User not found');
+      }
 
-    // Permission validation: ADMIN or DELETE_CLIENT permission allows deleting any client
-    const hasDeletePermission =
-      PermissionUtils.isAdmin(requestUser.permissions) ||
-      PermissionUtils.hasPermission(
-        requestUser.permissions,
-        PERMISSIONS.DELETE_CLIENT,
-      );
+      // Permission validation: ADMIN or DELETE_CLIENT permission allows deleting any client
+      const hasDeletePermission =
+        PermissionUtils.isAdmin(requestUser.permissions) ||
+        PermissionUtils.hasPermission(
+          requestUser.permissions,
+          PERMISSIONS.DELETE_CLIENT,
+        );
 
-    // Can also delete own client if has WRITE_CLIENT permission
-    const canDeleteOwnClient =
-      client.userId === requestUserId &&
-      PermissionUtils.hasPermission(
-        requestUser.permissions,
-        PERMISSIONS.WRITE_CLIENT,
-      );
+      // Can also delete own client if has WRITE_CLIENT permission
+      const canDeleteOwnClient =
+        client.userId === requestUserId &&
+        PermissionUtils.hasPermission(
+          requestUser.permissions,
+          PERMISSIONS.WRITE_CLIENT,
+        );
 
-    if (!hasDeletePermission && !canDeleteOwnClient) {
-      throw new ForbiddenException(
-        client.userId === requestUserId
-          ? 'Insufficient permissions to delete your own client'
-          : "Cannot delete other users' clients",
-      );
-    }
-
-    // Remove logo file if exists
-    if (client.logoUri) {
-      try {
-        this.fileUploadService.deleteFile(client.logoUri);
-      } catch (error) {
-        this.logger.warn(
-          `Failed to delete logo file: ${client.logoUri}`,
-          error,
+      if (!hasDeletePermission && !canDeleteOwnClient) {
+        throw new ForbiddenException(
+          client.userId === requestUserId
+            ? 'Insufficient permissions to delete your own client'
+            : "Cannot delete other users' clients",
         );
       }
-    }
 
-    // Delete the client (related tokens and authorization codes will be deleted automatically due to CASCADE DELETE)
-    await this.clientRepository.remove(client);
+      // Count related tokens and authorization codes before deletion
+      const tokenCount = await manager.count(Token, {
+        where: { client: { id } },
+      });
+
+      const authCodeCount = await manager.count(AuthorizationCode, {
+        where: { client: { id } },
+      });
+
+      this.logger.log(
+        `Deleting client ${client.name} (ID: ${id}) with ${tokenCount} tokens and ${authCodeCount} authorization codes`,
+      );
+
+      // Remove logo file if exists
+      if (client.logoUri) {
+        try {
+          this.fileUploadService.deleteFile(client.logoUri);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to delete logo file: ${client.logoUri}`,
+            error,
+          );
+        }
+      }
+
+      try {
+        // Delete the client
+        await manager.remove(Client, client);
+
+        // Log successful deletion
+        this.logger.log(
+          `Successfully deleted client ${client.name} (ID: ${id}) and ${tokenCount} related tokens and ${authCodeCount} authorization codes`,
+        );
+
+        // Record audit log for client deletion
+        try {
+          await this.auditLogService.create({
+            eventType: AuditEventType.CLIENT_DELETED,
+            severity: AuditSeverity.HIGH,
+            description: `OAuth2 클라이언트 "${client.name}"가 삭제되었습니다. ${tokenCount}개의 토큰과 ${authCodeCount}개의 인증 코드가 함께 삭제되었습니다.`,
+            userId: requestUserId,
+            clientId: id,
+            resourceId: id,
+            resourceType: RESOURCE_TYPES.CLIENT,
+            metadata: {
+              clientName: client.name,
+              clientId: client.clientId,
+              deletedTokensCount: tokenCount,
+              deletedAuthCodesCount: authCodeCount,
+              requestedByUserId: requestUserId,
+              isAdminDeletion: hasDeletePermission && !canDeleteOwnClient,
+            },
+          });
+        } catch (error) {
+          this.logger.warn(
+            'Failed to create audit log for client deletion:',
+            error,
+          );
+        }
+
+        // Invalidate related caches
+        try {
+          // Clear general cache patterns for this client
+          const clientCacheKeys = [
+            `client:${id}`,
+            `client:${id}:*`,
+            `user:${client.userId}:clients`,
+          ];
+
+          for (const pattern of clientCacheKeys) {
+            // Note: Basic cache manager doesn't support patterns, so we clear what we can
+            await this.cacheManager.del(pattern);
+          }
+        } catch (error) {
+          this.logger.warn(
+            'Failed to invalidate caches after client deletion',
+            error,
+          );
+        }
+      } catch (error) {
+        this.logger.error(`Failed to delete client ${id}:`, error);
+        throw new InternalServerErrorException(
+          'Failed to delete client due to database constraint or related data issues',
+        );
+      }
+    });
   }
 }

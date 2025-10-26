@@ -21,7 +21,7 @@ interface OAuth2AuthenticatedRequest extends Request {
 }
 
 @Controller('oauth2')
-@ApiTags('OAuth2 User Info')
+@ApiTags('OAuth2 Flow')
 export class UserInfoController {
   constructor(
     private readonly oauth2Service: OAuth2Service,

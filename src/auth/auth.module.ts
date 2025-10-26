@@ -23,6 +23,7 @@ import { ClientAuthService } from './services/client-auth.service';
 import { TwoFactorAuthService } from './services/two-factor-auth.service';
 import { ValidationService } from './services/validation.service';
 import { UploadModule } from '../upload/upload.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { UploadModule } from '../upload/upload.module';
     LoggingModule,
     UtilsModule,
     UploadModule,
+    CommonModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
         secret:

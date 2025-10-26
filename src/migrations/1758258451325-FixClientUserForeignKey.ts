@@ -71,13 +71,8 @@ export class FixClientUserForeignKey1758258451325
         await queryRunner.query(`
           ALTER TABLE client DROP INDEX \`${index.INDEX_NAME}\`
         `);
-      } catch (error) {
+      } catch {
         // Ignore errors if index doesn't exist or is needed by other constraints
-        console.log(
-          'Could not drop index %s:',
-          index.INDEX_NAME,
-          String(error),
-        );
       }
     }
   }

@@ -28,7 +28,7 @@ import { validateOAuth2RedirectUri } from '../../utils/url-security.util';
 
 @Controller('oauth2')
 @UseGuards(AdvancedRateLimitGuard)
-@ApiTags('OAuth2 Authorization')
+@ApiTags('OAuth2 Flow')
 export class AuthorizationController {
   constructor(
     private readonly oauth2Service: OAuth2Service,

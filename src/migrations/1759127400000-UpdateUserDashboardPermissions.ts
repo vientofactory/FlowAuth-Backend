@@ -24,8 +24,6 @@ export class UpdateUserDashboardPermissions1759127400000
       SET \`permissions\` = \`permissions\` | 22528
       WHERE \`userType\` = 'developer' AND \`permissions\` & 2048 = 0
     `);
-
-    console.log('Updated user permissions to include dashboard access');
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
@@ -36,7 +34,5 @@ export class UpdateUserDashboardPermissions1759127400000
       SET \`permissions\` = \`permissions\` & ~22528
       WHERE \`permissions\` & 22528 != 0
     `);
-
-    console.log('Removed dashboard permissions from users');
   }
 }

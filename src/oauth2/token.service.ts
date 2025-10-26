@@ -85,7 +85,7 @@ export class TokenService {
     try {
       // Check cache first for performance
       const cachedToken = await this.cacheManager.get<OAuth2JwtPayload>(
-        `token:${accessToken}`,
+        CACHE_KEYS.oauth2.token(accessToken),
       );
       if (cachedToken) {
         return cachedToken;
@@ -101,6 +101,11 @@ export class TokenService {
       });
 
       if (!token) {
+        return null;
+      }
+
+      // Check if token is revoked
+      if (token.isRevoked) {
         return null;
       }
 

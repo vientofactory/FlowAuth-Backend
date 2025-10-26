@@ -86,6 +86,7 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
     OAuth2Service,
     TokenService,
     TokenIntrospectionService,
+    TokenRevocationService,
     OAuth2BearerGuard,
     OAuth2ScopeGuard,
   ],

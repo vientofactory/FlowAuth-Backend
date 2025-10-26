@@ -381,7 +381,7 @@ export class SecurityMetricsService {
           const lastToken = await this.tokenRepository.findOne({
             where: { client: { id: client.id } },
             order: { createdAt: 'DESC' },
-            select: ['createdAt'],
+            select: ['id', 'createdAt'],
           });
 
           riskyClients.push({

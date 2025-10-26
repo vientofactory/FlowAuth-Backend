@@ -29,7 +29,7 @@ interface JWK {
   y?: string; // Y Coordinate
 }
 
-@ApiTags('OpenID Connect JWKS')
+@ApiTags('OpenID Connect')
 @Controller('.well-known')
 export class JwksController {
   private readonly logger = new Logger(JwksController.name);

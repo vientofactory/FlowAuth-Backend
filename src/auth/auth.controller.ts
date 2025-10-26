@@ -44,6 +44,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ValidationService } from './services/validation.service';
 import { validateOAuth2RedirectUri } from '../utils/url-security.util';
+import { RequestInfoUtils } from '../utils/request-info.util';
 import {
   AdvancedRateLimitGuard,
   RateLimit,
@@ -149,8 +150,12 @@ export class AuthController {
     @Body(RecaptchaFieldSizeLimitPipe)
     loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
+    @Request() req: ExpressRequest,
   ): Promise<LoginResponseDto> {
-    const result = await this.authService.login(loginDto);
+    // Extract client information
+    const clientInfo = RequestInfoUtils.getClientInfo(req);
+
+    const result = await this.authService.login(loginDto, clientInfo);
 
     res.cookie('token', result.accessToken, {
       httpOnly: true,
@@ -190,7 +195,7 @@ export class AuthController {
   ): Promise<LoginResponseDto> {
     const { email, token } = body;
 
-    // 입력 검증 강화
+    // Enhanced input validation
     if (!email || typeof email !== 'string') {
       throw new BadRequestException('이메일이 필요합니다.');
     }
@@ -198,10 +203,10 @@ export class AuthController {
       throw new BadRequestException('2FA 토큰이 필요합니다.');
     }
 
-    // 이메일 형식 검증
+    // Email format validation
     ValidationService.validateEmail(email.trim());
 
-    // 2FA 토큰 형식 검증
+    // 2FA token format validation
     ValidationService.validateTwoFactorToken(token.trim());
 
     const result = await this.authService.verifyTwoFactorToken(
@@ -294,7 +299,7 @@ export class AuthController {
   ): Promise<LoginResponseDto> {
     const { email, backupCode } = body;
 
-    // 입력 검증 강화
+    // Enhanced input validation
     if (!email || typeof email !== 'string') {
       throw new BadRequestException('이메일이 필요합니다.');
     }
@@ -302,10 +307,10 @@ export class AuthController {
       throw new BadRequestException('백업 코드가 필요합니다.');
     }
 
-    // 이메일 형식 검증
+    // Email format validation
     ValidationService.validateEmail(email.trim());
 
-    // 백업 코드 형식 검증
+    // Backup code format validation
     ValidationService.validateBackupCode(backupCode.trim());
 
     const result = await this.authService.verifyBackupCode(
@@ -327,7 +332,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.WRITE_CLIENT)
   @ApiBearerAuth()
-  @ApiTags('Client Management')
+  @ApiTags('OAuth2 Management')
   @ApiOperation({
     summary: 'OAuth2 클라이언트 생성',
     description: `
@@ -372,7 +377,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions(PERMISSIONS.READ_CLIENT)
   @ApiBearerAuth()
-  @ApiTags('Client Management')
+  @ApiTags('OAuth2 Management')
   @ApiOperation({
     summary: '사용자의 OAuth2 클라이언트 목록 조회',
     description: `
@@ -557,12 +562,12 @@ export class AuthController {
     @Body() updateData: Partial<CreateClientDto>,
     @Request() req: AuthenticatedRequest,
   ) {
-    // 요청 본문 검증 강화
+    // Enhanced request body validation
     if (!updateData || typeof updateData !== 'object') {
       throw new BadRequestException('업데이트 데이터가 필요합니다.');
     }
 
-    // redirectUris 검증
+    // Validate redirectUris
     if (updateData.redirectUris !== undefined) {
       for (const uri of updateData.redirectUris) {
         if (!validateOAuth2RedirectUri(uri)) {
@@ -571,12 +576,12 @@ export class AuthController {
       }
     }
 
-    // scopes 검증
+    // Validate scopes
     if (updateData.scopes !== undefined) {
       ValidationService.validateStringArray(updateData.scopes, 'scopes');
     }
 
-    // name 검증
+    // Validate name
     if (updateData.name !== undefined) {
       ValidationService.validateRequiredString(updateData.name, 'name');
     }
@@ -745,7 +750,7 @@ OAuth2 클라이언트를 삭제합니다.
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ) {
-    // 관리자 권한으로 모든 클라이언트 삭제 가능
+    // Admin can delete all clients
     await this.authService.deleteClient(
       ValidationService.validateIdParam(id),
       req.user.id,
@@ -785,7 +790,7 @@ OAuth2 클라이언트를 삭제합니다.
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ) {
-    // 일반 사용자는 자신의 클라이언트만 삭제 가능
+    // Regular users can only delete their own clients
     await this.authService.deleteClient(
       ValidationService.validateIdParam(id),
       req.user.id,
@@ -874,7 +879,7 @@ OAuth2 클라이언트를 삭제합니다.
     @Request() req: AuthenticatedRequest,
     @Param('tokenType') tokenType: string,
   ) {
-    // 토큰 타입 검증 강화
+    // Enhanced token type validation
     if (!tokenType || typeof tokenType !== 'string') {
       throw new BadRequestException('토큰 타입이 필요합니다.');
     }
@@ -884,7 +889,7 @@ OAuth2 클라이언트를 삭제합니다.
       throw new BadRequestException('토큰 타입이 비어있을 수 없습니다.');
     }
 
-    // 허용된 토큰 타입인지 검증
+    // Validate if token type is allowed
     if (!Object.values(TOKEN_TYPES).includes(trimmedTokenType as TokenType)) {
       throw new BadRequestException('잘못된 토큰 타입입니다.');
     }

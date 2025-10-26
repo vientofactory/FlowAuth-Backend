@@ -23,6 +23,8 @@ export class RecentActivityDto {
       'token_created',
       'client_updated',
       'token_revoked',
+      'client_deleted',
+      'login_failed',
     ],
   })
   type:
@@ -31,7 +33,9 @@ export class RecentActivityDto {
     | 'client_created'
     | 'token_created'
     | 'client_updated'
-    | 'token_revoked';
+    | 'token_revoked'
+    | 'client_deleted'
+    | 'login_failed';
 
   @ApiProperty({
     description: '활동 설명',

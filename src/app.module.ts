@@ -15,7 +15,6 @@ import { AppConfigService } from './config/app-config.service';
 import { UploadModule } from './upload/upload.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ProfileModule } from './profile/profile.module';
-import { SettingsModule } from './settings/settings.module';
 import { CommonModule } from './common/common.module';
 
 @Module({
@@ -42,7 +41,6 @@ import { CommonModule } from './common/common.module';
     UploadModule,
     DashboardModule,
     ProfileModule,
-    SettingsModule,
     CommonModule,
   ],
   controllers: [AppController],

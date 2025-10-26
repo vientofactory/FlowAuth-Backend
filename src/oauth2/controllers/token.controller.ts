@@ -28,7 +28,7 @@ import { UseGuards } from '@nestjs/common';
 
 @Controller('oauth2')
 @UseGuards(AdvancedRateLimitGuard)
-@ApiTags('OAuth2 Token')
+@ApiTags('OAuth2 Flow')
 export class TokenController {
   private readonly logger = new Logger(TokenController.name);
 

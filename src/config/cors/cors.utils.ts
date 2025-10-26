@@ -9,56 +9,8 @@ export class CorsUtils {
   /**
    * Test CORS configuration for different scenarios
    */
-  static testCorsConfiguration(config: CorsConfig) {
-    const testOrigins = [
-      'https://www.jwt.io',
-      'https://localhost:3000',
-      'http://localhost:5173',
-      'https://oauthdebugger.com',
-      'https://malicious-site.com',
-      undefined, // No origin
-    ];
-
-    const testPaths = [
-      '/.well-known/openid-configuration',
-      '/.well-known/jwks.json',
-      '/oauth2/authorize',
-      '/oauth2/token',
-      '/api/admin/users',
-      '/uploads/avatar.jpg',
-    ];
-
-    // Only log in development environment to reduce noise
-    if (process.env.NODE_ENV === 'development') {
-      console.log('CORS Configuration Test Results:');
-      console.log('================================');
-
-      testOrigins.forEach((origin) => {
-        console.log(`\nOrigin: ${origin || 'No Origin'}`);
-        console.log('-'.repeat(40));
-
-        testPaths.forEach((path) => {
-          const isPublic = CorsService.isPublicOAuthEndpoint(path);
-          const isAllowed = CorsService.isOriginAllowed(origin, config);
-
-          let result: string;
-          if (isPublic) {
-            result = '✅ ALLOWED (Public OAuth endpoint)';
-          } else if (isAllowed) {
-            result = '✅ ALLOWED (Trusted origin)';
-          } else if (!origin) {
-            result = '✅ ALLOWED (No origin)';
-          } else {
-            result = '❌ BLOCKED (Unauthorized origin)';
-          }
-
-          console.log(`${path}: ${result}`);
-        });
-      });
-
-      console.log('\n================================');
-      console.log('Test completed.');
-    }
+  static testCorsConfiguration() {
+    // CORS configuration testing disabled in production
   }
 
   /**

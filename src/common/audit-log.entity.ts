@@ -50,6 +50,17 @@ export enum AuditSeverity {
   CRITICAL = 'critical',
 }
 
+export const RESOURCE_TYPES = {
+  CLIENT: 'CLIENT',
+  USER: 'USER',
+  TOKEN: 'TOKEN',
+  AUTHORIZATION_CODE: 'AUTHORIZATION_CODE',
+  PERMISSION: 'PERMISSION',
+  SYSTEM: 'SYSTEM',
+} as const;
+
+export type ResourceType = (typeof RESOURCE_TYPES)[keyof typeof RESOURCE_TYPES];
+
 @Entity()
 @Index(['userId', 'createdAt'])
 @Index(['clientId', 'createdAt'])
@@ -117,23 +128,6 @@ export class AuditLog {
   @CreateDateColumn()
   createdAt: Date;
 
-  // 헬퍼 메서드들
-  static createLoginEvent(
-    userId: number,
-    ipAddress?: string,
-    userAgent?: string,
-  ): Partial<AuditLog> {
-    return {
-      eventType: AuditEventType.USER_LOGIN,
-      severity: AuditSeverity.LOW,
-      description: '사용자가 로그인했습니다.',
-      userId,
-      ipAddress,
-      userAgent,
-      metadata: { action: 'login' },
-    };
-  }
-
   static createTokenIssuedEvent(
     userId: number,
     clientId: number,
@@ -178,6 +172,142 @@ export class AuditLog {
       userId: userId ?? undefined,
       ipAddress,
       metadata: { activity, action: 'suspicious_activity' },
+    };
+  }
+
+  static createClientCreatedEvent(
+    userId: number,
+    clientId: number,
+    clientName: string,
+    clientClientId: string,
+    metadata: {
+      redirectUris: number;
+      grants: string[];
+      scopes: string[];
+      hasLogo?: boolean;
+      hasTerms?: boolean;
+      hasPolicy?: boolean;
+    },
+  ): Partial<AuditLog> {
+    return {
+      eventType: AuditEventType.CLIENT_CREATED,
+      severity: AuditSeverity.MEDIUM,
+      description: `OAuth2 클라이언트 "${clientName}"가 생성되었습니다.`,
+      userId,
+      clientId,
+      resourceId: clientId,
+      resourceType: RESOURCE_TYPES.CLIENT,
+      metadata: {
+        clientName,
+        clientId: clientClientId,
+        redirectUris: metadata.redirectUris,
+        grants: metadata.grants.join(', '),
+        scopes: metadata.scopes.join(', '),
+        hasLogo: metadata.hasLogo ?? false,
+        hasTerms: metadata.hasTerms ?? false,
+        hasPolicy: metadata.hasPolicy ?? false,
+      },
+    };
+  }
+
+  static createClientUpdatedEvent(
+    userId: number,
+    clientId: number,
+    clientName: string,
+    clientClientId: string,
+    action: string,
+    metadata?: Record<string, unknown>,
+  ): Partial<AuditLog> {
+    return {
+      eventType: AuditEventType.CLIENT_UPDATED,
+      severity: AuditSeverity.HIGH,
+      description: `OAuth2 클라이언트 "${clientName}"이(가) 업데이트되었습니다.`,
+      userId,
+      clientId,
+      resourceId: clientId,
+      resourceType: RESOURCE_TYPES.CLIENT,
+      metadata: {
+        clientName,
+        clientId: clientClientId,
+        action,
+        ...metadata,
+      },
+    };
+  }
+
+  static createClientDeletedEvent(
+    userId: number,
+    clientId: number,
+    clientName: string,
+    clientClientId: string,
+    deletedTokensCount: number,
+    deletedAuthCodesCount: number,
+    isAdminDeletion: boolean,
+  ): Partial<AuditLog> {
+    return {
+      eventType: AuditEventType.CLIENT_DELETED,
+      severity: AuditSeverity.HIGH,
+      description: `OAuth2 클라이언트 "${clientName}"가 삭제되었습니다. ${deletedTokensCount}개의 토큰과 ${deletedAuthCodesCount}개의 인증 코드가 함께 삭제되었습니다.`,
+      userId,
+      clientId,
+      resourceId: clientId,
+      resourceType: RESOURCE_TYPES.CLIENT,
+      metadata: {
+        clientName,
+        clientId: clientClientId,
+        deletedTokensCount,
+        deletedAuthCodesCount,
+        isAdminDeletion,
+      },
+    };
+  }
+
+  static createTokenRevokedEvent(
+    userId: number,
+    clientId: number | undefined,
+    tokenId: number,
+    clientName: string | undefined,
+    scopes: string[] | undefined,
+    reason: string,
+  ): Partial<AuditLog> {
+    return {
+      eventType: AuditEventType.TOKEN_REVOKED,
+      severity: AuditSeverity.MEDIUM,
+      description: `토큰이 취소되었습니다. 클라이언트: ${clientName ?? 'Unknown'}`,
+      userId,
+      clientId,
+      resourceId: tokenId,
+      resourceType: RESOURCE_TYPES.TOKEN,
+      metadata: {
+        tokenId,
+        clientName,
+        scopes,
+        reason,
+      },
+    };
+  }
+
+  static createConnectionRevokedEvent(
+    userId: number,
+    clientId: number,
+    clientName: string | undefined,
+    revokedTokensCount: number,
+    tokenIds: number[],
+  ): Partial<AuditLog> {
+    return {
+      eventType: AuditEventType.TOKEN_REVOKED,
+      severity: AuditSeverity.MEDIUM,
+      description: `Tokens revoked due to connection revocation. Client: ${clientName ?? 'Unknown'}`,
+      userId,
+      clientId,
+      resourceId: clientId,
+      resourceType: RESOURCE_TYPES.CLIENT,
+      metadata: {
+        revokedTokensCount,
+        clientName,
+        reason: 'user_revoked_connection',
+        tokenIds,
+      },
     };
   }
 }

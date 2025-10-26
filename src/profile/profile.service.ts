@@ -7,8 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
+import Redis from 'ioredis';
 import * as bcrypt from 'bcrypt';
 import { User } from '../auth/user.entity';
 import { UserManagementService } from '../auth/services/user-management.service';
@@ -21,8 +20,7 @@ export class ProfileService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    @Inject('REDIS_CLIENT') private readonly redisClient: Redis,
     private userManagementService: UserManagementService,
   ) {}
 
@@ -30,9 +28,9 @@ export class ProfileService {
     const cacheKey = CACHE_KEYS.profile.user(id);
 
     // 캐시에서 먼저 조회
-    const cached = await this.cacheManager.get<User>(cacheKey);
+    const cached = await this.redisClient.get(cacheKey);
     if (cached) {
-      return cached;
+      return JSON.parse(cached) as User;
     }
 
     // 캐시에 없으면 DB 조회
@@ -43,7 +41,11 @@ export class ProfileService {
     }
 
     // 결과를 캐시에 저장 (10분 TTL)
-    await this.cacheManager.set(cacheKey, user, CACHE_CONFIG.TTL.USER_PROFILE);
+    await this.redisClient.setex(
+      cacheKey,
+      CACHE_CONFIG.TTL.USER_PROFILE,
+      JSON.stringify(user),
+    );
     return user;
   }
 
@@ -233,7 +235,7 @@ export class ProfileService {
     await this.userRepository.update(userId, filteredData);
 
     // 캐시 무효화
-    await this.cacheManager.del(CACHE_KEYS.profile.user(userId));
+    await this.redisClient.del(CACHE_KEYS.profile.user(userId));
 
     // 업데이트된 사용자 정보 조회
     const updatedUser = await this.userRepository.findOne({
@@ -282,7 +284,7 @@ export class ProfileService {
     await this.userRepository.update(userId, { password: hashedNewPassword });
 
     // 캐시 무효화 (비밀번호 변경 시 사용자 정보 캐시도 무효화)
-    await this.cacheManager.del(CACHE_KEYS.profile.user(userId));
+    await this.redisClient.del(CACHE_KEYS.profile.user(userId));
   }
 
   async checkUsernameAvailability(

@@ -7,6 +7,7 @@ import { Token } from '../token.entity';
 import { AuditLogService } from '../../common/audit-log.service';
 import { AuditEventType, AuditSeverity } from '../../common/audit-log.entity';
 import { CACHE_KEYS } from '../../constants/cache.constants';
+import { AUDIT_LOG_RESOURCE_TYPES } from '../../constants/oauth2.constants';
 
 @Injectable()
 export class TokenRevocationService {
@@ -42,7 +43,7 @@ export class TokenRevocationService {
             userId: token.user.id,
             clientId: token.client?.id,
             resourceId: token.id,
-            resourceType: 'token',
+            resourceType: AUDIT_LOG_RESOURCE_TYPES.TOKEN,
             metadata: {
               tokenId: token.id,
               clientName: token.client?.name,
@@ -50,12 +51,8 @@ export class TokenRevocationService {
               reason: 'user_revoked',
             },
           });
-        } catch (error) {
+        } catch {
           // 감사 로그 기록 실패해도 토큰 취소는 계속 진행
-          console.error(
-            'Failed to create audit log for token revocation:',
-            error,
-          );
         }
       }
     }

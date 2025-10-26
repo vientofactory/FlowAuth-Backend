@@ -24,7 +24,7 @@ import { TokenUtils } from '../../utils/permission.util';
 import type { User } from '../../auth/user.entity';
 
 @Controller('oauth2')
-@ApiTags('OAuth2 Consent')
+@ApiTags('OAuth2 Flow')
 export class ConsentController {
   private readonly logger = new Logger(ConsentController.name);
 

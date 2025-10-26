@@ -17,11 +17,21 @@ import {
 } from './dto/connected-apps.dto';
 import { CacheManagerService } from './cache-manager.service';
 import { AuditLogService } from '../common/audit-log.service';
-import { AuditEventType } from '../common/audit-log.entity';
+import {
+  AuditEventType,
+  AuditSeverity,
+  AuditLog,
+} from '../common/audit-log.entity';
 import { TokenAnalyticsService } from './token-analytics.service';
 import { SecurityMetricsService } from './security-metrics.service';
 import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
 import { DASHBOARD_CONFIG } from './dashboard.constants';
+import {
+  TOKEN_REVOCATION_REASONS,
+  AUDIT_LOG_RESOURCE_TYPES,
+  ACTIVITY_TYPES,
+  TOKEN_REVOCATION_REASON_DESCRIPTIONS,
+} from '../constants/oauth2.constants';
 
 @Injectable()
 export class DashboardService {
@@ -48,14 +58,14 @@ export class DashboardService {
     const cacheKey = CACHE_KEYS.dashboard.stats(userId);
 
     try {
-      // 캐시에서 먼저 조회
+      // Use cache first
       const cached =
         await this.cacheManager.get<DashboardStatsResponseDto>(cacheKey);
       if (cached) {
         return cached;
       }
 
-      // 캐시에 없으면 DB 조회 - 통계 서비스 사용
+      // Use database to get stats
       const [
         totalClients,
         activeTokens,
@@ -85,11 +95,11 @@ export class DashboardService {
         select: ['createdAt', 'lastLoginAt'],
       });
 
-      // 토큰 만료율 계산
+      // Calculate token expiration rate
       const tokenExpirationRate =
         totalTokensIssued > 0 ? (expiredTokens / totalTokensIssued) * 100 : 0;
 
-      // 인사이트 분석 - 분석 서비스 사용
+      // Create insights using analytics service
       const insights = this.dashboardAnalyticsService.generateInsights({
         totalClients,
         activeTokens,
@@ -118,7 +128,7 @@ export class DashboardService {
         insights,
       };
 
-      // 결과를 캐시에 저장
+      // Save to cache
       await this.cacheManager.set(
         cacheKey,
         result,
@@ -127,7 +137,7 @@ export class DashboardService {
       return result;
     } catch (error) {
       this.logger.error('Failed to get dashboard stats:', error);
-      // 에러 발생 시 기본값 반환
+      // Default empty stats on error
       return {
         totalClients: 0,
         activeTokens: 0,
@@ -155,7 +165,6 @@ export class DashboardService {
     userId: number,
     limit: number = 10,
   ): Promise<RecentActivityDto[]> {
-    // 입력된 limit 정리 및 상한 적용 (과도한 조회 방지)
     let sanitizedLimit = Number(limit) || 10;
     sanitizedLimit = Math.max(1, Math.floor(sanitizedLimit));
     const configuredMax = DASHBOARD_CONFIG.ACTIVITIES.MAX_LIMIT;
@@ -164,19 +173,18 @@ export class DashboardService {
       sanitizedLimit = configuredMax;
     }
 
-    // 이후 로직은 sanitizedLimit을 사용
     limit = sanitizedLimit;
 
     const cacheKey = CACHE_KEYS.dashboard.activities(userId, limit);
 
     try {
-      // 캐시에서 먼저 조회
+      // Use cache first
       const cached = await this.cacheManager.get<RecentActivityDto[]>(cacheKey);
       if (cached) {
         return cached;
       }
 
-      // 감사 로그에서 실제 활동 데이터 조회
+      // Get activity data from audit logs
       const [auditLogs] = await this.auditLogService.getUserAuditLogs(userId, {
         limit,
         eventTypes: [
@@ -185,25 +193,60 @@ export class DashboardService {
           AuditEventType.TOKEN_REVOKED,
           AuditEventType.CLIENT_CREATED,
           AuditEventType.CLIENT_UPDATED,
+          AuditEventType.CLIENT_DELETED,
         ],
       });
 
-      // 감사 로그를 RecentActivityDto 형식으로 변환
-      const activities: RecentActivityDto[] = auditLogs.map((log) => ({
-        id: log.id,
-        type: this.mapAuditEventTypeToActivityType(log.eventType),
-        description: log.description,
-        createdAt: log.createdAt,
-        resourceId: log.resourceId ?? undefined,
-        metadata: {
-          ...log.metadata,
-          ipAddress: log.ipAddress,
-          userAgent: log.userAgent,
-          severity: log.severity,
-        },
-      }));
+      // Get user information
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+        select: ['username'],
+      });
 
-      // 기존 로직과의 호환성을 위해 기본 활동들도 추가 (감사 로그에 없는 경우)
+      // FAILED_AUTH_ATTEMPT Events
+      let failedAuthLogs: AuditLog[] = [];
+      if (user?.username) {
+        const [failedLogs] =
+          await this.auditLogService.getFailedAuthAttemptsByUsername(
+            user.username,
+            { limit },
+          );
+        failedAuthLogs = failedLogs;
+      }
+
+      // Merge results
+      const allAuditLogs = [...auditLogs, ...failedAuthLogs];
+
+      // Convert audit logs to activity DTOs
+      const activities: RecentActivityDto[] = allAuditLogs.map((log) => {
+        // Map cancellation reasons to user-friendly descriptions
+        const mappedMetadata = { ...log.metadata };
+        if (
+          mappedMetadata.reason &&
+          typeof mappedMetadata.reason === 'string'
+        ) {
+          mappedMetadata.reason =
+            TOKEN_REVOCATION_REASON_DESCRIPTIONS[
+              mappedMetadata.reason as keyof typeof TOKEN_REVOCATION_REASON_DESCRIPTIONS
+            ] || mappedMetadata.reason;
+        }
+
+        return {
+          id: log.id,
+          type: this.mapAuditEventTypeToActivityType(log.eventType),
+          description: log.description,
+          createdAt: log.createdAt,
+          resourceId: log.resourceId ?? undefined,
+          metadata: {
+            ...mappedMetadata,
+            ipAddress: log.ipAddress,
+            userAgent: log.userAgent,
+            severity: log.severity,
+          },
+        };
+      });
+
+      // Add default activities for compatibility with existing logic (when not in audit logs)
       if (activities.length < limit) {
         await this.addLegacyActivities(
           userId,
@@ -212,13 +255,13 @@ export class DashboardService {
         );
       }
 
-      // 시간순으로 정렬 (최신순)
+      // Sort by time (newest first)
       activities.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-      // 제한된 개수만큼 반환
+      // Return limited number
       const result = activities.slice(0, limit);
 
-      // 결과를 캐시에 저장 (2분 TTL)
+      // Save results to cache (2 minutes TTL)
       await this.cacheManager.set(
         cacheKey,
         result,
@@ -227,13 +270,13 @@ export class DashboardService {
       return result;
     } catch (error) {
       this.logger.error('Failed to get recent activities:', error);
-      // 에러 발생 시 레거시 방식으로 폴백
+      // Fallback to legacy method on error
       return this.getRecentActivitiesLegacy(userId, limit);
     }
   }
 
   /**
-   * 감사 로그 이벤트 타입을 활동 타입으로 매핑
+   * Map audit log event types to activity types
    */
   private mapAuditEventTypeToActivityType(
     eventType: AuditEventType,
@@ -249,13 +292,17 @@ export class DashboardService {
         return 'client_created';
       case AuditEventType.CLIENT_UPDATED:
         return 'client_updated';
+      case AuditEventType.CLIENT_DELETED:
+        return 'client_deleted';
+      case AuditEventType.FAILED_AUTH_ATTEMPT:
+        return 'login_failed';
       default:
-        return 'login'; // 기본값으로 login 반환
+        return 'login'; // Return login as default
     }
   }
 
   /**
-   * 감사 로그가 부족할 경우 레거시 활동 추가
+   * Add legacy activities when audit logs are insufficient
    */
   private async addLegacyActivities(
     userId: number,
@@ -264,7 +311,7 @@ export class DashboardService {
   ): Promise<void> {
     const existingIds = new Set(activities.map((a) => a.id));
 
-    // 계정 생성 활동 추가 (없는 경우)
+    // Add account creation activity (if not present)
     const accountUser = await this.userRepository.findOne({
       where: { id: userId },
       select: ['createdAt'],
@@ -272,17 +319,17 @@ export class DashboardService {
 
     if (
       accountUser?.createdAt &&
-      !activities.some((a) => a.type === 'account_created')
+      !activities.some((a) => a.type === ACTIVITY_TYPES.ACCOUNT_CREATED)
     ) {
       const newId = Math.max(...existingIds, 0) + 1;
       activities.push({
         id: newId,
-        type: 'account_created',
-        description: '계정 생성됨',
+        type: ACTIVITY_TYPES.ACCOUNT_CREATED,
+        description: 'Account created',
         createdAt: accountUser.createdAt,
         metadata: {
           userId,
-          activity: '새로운 사용자 계정이 생성되었습니다.',
+          activity: 'New user account has been created.',
           details: {
             createdAt: accountUser.createdAt,
           },
@@ -294,7 +341,7 @@ export class DashboardService {
   }
 
   /**
-   * 레거시 방식으로 활동 조회 (폴백용)
+   * Retrieve activities using legacy method (for fallback)
    */
   private async getRecentActivitiesLegacy(
     userId: number,
@@ -304,7 +351,7 @@ export class DashboardService {
       const activities: RecentActivityDto[] = [];
       let activityCounter = 1;
 
-      // 1. 사용자 로그인 활동
+      // 1. User login activities
       const user = await this.userRepository.findOne({
         where: { id: userId },
         select: ['lastLoginAt'],
@@ -313,18 +360,18 @@ export class DashboardService {
       if (user?.lastLoginAt) {
         activities.push({
           id: activityCounter++,
-          type: 'login',
-          description: '사용자 로그인',
+          type: ACTIVITY_TYPES.LOGIN,
+          description: 'User login',
           createdAt: user.lastLoginAt,
           metadata: {
             userId,
-            activity: '사용자가 시스템에 로그인했습니다.',
-            location: '웹 애플리케이션',
+            activity: 'User logged into the system.',
+            location: 'Web application',
           },
         });
       }
 
-      // 1.5. 계정 생성 활동
+      // 1.5. Account creation activity
       const accountUser = await this.userRepository.findOne({
         where: { id: userId },
         select: ['createdAt'],
@@ -334,11 +381,11 @@ export class DashboardService {
         activities.push({
           id: activityCounter++,
           type: 'account_created',
-          description: '계정 생성됨',
+          description: 'Account created',
           createdAt: accountUser.createdAt,
           metadata: {
             userId,
-            activity: '새로운 사용자 계정이 생성되었습니다.',
+            activity: 'New user account has been created.',
             details: {
               createdAt: accountUser.createdAt,
             },
@@ -346,7 +393,7 @@ export class DashboardService {
         });
       }
 
-      // 2. 클라이언트 생성/수정 활동
+      // 2. Client creation/update activities
       const recentClients = await this.clientRepository.find({
         where: { userId },
         select: [
@@ -363,17 +410,17 @@ export class DashboardService {
       });
 
       recentClients.forEach((client) => {
-        // 생성 활동
+        // Creation activity
         activities.push({
           id: activityCounter++,
-          type: 'client_created',
-          description: `클라이언트 "${client.name}" 생성됨`,
+          type: ACTIVITY_TYPES.CLIENT_CREATED,
+          description: `Client "${client.name}" created`,
           createdAt: client.createdAt,
           resourceId: client.id,
           metadata: {
             clientName: client.name,
             clientId: client.id,
-            activity: `새 OAuth2 클라이언트가 생성되었습니다.`,
+            activity: `New OAuth2 client has been created.`,
             details: {
               isActive: client.isActive,
               isConfidential: client.isConfidential,
@@ -383,18 +430,18 @@ export class DashboardService {
           },
         });
 
-        // 수정 활동 (생성일과 수정일이 다른 경우)
+        // Update activity (when creation and update dates differ)
         if (client.updatedAt.getTime() !== client.createdAt.getTime()) {
           activities.push({
             id: activityCounter++,
-            type: 'client_updated',
-            description: `클라이언트 "${client.name}" 정보 수정됨`,
+            type: ACTIVITY_TYPES.CLIENT_UPDATED,
+            description: `Client "${client.name}" information updated`,
             createdAt: client.updatedAt,
             resourceId: client.id,
             metadata: {
               clientName: client.name,
               clientId: client.id,
-              activity: `OAuth2 클라이언트 정보가 수정되었습니다.`,
+              activity: `OAuth2 client information has been updated.`,
               details: {
                 isActive: client.isActive,
                 isConfidential: client.isConfidential,
@@ -405,7 +452,7 @@ export class DashboardService {
         }
       });
 
-      // 3. 토큰 생성/취소 활동
+      // 3. Token creation/revocation activities
       const recentTokens = await this.tokenRepository.find({
         where: { user: { id: userId } },
         relations: ['client'],
@@ -422,17 +469,17 @@ export class DashboardService {
       });
 
       recentTokens.forEach((token) => {
-        // 토큰 생성 활동
+        // Token creation activity
         activities.push({
           id: activityCounter++,
-          type: 'token_created',
-          description: `"${token.client?.name ?? '웹 애플리케이션'}" 토큰 발급됨`,
+          type: ACTIVITY_TYPES.TOKEN_CREATED,
+          description: `Token issued for "${token.client?.name ?? 'Web application'}"`,
           createdAt: token.createdAt,
           resourceId: token.id,
           metadata: {
             clientName: token.client?.name,
             clientId: token.client?.id,
-            activity: `새로운 액세스 토큰이 발급되었습니다.`,
+            activity: `New access token has been issued.`,
             details: {
               scopes: token.scopes,
               expiresAt: token.expiresAt,
@@ -441,19 +488,22 @@ export class DashboardService {
           },
         });
 
-        // 토큰 취소 활동
+        // Token revocation activity
         if (token.isRevoked) {
           activities.push({
             id: activityCounter++,
-            type: 'token_revoked',
-            description: `"${token.client?.name ?? '웹 애플리케이션'}" 토큰 취소됨`,
+            type: ACTIVITY_TYPES.TOKEN_REVOKED,
+            description: `Token revoked for "${token.client?.name ?? 'Web application'}"`,
             createdAt: token.revokedAt ?? new Date(),
             resourceId: token.id,
             metadata: {
               clientName: token.client?.name,
               clientId: token.client?.id,
-              activity: `액세스 토큰이 취소되었습니다.`,
-              reason: '관리자 취소',
+              activity: `Access token has been revoked.`,
+              reason:
+                TOKEN_REVOCATION_REASON_DESCRIPTIONS[
+                  TOKEN_REVOCATION_REASONS.USER_REVOKED_TOKENS
+                ],
               details: {
                 scopes: token.scopes,
                 tokenId: token.id,
@@ -463,10 +513,10 @@ export class DashboardService {
         }
       });
 
-      // 시간순으로 정렬 (최신순)
+      // Sort by time (newest first)
       activities.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-      // 제한된 개수만큼 반환
+      // Return limited number
       return activities.slice(0, limit);
     } catch (error) {
       this.logger.error('Failed to get recent activities (legacy):', error);
@@ -475,18 +525,18 @@ export class DashboardService {
   }
 
   async getConnectedApps(userId: number): Promise<ConnectedAppsResponseDto> {
-    // 사용자가 토큰을 발급받은 클라이언트들을 조회
+    // Retrieve clients that issued tokens to the user
     const tokens = await this.tokenRepository.find({
       where: {
         user: { id: userId },
         isRevoked: false,
       },
-      relations: ['client'],
+      relations: ['user', 'client'],
       select: ['id', 'client', 'scopes', 'createdAt', 'expiresAt'],
       order: { createdAt: 'DESC' },
     });
 
-    // 클라이언트별로 최신 토큰 정보를 그룹화
+    // Group latest token information by client
     const clientMap = new Map<number, ConnectedAppDto>();
 
     tokens.forEach((token) => {
@@ -525,21 +575,21 @@ export class DashboardService {
   }
 
   /**
-   * 사용자 통계 캐시 무효화 (외부에서 호출 가능)
+   * Invalidate user statistics cache (callable from outside)
    */
   async invalidateUserStatsCache(userId: number): Promise<void> {
     return this.cacheManagerService.invalidateUserStatsCache(userId);
   }
 
   /**
-   * 사용자 활동 캐시 무효화 (외부에서 호출 가능)
+   * Invalidate user activities cache (callable from outside)
    */
   async invalidateUserActivitiesCache(userId: number): Promise<void> {
     return this.cacheManagerService.invalidateUserActivitiesCache(userId);
   }
 
   /**
-   * 모든 사용자 캐시 무효화 (관리자용)
+   * Invalidate all user caches (for administrators)
    */
   async invalidateAllUserCaches(): Promise<void> {
     return this.cacheManagerService.invalidateAllUsersCache();
@@ -549,27 +599,75 @@ export class DashboardService {
     userId: number,
     clientId: number,
   ): Promise<RevokeConnectionResponseDto> {
-    // 해당 사용자의 해당 클라이언트에 대한 모든 토큰을 취소
-    const result = await this.tokenRepository.update(
-      {
+    // Revoke all tokens for this user and client
+    const tokens = await this.tokenRepository.find({
+      where: {
         user: { id: userId },
         client: { id: clientId },
         isRevoked: false,
       },
-      {
-        isRevoked: true,
-      },
-    );
+      relations: ['user', 'client'],
+    });
+
+    const now = new Date();
+    for (const token of tokens) {
+      token.isRevoked = true;
+      token.revokedAt = now;
+      token.revokedReason = TOKEN_REVOCATION_REASONS.USER_REVOKED_CONNECTION;
+    }
+
+    if (tokens.length > 0) {
+      try {
+        await this.tokenRepository.save(tokens);
+      } catch (error) {
+        this.logger.error(`Failed to save revoked tokens:`, error);
+        throw error;
+      }
+    }
+
+    // Invalidate related cache when revoking tokens
+    for (const token of tokens) {
+      if (token.accessToken) {
+        await this.cacheManager.del(CACHE_KEYS.oauth2.token(token.accessToken));
+      }
+    }
+
+    // Record audit log
+    if (tokens.length > 0) {
+      const client = tokens[0].client;
+      try {
+        await this.auditLogService.create({
+          eventType: AuditEventType.TOKEN_REVOKED,
+          severity: AuditSeverity.MEDIUM,
+          description: `Tokens revoked due to connection revocation. Client: ${client?.name ?? 'Unknown'}`,
+          userId,
+          clientId,
+          resourceId: clientId,
+          resourceType: AUDIT_LOG_RESOURCE_TYPES.CLIENT_CONNECTION,
+          metadata: {
+            revokedTokensCount: tokens.length,
+            clientName: client?.name,
+            reason: TOKEN_REVOCATION_REASONS.USER_REVOKED_CONNECTION,
+            tokenIds: tokens.map((t) => t.id),
+          },
+        });
+      } catch (error) {
+        this.logger.warn(
+          'Failed to create audit log for connection revocation:',
+          error,
+        );
+      }
+    }
 
     return {
       success: true,
-      revokedTokensCount: result.affected ?? 0,
-      message: '연결이 성공적으로 해제되었습니다.',
+      revokedTokensCount: tokens.length,
+      message: 'Connection successfully revoked.',
     };
   }
 
   /**
-   * 토큰 분석 메트릭스 조회
+   * Retrieve token analysis metrics
    */
   async getTokenAnalytics(userId: number, days: number = 30) {
     return {
@@ -587,7 +685,7 @@ export class DashboardService {
   }
 
   /**
-   * 보안 메트릭스 조회
+   * Retrieve security metrics
    */
   async getSecurityMetrics(userId: number, days: number = 30) {
     return {
@@ -600,19 +698,19 @@ export class DashboardService {
   }
 
   /**
-   * 고급 통계 대시보드 조회
+   * Retrieve advanced statistics dashboard
    */
   async getAdvancedDashboardStats(userId: number, days: number = 30) {
     const cacheKey = CACHE_KEYS.dashboard.advancedStats(userId, days);
 
     try {
-      // 캐시에서 먼저 조회
+      // Check cache first
       const cached = await this.cacheManager.get(cacheKey);
       if (cached) {
         return cached;
       }
 
-      // 병렬로 데이터 조회
+      // Retrieve data in parallel
       const [tokenAnalytics, securityMetrics] = await Promise.all([
         this.getTokenAnalytics(userId, days),
         this.getSecurityMetrics(userId, days),
@@ -625,7 +723,7 @@ export class DashboardService {
         period: `${days} days`,
       };
 
-      // 캐시에 저장 (10분)
+      // Save to cache (10 minutes)
       await this.cacheManager.set(
         cacheKey,
         result,

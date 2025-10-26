@@ -32,7 +32,7 @@ interface RequestWithUser {
   };
 }
 
-@ApiTags('2FA')
+@ApiTags('Authentication')
 @Controller('auth/2fa')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiBearerAuth()

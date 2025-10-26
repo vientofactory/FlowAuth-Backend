@@ -5,9 +5,15 @@ import { ProfileController } from './profile.controller';
 import { ProfileService } from './profile.service';
 import { LoggingModule } from '../logging/logging.module';
 import { AuthModule } from '../auth/auth.module';
+import { CacheConfigModule } from '../cache/cache-config.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User]), LoggingModule, AuthModule],
+  imports: [
+    TypeOrmModule.forFeature([User]),
+    LoggingModule,
+    AuthModule,
+    CacheConfigModule,
+  ],
   controllers: [ProfileController],
   providers: [ProfileService],
   exports: [ProfileService],

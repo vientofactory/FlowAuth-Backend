@@ -6,23 +6,19 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
+import Redis from 'ioredis';
 import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
 import { Scope } from './scope.entity';
 
 @Injectable()
 export class ScopeService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ScopeService.name);
-  private scopeCache: Map<string, Scope> = new Map();
-  private allScopesCache: Scope[] = [];
-  private defaultScopesCache: Scope[] = [];
   private cacheInitialized = false;
 
   constructor(
     @InjectRepository(Scope)
     private readonly scopeRepository: Repository<Scope>,
-    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    @Inject('REDIS_CLIENT') private readonly redisClient: Redis,
   ) {}
 
   async onApplicationBootstrap() {
@@ -35,53 +31,36 @@ export class ScopeService implements OnApplicationBootstrap {
 
   private async loadScopesToCache(): Promise<void> {
     try {
-      this.logger.log('Loading scopes to memory and Redis cache...');
+      this.logger.log('Loading scopes to Redis cache...');
 
       const scopes = await this.scopeRepository.find({
         where: { isActive: true },
         order: { name: 'ASC' },
       });
 
-      // 캐시 초기화
-      this.scopeCache.clear();
-      this.allScopesCache = [];
-      this.defaultScopesCache = [];
-
-      // 캐시에 데이터 로드
-      scopes.forEach((scope) => {
-        this.scopeCache.set(scope.name, scope);
-        this.allScopesCache.push(scope);
-
-        if (scope.isDefault) {
-          this.defaultScopesCache.push(scope);
-        }
-      });
-
       // Redis에 캐시 저장 (TTL: 1시간)
-      await this.cacheManager.set(
+      await this.redisClient.setex(
         CACHE_KEYS.oauth2.scopes.all(),
-        this.allScopesCache,
         CACHE_CONFIG.TTL.SCOPES_ALL,
+        JSON.stringify(scopes),
       );
-      await this.cacheManager.set(
+      await this.redisClient.setex(
         'scopes:default',
-        this.defaultScopesCache,
         CACHE_CONFIG.TTL.SCOPES_ALL,
+        JSON.stringify(scopes.filter((s) => s.isDefault)),
       );
 
       // 개별 스코프도 캐시
       for (const scope of scopes) {
-        await this.cacheManager.set(
+        await this.redisClient.setex(
           `scopes:name:${scope.name}`,
-          scope,
           3600000,
+          JSON.stringify(scope),
         );
       }
 
       this.cacheInitialized = true;
-      this.logger.log(
-        `Loaded ${scopes.length} scopes to memory and Redis cache`,
-      );
+      this.logger.log(`Loaded ${scopes.length} scopes to Redis cache`);
     } catch (error) {
       this.logger.error('Failed to load scopes to cache:', error);
       throw error;
@@ -93,11 +72,14 @@ export class ScopeService implements OnApplicationBootstrap {
    */
   async refreshCache(): Promise<void> {
     // 기존 Redis 캐시 삭제
-    await this.cacheManager.del('scopes:all');
-    await this.cacheManager.del('scopes:default');
+    await this.redisClient.del('scopes:all');
+    await this.redisClient.del('scopes:default');
 
-    // 모든 개별 스코프 캐시 삭제 (와일드카드 삭제는 Redis에서 지원하지 않으므로 메모리에서 추적)
-    // 실제 운영에서는 Redis SCAN 명령이나 별도의 캐시 키 관리가 필요할 수 있음
+    // 모든 개별 스코프 캐시 삭제 (패턴 삭제)
+    const keys = await this.redisClient.keys('scopes:name:*');
+    if (keys.length > 0) {
+      await this.redisClient.del(...keys);
+    }
 
     await this.loadScopesToCache();
   }
@@ -139,9 +121,9 @@ export class ScopeService implements OnApplicationBootstrap {
 
     const foundScopes: Scope[] = [];
     for (const name of names) {
-      const scope = this.scopeCache.get(name);
-      if (scope) {
-        foundScopes.push(scope);
+      const cachedScope = await this.redisClient.get(`scopes:name:${name}`);
+      if (cachedScope) {
+        foundScopes.push(JSON.parse(cachedScope) as Scope);
       }
     }
 
@@ -152,29 +134,46 @@ export class ScopeService implements OnApplicationBootstrap {
     await this.ensureCacheInitialized();
 
     // Redis 캐시에서 먼저 확인
-    const cachedScopes = await this.cacheManager.get<Scope[]>(
+    const cachedScopes = await this.redisClient.get(
       CACHE_KEYS.oauth2.scopes.all(),
     );
     if (cachedScopes) {
-      return cachedScopes;
+      return JSON.parse(cachedScopes) as Scope[];
     }
 
-    // 캐시에 없으면 메모리 캐시에서 반환
-    return [...this.allScopesCache];
+    // 캐시에 없으면 DB에서 조회 후 캐시
+    const scopes = await this.scopeRepository.find({
+      where: { isActive: true },
+      order: { name: 'ASC' },
+    });
+    await this.redisClient.setex(
+      CACHE_KEYS.oauth2.scopes.all(),
+      CACHE_CONFIG.TTL.SCOPES_ALL,
+      JSON.stringify(scopes),
+    );
+    return scopes;
   }
 
   async findDefaultScopes(): Promise<Scope[]> {
     await this.ensureCacheInitialized();
 
     // Redis 캐시에서 먼저 확인
-    const cachedDefaultScopes =
-      await this.cacheManager.get<Scope[]>('scopes:default');
+    const cachedDefaultScopes = await this.redisClient.get('scopes:default');
     if (cachedDefaultScopes) {
-      return cachedDefaultScopes;
+      return JSON.parse(cachedDefaultScopes) as Scope[];
     }
 
-    // 캐시에 없으면 메모리 캐시에서 반환
-    return [...this.defaultScopesCache];
+    // 캐시에 없으면 DB에서 조회 후 캐시
+    const defaultScopes = await this.scopeRepository.find({
+      where: { isActive: true, isDefault: true },
+      order: { name: 'ASC' },
+    });
+    await this.redisClient.setex(
+      'scopes:default',
+      CACHE_CONFIG.TTL.SCOPES_ALL,
+      JSON.stringify(defaultScopes),
+    );
+    return defaultScopes;
   }
 
   async validateScopes(scopeNames: string[]): Promise<boolean> {
@@ -185,7 +184,8 @@ export class ScopeService implements OnApplicationBootstrap {
     await this.ensureCacheInitialized();
 
     for (const scopeName of scopeNames) {
-      if (!this.scopeCache.has(scopeName)) {
+      const exists = await this.redisClient.exists(`scopes:name:${scopeName}`);
+      if (!exists) {
         return false;
       }
     }
@@ -235,17 +235,25 @@ export class ScopeService implements OnApplicationBootstrap {
   /**
    * 캐시 상태 정보 반환 (디버깅용)
    */
-  getCacheInfo(): {
+  async getCacheInfo(): Promise<{
     initialized: boolean;
     totalScopes: number;
     defaultScopes: number;
-    cacheSize: number;
-  } {
+    cacheKeys: string[];
+  }> {
+    const allScopes = await this.redisClient.get(
+      CACHE_KEYS.oauth2.scopes.all(),
+    );
+    const defaultScopes = await this.redisClient.get('scopes:default');
+    const keys = await this.redisClient.keys('scopes:*');
+
     return {
       initialized: this.cacheInitialized,
-      totalScopes: this.allScopesCache.length,
-      defaultScopes: this.defaultScopesCache.length,
-      cacheSize: this.scopeCache.size,
+      totalScopes: allScopes ? (JSON.parse(allScopes) as Scope[]).length : 0,
+      defaultScopes: defaultScopes
+        ? (JSON.parse(defaultScopes) as Scope[]).length
+        : 0,
+      cacheKeys: keys,
     };
   }
 
@@ -254,7 +262,8 @@ export class ScopeService implements OnApplicationBootstrap {
    */
   async hasScope(name: string): Promise<boolean> {
     await this.ensureCacheInitialized();
-    return this.scopeCache.has(name);
+    const exists = await this.redisClient.exists(`scopes:name:${name}`);
+    return exists === 1;
   }
 
   /**
@@ -264,15 +273,23 @@ export class ScopeService implements OnApplicationBootstrap {
     await this.ensureCacheInitialized();
 
     // Redis 캐시에서 먼저 확인
-    const cachedScope = await this.cacheManager.get<Scope>(
-      `scopes:name:${name}`,
-    );
+    const cachedScope = await this.redisClient.get(`scopes:name:${name}`);
     if (cachedScope) {
-      return cachedScope;
+      return JSON.parse(cachedScope) as Scope;
     }
 
-    // 캐시에 없으면 메모리 캐시에서 반환
-    return this.scopeCache.get(name) ?? null;
+    // 캐시에 없으면 DB에서 조회 후 캐시
+    const scope = await this.scopeRepository.findOne({
+      where: { name, isActive: true },
+    });
+    if (scope) {
+      await this.redisClient.setex(
+        `scopes:name:${name}`,
+        3600000,
+        JSON.stringify(scope),
+      );
+    }
+    return scope;
   }
 
   /**

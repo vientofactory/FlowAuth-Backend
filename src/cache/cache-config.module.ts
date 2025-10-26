@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-yet';
+import Redis from 'ioredis';
 
 @Module({
   imports: [
@@ -21,6 +22,19 @@ import { redisStore } from 'cache-manager-redis-yet';
       inject: [ConfigService],
     }),
   ],
-  exports: [CacheModule],
+  providers: [
+    {
+      provide: 'REDIS_CLIENT',
+      useFactory: (configService: ConfigService) => {
+        return new Redis({
+          host: configService.get<string>('REDIS_HOST') ?? 'localhost',
+          port: parseInt(configService.get<string>('REDIS_PORT') ?? '6379'),
+          password: configService.get<string>('REDIS_PASSWORD') ?? undefined,
+        });
+      },
+      inject: [ConfigService],
+    },
+  ],
+  exports: [CacheModule, 'REDIS_CLIENT'],
 })
 export class CacheConfigModule {}
