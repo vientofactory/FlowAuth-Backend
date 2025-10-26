@@ -97,7 +97,7 @@ export class CorsService {
 
       // OAuth2/OpenID Connect public endpoints - allow all origins
       if (CorsService.isPublicOAuthEndpoint(path)) {
-        res.header('Access-Control-Allow-Origin', origin || '*');
+        res.header('Access-Control-Allow-Origin', origin ?? '*');
         res.header('Access-Control-Allow-Credentials', 'true');
       } else if (CorsService.isOriginAllowed(origin, config)) {
         // Protected endpoints - check origin

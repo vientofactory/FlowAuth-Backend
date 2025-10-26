@@ -20,7 +20,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
   ) {
     const jwtSecret =
-      configService.get<string>('JWT_SECRET') || 'your-secret-key';
+      configService.get<string>('JWT_SECRET') ?? 'your-secret-key';
 
     const options: StrategyOptions = {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),

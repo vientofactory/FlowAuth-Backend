@@ -19,6 +19,24 @@ interface DailyPattern {
   avgLifetime: number;
 }
 
+interface RawHourlyPattern {
+  hour: string | number;
+  totalTokens: string | number;
+  avgLifetime: string | number;
+}
+
+interface RawDailyPattern {
+  dayOfWeek: string | number;
+  totalTokens: string | number;
+  avgLifetime: string | number;
+}
+
+interface RawPeakResult {
+  hour?: string | number;
+  day?: string | number;
+  count?: string | number;
+}
+
 export interface TokenUsagePattern {
   hour: number;
   dayOfWeek: number;
@@ -91,7 +109,7 @@ export class TokenAnalyticsService {
 
     try {
       // 시간별 사용 패턴
-      const hourlyPatterns: HourlyPattern[] = await this.tokenRepository
+      const rawHourlyPatterns = await this.tokenRepository
         .createQueryBuilder('token')
         .select('HOUR(token.createdAt) as hour')
         .addSelect('COUNT(*) as totalTokens')
@@ -107,8 +125,16 @@ export class TokenAnalyticsService {
         .orderBy('hour')
         .getRawMany();
 
+      const hourlyPatterns: HourlyPattern[] = rawHourlyPatterns.map(
+        (row: RawHourlyPattern) => ({
+          hour: Number(row.hour),
+          totalTokens: Number(row.totalTokens),
+          avgLifetime: Number(row.avgLifetime),
+        }),
+      );
+
       // 요일별 사용 패턴
-      const dailyPatterns: DailyPattern[] = await this.tokenRepository
+      const rawDailyPatterns = await this.tokenRepository
         .createQueryBuilder('token')
         .select('WEEKDAY(token.createdAt) as dayOfWeek')
         .addSelect('COUNT(*) as totalTokens')
@@ -123,6 +149,14 @@ export class TokenAnalyticsService {
         .groupBy('WEEKDAY(token.createdAt)')
         .orderBy('dayOfWeek')
         .getRawMany();
+
+      const dailyPatterns: DailyPattern[] = rawDailyPatterns.map(
+        (row: RawDailyPattern) => ({
+          dayOfWeek: Number(row.dayOfWeek),
+          totalTokens: Number(row.totalTokens),
+          avgLifetime: Number(row.avgLifetime),
+        }),
+      );
 
       // 결과를 결합
       const patterns: TokenUsagePattern[] = [];
@@ -373,12 +407,9 @@ export class TokenAnalyticsService {
     }
   }
 
-  /**
-   * 피크 사용 시간 찾기
-   */
   private async getPeakUsageHour(userId: number): Promise<number> {
     try {
-      const result = await this.tokenRepository
+      const rawResult: unknown = await this.tokenRepository
         .createQueryBuilder('token')
         .select('HOUR(token.createdAt) as hour')
         .addSelect('COUNT(*) as count')
@@ -388,18 +419,23 @@ export class TokenAnalyticsService {
         .limit(1)
         .getRawOne();
 
-      return result?.hour ?? 0;
+      if (
+        rawResult &&
+        typeof rawResult === 'object' &&
+        'hour' in rawResult &&
+        typeof (rawResult as RawPeakResult).hour === 'number'
+      ) {
+        return Number((rawResult as RawPeakResult).hour) || 0;
+      }
+      return 0;
     } catch {
       return 0;
     }
   }
 
-  /**
-   * 피크 사용 요일 찾기
-   */
   private async getPeakUsageDay(userId: number): Promise<number> {
     try {
-      const result = await this.tokenRepository
+      const rawResult: unknown = await this.tokenRepository
         .createQueryBuilder('token')
         .select('WEEKDAY(token.createdAt) as day')
         .addSelect('COUNT(*) as count')
@@ -409,7 +445,15 @@ export class TokenAnalyticsService {
         .limit(1)
         .getRawOne();
 
-      return result?.day ?? 0;
+      if (
+        rawResult &&
+        typeof rawResult === 'object' &&
+        'day' in rawResult &&
+        typeof (rawResult as RawPeakResult).day === 'number'
+      ) {
+        return Number((rawResult as RawPeakResult).day) || 0;
+      }
+      return 0;
     } catch {
       return 0;
     }

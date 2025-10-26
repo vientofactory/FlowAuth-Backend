@@ -20,7 +20,7 @@ import { UtilsModule } from '../utils/utils.module';
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
         secret:
-          configService.get<string>('JWT_SECRET') ||
+          configService.get<string>('JWT_SECRET') ??
           JWT_CONSTANTS.SECRET_KEY_FALLBACK,
         signOptions: { expiresIn: JWT_CONSTANTS.EXPIRES_IN },
       }),

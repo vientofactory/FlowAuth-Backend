@@ -279,7 +279,7 @@ export class DashboardStatsService {
             : 0;
 
         return {
-          clientName: stat.clientName || 'Unknown',
+          clientName: stat.clientName ?? 'Unknown',
           tokenCount,
           percentage,
         };
@@ -335,7 +335,7 @@ export class DashboardStatsService {
                   const trimmedScope = scope.trim();
                   scopeCountMap.set(
                     trimmedScope,
-                    (scopeCountMap.get(trimmedScope) || 0) + 1,
+                    (scopeCountMap.get(trimmedScope) ?? 0) + 1,
                   );
                 }
               });

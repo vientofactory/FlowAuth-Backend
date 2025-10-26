@@ -36,7 +36,7 @@ import { CommonModule } from '../common/common.module';
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
         secret:
-          configService.get<string>('JWT_SECRET') ||
+          configService.get<string>('JWT_SECRET') ??
           JWT_CONSTANTS.SECRET_KEY_FALLBACK,
       }),
       inject: [ConfigService],

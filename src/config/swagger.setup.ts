@@ -35,7 +35,7 @@ export function setupSwaggerConditionally(
   app: NestExpressApplication,
   nodeEnv?: string,
 ): void {
-  const environment = nodeEnv || process.env.NODE_ENV;
+  const environment = nodeEnv ?? process.env.NODE_ENV;
 
   // 개발 환경 또는 스테이징 환경에서만 Swagger 활성화
   if (environment !== 'production') {

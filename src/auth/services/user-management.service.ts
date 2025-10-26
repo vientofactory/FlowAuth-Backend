@@ -13,6 +13,9 @@ import type { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
 import { User } from '../user.entity';
 import { CreateUserDto } from '../dto/create-user.dto';
+import { Client } from '../../oauth2/client.entity';
+import { Token } from '../../oauth2/token.entity';
+import { MoreThan } from 'typeorm';
 import {
   AUTH_CONSTANTS,
   AUTH_ERROR_MESSAGES,
@@ -32,6 +35,10 @@ export class UserManagementService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Client)
+    private clientRepository: Repository<Client>,
+    @InjectRepository(Token)
+    private tokenRepository: Repository<Token>,
     private twoFactorService: TwoFactorService,
     private fileUploadService: FileUploadService,
     private recaptchaService: RecaptchaService,
@@ -335,19 +342,24 @@ export class UserManagementService {
   }> {
     const user = await this.findById(userId);
 
-    // TODO: Implement proper client and token counting
-    // For now, return placeholder values until related services are implemented
+    // Count user's OAuth2 clients
+    const totalClients = await this.clientRepository.count({
+      where: { userId },
+    });
 
-    // Count user's OAuth2 clients (when ClientService is implemented)
-    const totalClients = 0; // await this.clientService.countByUserId(userId);
-
-    // Count active tokens for user (when TokenService is implemented)
-    const activeTokens = 0; // await this.tokenService.countActiveByUserId(userId);
+    // Count active tokens for user (not revoked and not expired)
+    const activeTokens = await this.tokenRepository.count({
+      where: {
+        user: { id: userId },
+        isRevoked: false,
+        expiresAt: MoreThan(new Date()),
+      },
+    });
 
     return {
       totalClients,
       activeTokens,
-      lastLogin: user.lastLoginAt || null,
+      lastLogin: user.lastLoginAt ?? null,
     };
   }
 }

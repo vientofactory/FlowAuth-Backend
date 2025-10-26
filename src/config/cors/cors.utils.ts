@@ -23,7 +23,7 @@ export class CorsUtils {
 CORS Configuration Summary
 ==========================
 Environment: ${config.nodeEnv}
-Frontend URL: ${config.frontendUrl || 'Not configured'}
+Frontend URL: ${config.frontendUrl ?? 'Not configured'}
 Allowed Origins: ${allowedOrigins.length} total
 - ${allowedOrigins.join('\n- ')}
 

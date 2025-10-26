@@ -264,7 +264,7 @@ describe('FileUploadValidator with Path Security', () => {
           encoding: '7bit',
           mimetype,
           buffer,
-          size: size || buffer.length,
+          size: size ?? buffer.length,
           destination: '',
           filename: '',
           path: '',

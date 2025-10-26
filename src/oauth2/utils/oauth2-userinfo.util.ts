@@ -161,13 +161,13 @@ export class OAuth2UserInfoBuilder {
     switch (scope) {
       case 'profile':
         return {
-          name: user.username, // 전체 이름으로 사용자명 사용
+          name: user.username,
           given_name:
-            user.firstName || user.username.split('_')[0] || user.username,
-          family_name: user.lastName || '',
+            user.firstName ?? (user.username.split('_')[0] || user.username),
+          family_name: user.lastName ?? '',
           preferred_username: user.username,
           profile: `${configService.get<string>('BACKEND_URL', 'http://localhost:3000')}/users/${user.id}`,
-          picture: user.avatar || undefined,
+          picture: user.avatar ?? undefined,
           updated_at: Math.floor(
             (user.updatedAt?.getTime() || Date.now()) / 1000,
           ),
@@ -203,13 +203,13 @@ export class OAuth2UserInfoBuilder {
     switch (scope) {
       case 'profile':
         return {
-          name: user.username, // 전체 이름으로 사용자명 사용
+          name: user.username,
           given_name:
-            user.firstName || user.username.split('_')[0] || user.username,
-          family_name: user.lastName || '',
+            user.firstName ?? (user.username.split('_')[0] || user.username),
+          family_name: user.lastName ?? '',
           preferred_username: user.username,
-          profile: `${process.env.BACKEND_URL || 'http://localhost:3000'}/users/${user.id}`,
-          picture: user.avatar || undefined,
+          profile: `${process.env.BACKEND_URL ?? 'http://localhost:3000'}/users/${user.id}`,
+          picture: user.avatar ?? undefined,
           updated_at: Math.floor(
             (user.updatedAt?.getTime() ?? Date.now()) / 1000,
           ),
@@ -259,7 +259,7 @@ export class OAuth2UserInfoBuilder {
     scope: string,
   ): (keyof Omit<OAuth2UserInfoResponse, 'sub'>)[] {
     const mapping = SCOPE_FIELD_MAPPINGS.find((m) => m.scope === scope);
-    return mapping?.fields || [];
+    return mapping?.fields ?? [];
   }
 
   /**

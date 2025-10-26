@@ -69,9 +69,9 @@ export class IdTokenService {
       iss: baseUrl,
       sub: user.id.toString(),
       aud: client.clientId,
-      exp: Math.floor(Date.now() / 1000) + JWT_CONSTANTS.TIME.ONE_HOUR_SECONDS, // 1 hour expiration
+      exp: Math.floor(Date.now() / 1000) + JWT_CONSTANTS.TIME.ONE_HOUR_SECONDS,
       iat: Math.floor(Date.now() / 1000),
-      auth_time: authTime || Math.floor(Date.now() / 1000),
+      auth_time: authTime ?? Math.floor(Date.now() / 1000),
     };
 
     // Add nonce if present (OpenID Connect requirement)

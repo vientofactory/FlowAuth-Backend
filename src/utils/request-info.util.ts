@@ -40,7 +40,7 @@ export class RequestInfoUtils {
     }
 
     // Use direct connection IP address
-    const directIp = request.ip ?? (request as any).connection?.remoteAddress;
+    const directIp = request.ip ?? request.socket?.remoteAddress;
     if (directIp && typeof directIp === 'string' && directIp !== 'unknown') {
       return directIp;
     }

@@ -50,7 +50,7 @@ export class TokenAuthService {
       expiresAt: token.expiresAt.toISOString(),
       refreshExpiresAt: token.refreshExpiresAt?.toISOString(),
       scopes: token.scopes,
-      userId: token.user?.id || 0,
+      userId: token.user?.id ?? 0,
       clientId: token.client?.id,
       client: token.client
         ? {
@@ -192,7 +192,7 @@ export class TokenAuthService {
         roles: [PermissionUtils.getRoleName(tokenEntity.user.permissions)],
         permissions: tokenEntity.user.permissions,
         type: tokenEntity.tokenType,
-        avatar: tokenEntity.user.avatar || undefined,
+        avatar: tokenEntity.user.avatar ?? undefined,
         jti: tokenEntity.id.toString(),
       };
 

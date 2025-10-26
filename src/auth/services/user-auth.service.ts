@@ -92,7 +92,7 @@ export class UserAuthService {
     const isFirstUser = userCount === 0;
 
     // Determine user type and permissions
-    const finalUserType = userType || USER_TYPES.REGULAR;
+    const finalUserType = userType ?? USER_TYPES.REGULAR;
     let permissions: number;
 
     if (isFirstUser) {
