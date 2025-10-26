@@ -46,7 +46,7 @@ export interface TokenUsagePattern {
 }
 
 export interface ClientPerformanceMetrics {
-  clientId: number;
+  clientId: string;
   clientName: string;
   totalTokens: number;
   activeTokens: number;
@@ -243,7 +243,7 @@ export class TokenAnalyticsService {
             : new Date();
 
         metrics.push({
-          clientId: client.id,
+          clientId: client.clientId,
           clientName: client.name,
           totalTokens,
           activeTokens,

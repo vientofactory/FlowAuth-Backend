@@ -153,7 +153,8 @@ export class UserAuthService {
         await this.auditLogService.create(
           AuditLog.createFailedAuthEvent(
             email,
-            clientInfo?.ipAddress,
+            clientInfo?.ipAddress ?? 'unknown',
+            clientInfo?.userAgent ?? 'unknown',
             'reCAPTCHA verification failed',
           ),
         );
@@ -200,7 +201,8 @@ export class UserAuthService {
           await this.auditLogService.create(
             AuditLog.createFailedAuthEvent(
               email,
-              clientInfo?.ipAddress,
+              clientInfo?.ipAddress ?? 'unknown',
+              clientInfo?.userAgent ?? 'unknown',
               'Invalid password',
             ),
           );
@@ -233,8 +235,8 @@ export class UserAuthService {
           severity: AuditSeverity.LOW,
           description: `사용자 ${user.username}(${user.email}) 로그인`,
           userId: user.id,
-          userAgent: clientInfo?.userAgent,
-          ipAddress: clientInfo?.ipAddress,
+          userAgent: clientInfo?.userAgent ?? 'unknown',
+          ipAddress: clientInfo?.ipAddress ?? 'unknown',
           metadata: {
             loginMethod: 'password',
             userAgent: clientInfo?.userAgent ?? 'unknown',

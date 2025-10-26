@@ -148,6 +148,7 @@ export class AuditLog {
   static createFailedAuthEvent(
     username: string,
     ipAddress?: string,
+    userAgent?: string,
     reason?: string,
   ): Partial<AuditLog> {
     return {
@@ -155,6 +156,7 @@ export class AuditLog {
       severity: AuditSeverity.MEDIUM,
       description: `인증 실패: ${reason ?? '잘못된 자격 증명'}`,
       ipAddress,
+      userAgent,
       metadata: { username, reason, action: 'auth_failed' },
     };
   }
