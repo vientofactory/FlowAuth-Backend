@@ -11,6 +11,7 @@ import Redis from 'ioredis';
 import * as bcrypt from 'bcrypt';
 import { User } from '../auth/user.entity';
 import { UserManagementService } from '../auth/services/user-management.service';
+import { DashboardService } from '../dashboard/dashboard.service';
 import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
 import { VALIDATION_CONSTANTS } from '../constants/validation.constants';
@@ -22,6 +23,7 @@ export class ProfileService {
     private userRepository: Repository<User>,
     @Inject('REDIS_CLIENT') private readonly redisClient: Redis,
     private userManagementService: UserManagementService,
+    private dashboardService: DashboardService,
   ) {}
 
   async findById(id: number): Promise<User> {
@@ -237,6 +239,10 @@ export class ProfileService {
     // 캐시 무효화
     await this.redisClient.del(CACHE_KEYS.profile.user(userId));
 
+    // 대시보드 캐시도 무효화하여 프로필 변경이 즉시 반영되도록 함
+    await this.dashboardService.invalidateUserStatsCache(userId);
+    await this.dashboardService.invalidateUserActivitiesCache(userId);
+
     // 업데이트된 사용자 정보 조회
     const updatedUser = await this.userRepository.findOne({
       where: { id: userId },
@@ -285,6 +291,10 @@ export class ProfileService {
 
     // 캐시 무효화 (비밀번호 변경 시 사용자 정보 캐시도 무효화)
     await this.redisClient.del(CACHE_KEYS.profile.user(userId));
+
+    // 대시보드 캐시도 무효화하여 프로필 변경이 즉시 반영되도록 함
+    await this.dashboardService.invalidateUserStatsCache(userId);
+    await this.dashboardService.invalidateUserActivitiesCache(userId);
   }
 
   async checkUsernameAvailability(
@@ -338,10 +348,29 @@ export class ProfileService {
     userId: number,
     file: Express.Multer.File,
   ): Promise<string> {
-    return this.userManagementService.uploadAvatar(userId, file);
+    const avatarUrl = await this.userManagementService.uploadAvatar(
+      userId,
+      file,
+    );
+
+    // 아바타 변경 시 프로필 캐시 무효화
+    await this.redisClient.del(CACHE_KEYS.profile.user(userId));
+
+    // 대시보드 캐시도 무효화하여 아바타 변경이 즉시 반영되도록 함
+    await this.dashboardService.invalidateUserStatsCache(userId);
+    await this.dashboardService.invalidateUserActivitiesCache(userId);
+
+    return avatarUrl;
   }
 
   async removeAvatar(userId: number): Promise<void> {
     await this.userManagementService.removeAvatar(userId);
+
+    // 아바타 제거 시 프로필 캐시 무효화
+    await this.redisClient.del(CACHE_KEYS.profile.user(userId));
+
+    // 대시보드 캐시도 무효화하여 아바타 변경이 즉시 반영되도록 함
+    await this.dashboardService.invalidateUserStatsCache(userId);
+    await this.dashboardService.invalidateUserActivitiesCache(userId);
   }
 }

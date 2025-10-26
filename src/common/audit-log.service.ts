@@ -113,8 +113,8 @@ export class AuditLogService {
   /**
    * 사용자별 실패한 인증 시도 조회 (metadata.username으로 필터링)
    */
-  async getFailedAuthAttemptsByUsername(
-    username: string,
+  async getFailedAuthAttemptsByEmail(
+    email: string,
     options: {
       limit?: number;
       offset?: number;
@@ -131,8 +131,8 @@ export class AuditLogService {
       .where('audit.eventType = :eventType', {
         eventType: AuditEventType.FAILED_AUTH_ATTEMPT,
       })
-      .andWhere("JSON_EXTRACT(audit.metadata, '$.username') = :username", {
-        username,
+      .andWhere("JSON_EXTRACT(audit.metadata, '$.username') = :email", {
+        email,
       })
       .orderBy('audit.createdAt', 'DESC')
       .limit(limit)

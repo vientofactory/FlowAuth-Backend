@@ -200,17 +200,16 @@ export class DashboardService {
       // Get user information
       const user = await this.userRepository.findOne({
         where: { id: userId },
-        select: ['username'],
+        select: ['username', 'email'],
       });
 
       // FAILED_AUTH_ATTEMPT Events
       let failedAuthLogs: AuditLog[] = [];
-      if (user?.username) {
+      if (user?.email) {
         const [failedLogs] =
-          await this.auditLogService.getFailedAuthAttemptsByUsername(
-            user.username,
-            { limit },
-          );
+          await this.auditLogService.getFailedAuthAttemptsByEmail(user.email, {
+            limit,
+          });
         failedAuthLogs = failedLogs;
       }
 

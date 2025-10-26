@@ -6,6 +6,7 @@ import { ProfileService } from './profile.service';
 import { LoggingModule } from '../logging/logging.module';
 import { AuthModule } from '../auth/auth.module';
 import { CacheConfigModule } from '../cache/cache-config.module';
+import { DashboardModule } from '../dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { CacheConfigModule } from '../cache/cache-config.module';
     LoggingModule,
     AuthModule,
     CacheConfigModule,
+    DashboardModule,
   ],
   controllers: [ProfileController],
   providers: [ProfileService],
