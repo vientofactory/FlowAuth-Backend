@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  Inject,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -9,7 +14,6 @@ import { User } from '../auth/user.entity';
 import { Client } from './client.entity';
 import { OAuth2JwtPayload } from '../types/oauth2.types';
 import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
-import { StructuredLogger } from '../logging/structured-logger.service';
 import { TOKEN_TYPES } from '../constants/auth.constants';
 import { OAuth2TokenService } from './services/oauth2-token.service';
 import { TokenRevocationService } from './services/token-revocation.service';
@@ -33,13 +37,14 @@ interface ImplicitTokenResponse {
 
 @Injectable()
 export class TokenService {
+  private readonly logger = new Logger(TokenService.name);
+
   constructor(
     @InjectRepository(Token)
     private readonly tokenRepository: Repository<Token>,
     private readonly jwtService: JwtService,
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
-    private readonly structuredLogger: StructuredLogger,
     private readonly oauth2TokenService: OAuth2TokenService,
     private readonly tokenRevocationService: TokenRevocationService,
     private readonly idTokenService: IdTokenService,
@@ -184,7 +189,7 @@ export class TokenService {
         expectedNonce,
       );
     } catch (error) {
-      this.structuredLogger.error(
+      this.logger.error(
         {
           message: 'ID token validation failed',
           error: error instanceof Error ? error.message : 'Unknown error',

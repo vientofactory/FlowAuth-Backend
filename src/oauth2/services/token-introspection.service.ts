@@ -1,10 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TokenService } from '../token.service';
 import { Token } from '../token.entity';
 import { Client } from '../client.entity';
-import { StructuredLogger } from '../../logging/structured-logger.service';
 import { TOKEN_INTROSPECTION_CONSTANTS } from '../../constants/jwt.constants';
 
 export interface TokenIntrospectionResult {
@@ -31,13 +30,14 @@ interface AccessTokenPayload {
 
 @Injectable()
 export class TokenIntrospectionService {
+  private readonly logger = new Logger(TokenIntrospectionService.name);
+
   constructor(
     private readonly tokenService: TokenService,
     @InjectRepository(Token)
     private readonly tokenRepository: Repository<Token>,
     @InjectRepository(Client)
     private readonly clientRepository: Repository<Client>,
-    private readonly structuredLogger: StructuredLogger,
   ) {}
 
   /**
@@ -138,7 +138,7 @@ export class TokenIntrospectionService {
         email_verified: emailVerified,
       };
     } catch (error) {
-      this.structuredLogger.warn(
+      this.logger.warn(
         {
           message: 'ID token introspection failed',
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -185,10 +185,10 @@ export class TokenIntrospectionService {
           ? payload.scopes.join(' ')
           : undefined,
         token_type: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_TYPES.ACCESS_TOKEN,
-        username: payload.sub, // Use user ID as username
+        username: payload.sub,
       };
     } catch (error) {
-      this.structuredLogger.warn(
+      this.logger.warn(
         {
           message: 'Access token introspection failed',
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -247,7 +247,7 @@ export class TokenIntrospectionService {
         username: tokenEntity.user?.username,
       };
     } catch (error) {
-      this.structuredLogger.warn(
+      this.logger.warn(
         {
           message: 'Refresh token introspection failed',
           error: error instanceof Error ? error.message : 'Unknown error',

@@ -32,7 +32,6 @@ import { Token } from './token.entity';
 import { Scope } from './scope.entity';
 import { OAuth2UserInfoBuilder } from './utils/oauth2-userinfo.util';
 import { AppConfigService } from '../config/app-config.service';
-import { LoggingModule } from '../logging/logging.module';
 import { CacheConfigModule } from '../cache/cache-config.module';
 import { CommonModule } from '../common/common.module';
 import { JWT_CONSTANTS } from '../constants/auth.constants';
@@ -41,7 +40,6 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
   imports: [
     TypeOrmModule.forFeature([User, Client, AuthorizationCode, Token, Scope]),
     ScheduleModule.forRoot(),
-    LoggingModule,
     CacheConfigModule,
     CommonModule,
     JwtModule.registerAsync({

@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
@@ -7,7 +7,6 @@ import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { CACHE_CONFIG } from '../../constants/cache.constants';
-import { StructuredLogger } from '../../logging/structured-logger.service';
 import { JwtTokenService } from './jwt-token.service';
 
 export interface IdTokenPayload {
@@ -46,9 +45,10 @@ export interface AddressClaim {
 
 @Injectable()
 export class IdTokenService {
+  private readonly logger = new Logger(IdTokenService.name);
+
   constructor(
     private configService: ConfigService,
-    private structuredLogger: StructuredLogger,
     private jwtTokenService: JwtTokenService,
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
@@ -138,7 +138,7 @@ export class IdTokenService {
 
       return publicKey;
     } catch (error) {
-      this.structuredLogger.error(
+      this.logger.error(
         {
           message: 'Failed to get RSA public key internally',
           kid,
@@ -220,7 +220,7 @@ export class IdTokenService {
 
       return payload;
     } catch (error) {
-      this.structuredLogger.error(
+      this.logger.error(
         {
           message: 'ID token validation failed',
           error: error instanceof Error ? error.message : 'Unknown error',

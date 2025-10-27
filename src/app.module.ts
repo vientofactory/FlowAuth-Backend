@@ -2,9 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { WinstonModule } from 'nest-winston';
-import { winstonConfig } from './logging/winston.config';
-import { LoggingModule } from './logging/logging.module';
 import { CacheConfigModule } from './cache/cache-config.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -32,8 +29,6 @@ import { CommonModule } from './common/common.module';
         },
       ],
     }),
-    WinstonModule.forRoot(winstonConfig),
-    LoggingModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     DatabaseModule,
     AuthModule,

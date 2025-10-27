@@ -1,12 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { User } from '../auth/user.entity';
-import { Client } from '../oauth2/client.entity';
-import { Token } from '../oauth2/token.entity';
-import { AuthorizationCode } from '../oauth2/authorization-code.entity';
-import { Scope } from '../oauth2/scope.entity';
-import { AuditLog } from '../common/audit-log.entity';
 import { SeedService } from './seed.service';
 import { DatabaseInitializationService } from './database-initialization.service';
 
@@ -21,13 +15,12 @@ import { DatabaseInitializationService } from './database-initialization.service
         username: configService.get<string>('DB_USERNAME', 'root'),
         password: configService.get<string>('DB_PASSWORD', ''),
         database: configService.get<string>('DB_NAME', 'flowauth'),
-        entities: [User, Client, Token, AuthorizationCode, Scope, AuditLog],
+        entities: [__dirname + '/../**/*.entity{.ts,.js}'],
         synchronize: false,
         logging: configService.get<string>('NODE_ENV') === 'development',
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([Scope, Client, User, AuditLog]),
   ],
   providers: [SeedService, DatabaseInitializationService],
   exports: [SeedService, DatabaseInitializationService],

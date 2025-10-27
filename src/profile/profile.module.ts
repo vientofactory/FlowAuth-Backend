@@ -3,7 +3,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../auth/user.entity';
 import { ProfileController } from './profile.controller';
 import { ProfileService } from './profile.service';
-import { LoggingModule } from '../logging/logging.module';
 import { AuthModule } from '../auth/auth.module';
 import { CacheConfigModule } from '../cache/cache-config.module';
 import { DashboardModule } from '../dashboard/dashboard.module';
@@ -11,7 +10,6 @@ import { DashboardModule } from '../dashboard/dashboard.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
-    LoggingModule,
     AuthModule,
     CacheConfigModule,
     DashboardModule,

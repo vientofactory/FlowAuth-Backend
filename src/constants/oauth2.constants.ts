@@ -4,10 +4,15 @@ export type OAuth2GrantType =
   | 'refresh_token'
   | 'client_credentials';
 export type OAuth2ResponseType =
+  // Authorization Code Grant
   | 'code'
+  // Implicit Grant
   | 'token'
+  // ID Token (OpenID Connect)
   | 'id_token'
+  // Hybrid Flow(Authorization Code + ID Token)
   | 'code id_token'
+  // Hybrid Flow(Implicit Grant + ID Token)
   | 'token id_token';
 export type OAuth2TokenType = 'Bearer';
 
@@ -83,11 +88,11 @@ export const OAUTH2_CONSTANTS = {
     INSUFFICIENT_SCOPE:
       'The request requires higher privileges than provided by the access token.',
   } as const,
+  // OAuth2 파라미터 제한
   PKCE_METHODS: ['plain', 'S256'] as const,
   CODE_CHALLENGE_S256_LENGTH: 43,
   CODE_CHALLENGE_PLAIN_MIN_LENGTH: 43,
   CODE_CHALLENGE_PLAIN_MAX_LENGTH: 128,
-  // 추가된 길이 제한 상수들
   STATE_MAX_LENGTH: 256,
   REDIRECT_URI_MAX_LENGTH: 2048,
   CLIENT_ID_MAX_LENGTH: 100,

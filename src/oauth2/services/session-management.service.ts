@@ -1,9 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
-import { StructuredLogger } from '../../logging/structured-logger.service';
 
 export interface SessionState {
   sessionId: string;
@@ -26,14 +25,12 @@ export interface SessionCheckResult {
  */
 @Injectable()
 export class SessionManagementService {
+  private readonly logger = new Logger(SessionManagementService.name);
   private readonly sessions = new Map<string, SessionState>();
   private readonly SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
   private readonly CHECK_SESSION_IFRAME_URL: string;
 
-  constructor(
-    private configService: ConfigService,
-    private structuredLogger: StructuredLogger,
-  ) {
+  constructor(private configService: ConfigService) {
     this.CHECK_SESSION_IFRAME_URL = `${this.configService.get('BASE_URL')}/connect/session/check`;
 
     // Session cleanup interval (every 5 minutes)
@@ -69,11 +66,6 @@ export class SessionManagementService {
     };
 
     this.sessions.set(sessionId, sessionState);
-
-    this.structuredLogger.log(
-      `Session created: ${sessionId}`,
-      'SessionManagementService',
-    );
 
     return sessionId;
   }
@@ -116,11 +108,6 @@ export class SessionManagementService {
     if (session) {
       session.isActive = false;
       this.sessions.delete(sessionId);
-
-      this.structuredLogger.log(
-        `Session ended: ${sessionId}`,
-        'SessionManagementService',
-      );
     }
   }
 
@@ -164,13 +151,6 @@ export class SessionManagementService {
 
     for (const sessionId of expiredSessions) {
       this.endSession(sessionId);
-    }
-
-    if (expiredSessions.length > 0) {
-      this.structuredLogger.log(
-        `Expired sessions cleaned up: ${expiredSessions.length}`,
-        'SessionManagementService',
-      );
     }
   }
 

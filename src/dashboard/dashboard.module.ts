@@ -12,14 +12,12 @@ import { DashboardAnalyticsService } from './dashboard-analytics.service';
 import { TokenAnalyticsService } from './token-analytics.service';
 import { SecurityMetricsService } from './security-metrics.service';
 import { CacheManagerService } from './cache-manager.service';
-import { LoggingModule } from '../logging/logging.module';
 import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Client, User, Token, AuditLog]),
     OAuth2Module,
-    LoggingModule,
     CommonModule,
   ],
   controllers: [DashboardController],

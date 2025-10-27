@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityManager } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -11,7 +11,6 @@ import { Client } from '../client.entity';
 import { Token } from '../token.entity';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { TOKEN_TYPES } from '../../constants/auth.constants';
-import { StructuredLogger } from '../../logging/structured-logger.service';
 import { IdTokenService } from './id-token.service';
 import { safeTokenCompare } from '../../utils/timing-security.util';
 import { AuditLogService } from '../../common/audit-log.service';
@@ -35,12 +34,13 @@ interface ImplicitTokenResponse {
 
 @Injectable()
 export class OAuth2TokenService {
+  private readonly logger = new Logger(OAuth2TokenService.name);
+
   constructor(
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
     private jwtService: JwtService,
     private configService: ConfigService,
-    private structuredLogger: StructuredLogger,
     private idTokenService: IdTokenService,
     private auditLogService: AuditLogService,
     @Inject(CACHE_MANAGER)
@@ -57,7 +57,7 @@ export class OAuth2TokenService {
     return this.tokenRepository.manager.transaction(async (manager) => {
       // Debug logging only in development environment
       if (this.isDebugMode() && process.env.NODE_ENV === 'development') {
-        this.structuredLogger.debug(
+        this.logger.debug(
           {
             message: 'createToken called',
             userId: user?.id,
@@ -115,7 +115,7 @@ export class OAuth2TokenService {
           );
         } catch (error) {
           // 감사 로그 기록 실패해도 토큰 발급은 계속 진행
-          this.structuredLogger.logError(error as Error, 'OAuth2TokenService', {
+          this.logger.error(error, 'OAuth2TokenService', {
             operation: 'createAuditLog',
             userId: user.id,
             clientId: client.id,
@@ -154,7 +154,7 @@ export class OAuth2TokenService {
             authTime,
           );
         } catch (error) {
-          this.structuredLogger.logError(error as Error, 'OAuth2TokenService', {
+          this.logger.error(error, 'OAuth2TokenService', {
             operation: 'generateIdToken',
             userId: user.id,
             clientId: client.clientId,
@@ -249,12 +249,11 @@ export class OAuth2TokenService {
           'refresh_token_reuse',
         );
 
-        this.structuredLogger.logSecurity('refresh_token_reuse_detected', {
+        this.logger.warn('refresh_token_reuse_detected', {
           tokenFamily: token.tokenFamily,
           generation: token.rotationGeneration,
           clientId: token.client.clientId,
           userId: token.user?.id,
-          ip: null, // Should be passed from request context
         });
 
         return null;
@@ -412,12 +411,6 @@ export class OAuth2TokenService {
     for (const token of tokensInFamily) {
       await this.cacheManager.del(`oauth2_token:${token.id}`);
     }
-
-    this.structuredLogger.logSecurity('token_family_revoked', {
-      tokenFamily,
-      reason,
-      revokedTokens: tokensInFamily.length,
-    });
   }
 
   /**

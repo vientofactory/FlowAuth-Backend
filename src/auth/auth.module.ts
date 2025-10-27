@@ -14,7 +14,6 @@ import { User } from './user.entity';
 import { Client } from '../oauth2/client.entity';
 import { Token } from '../oauth2/token.entity';
 import { AuthorizationCode } from '../oauth2/authorization-code.entity';
-import { LoggingModule } from '../logging/logging.module';
 import { UtilsModule } from '../utils/utils.module';
 import { JWT_CONSTANTS } from '../constants/auth.constants';
 import { UserManagementService } from './services/user-management.service';
@@ -29,7 +28,6 @@ import { CommonModule } from '../common/common.module';
   imports: [
     TypeOrmModule.forFeature([User, Client, Token, AuthorizationCode]),
     PassportModule,
-    LoggingModule,
     UtilsModule,
     UploadModule,
     CommonModule,
