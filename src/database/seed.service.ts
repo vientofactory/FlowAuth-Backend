@@ -78,7 +78,7 @@ export class SeedService {
     const clientRepository = this.dataSource.getRepository(Client);
     const userRepository = this.dataSource.getRepository(User);
 
-    const clientId = snowflakeGenerator.generate();
+    const clientId = await snowflakeGenerator.generate();
     const existingClient = await clientRepository.findOne({
       where: { name: 'Test Client' },
     });

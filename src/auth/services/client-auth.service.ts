@@ -104,7 +104,7 @@ export class ClientAuthService {
     }
 
     // Generate clientId using Snowflake ID and clientSecret using crypto-safe random string
-    const clientId = snowflakeGenerator.generate().toString();
+    const clientId = (await snowflakeGenerator.generate()).toString();
     const clientSecret = crypto.randomBytes(32).toString('hex');
 
     // Set default scopes if not provided
