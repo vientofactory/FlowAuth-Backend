@@ -1,6 +1,5 @@
 import {
   Injectable,
-  ConflictException,
   UnauthorizedException,
   BadRequestException,
   Logger,
@@ -12,17 +11,10 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
 import { User } from '../user.entity';
-import { CreateUserDto } from '../dto/create-user.dto';
 import { Client } from '../../oauth2/client.entity';
 import { Token } from '../../oauth2/token.entity';
 import { MoreThan } from 'typeorm';
-import {
-  AUTH_CONSTANTS,
-  AUTH_ERROR_MESSAGES,
-  USER_TYPES,
-  USER_TYPE_PERMISSIONS,
-  PERMISSION_UTILS,
-} from '../../constants/auth.constants';
+import { AUTH_CONSTANTS } from '../../constants/auth.constants';
 import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { TwoFactorService } from '../two-factor.service';
 import { FileUploadService } from '../../upload/file-upload.service';
@@ -45,83 +37,6 @@ export class UserManagementService {
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
   ) {}
-
-  async register(createUserDto: CreateUserDto): Promise<User> {
-    const {
-      username,
-      email,
-      password,
-      firstName,
-      lastName,
-      userType,
-      recaptchaToken,
-    } = createUserDto;
-
-    // Verify reCAPTCHA token (required for registration)
-    const isValidRecaptcha = await this.recaptchaService.verifyToken(
-      recaptchaToken,
-      'register',
-    );
-    if (!isValidRecaptcha) {
-      throw new UnauthorizedException('reCAPTCHA verification failed');
-    }
-
-    // Check if user already exists
-    const existingUser = await this.userRepository.findOne({
-      where: [{ username }, { email }],
-    });
-
-    if (existingUser) {
-      if (existingUser.email === email) {
-        throw new ConflictException('이미 사용중인 이메일입니다.');
-      }
-      if (existingUser.username === username) {
-        throw new ConflictException('이미 사용중인 사용자명입니다.');
-      }
-      throw new ConflictException(AUTH_ERROR_MESSAGES.USER_ALREADY_EXISTS);
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(
-      password,
-      AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
-    );
-
-    // Check if this is the first user (should get admin permissions)
-    const userCount = await this.userRepository.count();
-    const isFirstUser = userCount === 0;
-
-    let permissions =
-      USER_TYPE_PERMISSIONS[userType as USER_TYPES] ||
-      USER_TYPE_PERMISSIONS[USER_TYPES.REGULAR];
-
-    if (isFirstUser) {
-      // First user gets admin permissions
-      permissions = PERMISSION_UTILS.getAllPermissionsMask();
-    }
-
-    // Create user
-    const user = this.userRepository.create({
-      username,
-      email,
-      password: hashedPassword,
-      firstName,
-      lastName,
-      permissions,
-      userType,
-      isEmailVerified: false,
-      isTwoFactorEnabled: false,
-      isActive: true,
-    });
-
-    const savedUser = await this.userRepository.save(user);
-
-    // Clear user cache
-    await this.cacheManager.del(`user:${savedUser.id}`);
-
-    this.logger.log(`User registered: ${username} (${email})`);
-    return savedUser;
-  }
 
   async findById(id: number): Promise<User> {
     const cacheKey = `user:${id}`;

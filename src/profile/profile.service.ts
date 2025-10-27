@@ -51,6 +51,19 @@ export class ProfileService {
     return user;
   }
 
+  async findSafeById(
+    id: number,
+  ): Promise<Omit<User, 'password' | 'twoFactorSecret' | 'backupCodes'>> {
+    const user = await this.findById(id);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password, twoFactorSecret, backupCodes, ...safeUser } = user;
+    return safeUser as Omit<
+      User,
+      'password' | 'twoFactorSecret' | 'backupCodes'
+    >;
+  }
+
   async updateProfile(
     userId: number,
     updateData: Partial<User>,

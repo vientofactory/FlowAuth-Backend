@@ -24,6 +24,7 @@ import {
   USER_TYPE_PERMISSIONS,
   TOKEN_TYPES,
   JWT_TOKEN_EXPIRY,
+  PERMISSION_UTILS,
 } from '../../constants/auth.constants';
 import { JwtPayload, LoginResponse } from '../../types/auth.types';
 import { PermissionUtils } from '../../utils/permission.util';
@@ -96,7 +97,7 @@ export class UserAuthService {
     let permissions: number;
 
     if (isFirstUser) {
-      // First user is always admin
+      // First user of entire system gets admin access
       permissions = PERMISSIONS.ADMIN_ACCESS;
     } else {
       // Set permissions based on user type
@@ -113,6 +114,15 @@ export class UserAuthService {
       } else {
         throw new Error(`Invalid user type: ${finalUserType}`);
       }
+    }
+
+    // Validate permissions
+    if (
+      permissions <= 0 ||
+      (permissions !== PERMISSIONS.ADMIN_ACCESS &&
+        (permissions & ~PERMISSION_UTILS.getAllPermissionsMask()) !== 0)
+    ) {
+      throw new Error(`Invalid permissions value: ${permissions}`);
     }
 
     // Create user
