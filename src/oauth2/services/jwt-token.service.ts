@@ -4,6 +4,8 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { CACHE_CONFIG } from '../../constants/cache.constants';
 
@@ -16,10 +18,39 @@ export class JwtTokenService {
   ) {}
 
   /**
+   * Get RSA private key from file or environment variable
+   */
+  private getRsaPrivateKey(): string {
+    // Try file first
+    const privateKeyFile = this.configService.get<string>(
+      'RSA_PRIVATE_KEY_FILE',
+    );
+    if (privateKeyFile) {
+      try {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        return fs.readFileSync(path.resolve(privateKeyFile), 'utf8');
+      } catch {
+        throw new Error(
+          `Failed to read RSA private key file: ${privateKeyFile}`,
+        );
+      }
+    }
+
+    // Fallback to environment variable
+    const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
+    if (!privateKeyPem) {
+      throw new Error(
+        'RSA private key not configured. Set RSA_PRIVATE_KEY_FILE or RSA_PRIVATE_KEY.',
+      );
+    }
+    return privateKeyPem;
+  }
+
+  /**
    * Sign JWT with RSA private key
    */
   async signJwtWithRSA(payload: Record<string, unknown>): Promise<string> {
-    const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
+    const privateKeyPem = this.getRsaPrivateKey();
 
     if (privateKeyPem) {
       // Sign with RSA key
@@ -72,11 +103,11 @@ export class JwtTokenService {
     }
 
     // Fetch development RSA private key from environment variable
-    const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
+    const privateKeyPem = this.getRsaPrivateKey();
 
     if (!privateKeyPem) {
       throw new Error(
-        'Development RSA private key not found. Please set RSA_PRIVATE_KEY environment variable.',
+        'Development RSA private key not found. Please set RSA_PRIVATE_KEY_FILE or RSA_PRIVATE_KEY.',
       );
     }
 
@@ -98,7 +129,7 @@ export class JwtTokenService {
    * Fetch RSA public key
    */
   getRsaPublicKey(): crypto.KeyObject {
-    const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
+    const privateKeyPem = this.getRsaPrivateKey();
 
     if (!privateKeyPem) {
       throw new Error('RSA private key not configured');
@@ -106,5 +137,12 @@ export class JwtTokenService {
 
     const privateKey = crypto.createPrivateKey(privateKeyPem);
     return crypto.createPublicKey(privateKey);
+  }
+
+  /**
+   * Get RSA private key PEM string
+   */
+  getRsaPrivateKeyPem(): string {
+    return this.getRsaPrivateKey();
   }
 }

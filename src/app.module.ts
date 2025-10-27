@@ -13,6 +13,7 @@ import { UploadModule } from './upload/upload.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ProfileModule } from './profile/profile.module';
 import { CommonModule } from './common/common.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { CommonModule } from './common/common.module';
     DashboardModule,
     ProfileModule,
     CommonModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppConfigService],
