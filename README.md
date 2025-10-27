@@ -388,7 +388,12 @@ npm run typeorm
 
 ### 추가 환경 변수 (선택사항)
 
+OIDC 관련 변수는 누락될 경우 OpenID Connect 관련 기능이 제대로 작동하지 않을 수 있습니다.
+
 ```env
+# Snowflake ID Generator Configuration
+NODE_ID=1  # Snowflake ID 생성에 사용되는 노드 ID (0-1023 범위, 기본값: 1)
+
 # OAuth2 Configuration
 OAUTH2_ACCESS_TOKEN_EXPIRY_HOURS=1
 OAUTH2_REFRESH_TOKEN_EXPIRY_DAYS=30
