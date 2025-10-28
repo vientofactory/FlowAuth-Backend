@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthorizationController } from './controllers/authorization.controller';
 import { TokenController } from './controllers/token.controller';
@@ -28,7 +26,6 @@ import { OAuth2Strategy } from './guards/oauth2.strategy';
 import { AppConfigService } from '../config/app-config.service';
 import { CacheConfigModule } from '../cache/cache-config.module';
 import { CommonModule } from '../common/common.module';
-import { JWT_CONSTANTS } from '../constants/auth.constants';
 import { AuditLogService } from '../common/audit-log.service';
 import { User } from '../auth/user.entity';
 import { Client } from './client.entity';
@@ -51,15 +48,6 @@ import { OAuth2UserInfoBuilder } from './utils/oauth2-userinfo.util';
     ScheduleModule.forRoot(),
     CacheConfigModule,
     CommonModule,
-    JwtModule.registerAsync({
-      useFactory: (configService: ConfigService) => ({
-        secret:
-          configService.get<string>('JWT_SECRET') ??
-          JWT_CONSTANTS.SECRET_KEY_FALLBACK,
-        signOptions: { expiresIn: JWT_CONSTANTS.EXPIRES_IN },
-      }),
-      inject: [ConfigService],
-    }),
   ],
   controllers: [
     AuthorizationController,

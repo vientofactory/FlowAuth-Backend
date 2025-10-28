@@ -1,8 +1,5 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { JwtModule } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport';
-import { ConfigService } from '@nestjs/config';
 import { User } from './user.entity';
 import { Client } from '../oauth2/client.entity';
 import { Token } from '../oauth2/token.entity';
@@ -15,7 +12,6 @@ import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard } from './permissions.guard';
 import { UtilsModule } from '../utils/utils.module';
-import { JWT_CONSTANTS } from '../constants/auth.constants';
 import { UserManagementService } from './services/user-management.service';
 import { UserAuthService } from './services/user-auth.service';
 import { ClientAuthService } from './services/client-auth.service';
@@ -28,18 +24,9 @@ import { AuditLogService } from '../common/audit-log.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Client, Token, AuditLog]),
-    PassportModule,
     UtilsModule,
     UploadModule,
     CommonModule,
-    JwtModule.registerAsync({
-      useFactory: (configService: ConfigService) => ({
-        secret:
-          configService.get<string>('JWT_SECRET') ??
-          JWT_CONSTANTS.SECRET_KEY_FALLBACK,
-      }),
-      inject: [ConfigService],
-    }),
   ],
   providers: [
     AuthService,

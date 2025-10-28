@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { CacheConfigModule } from './cache/cache-config.module';
@@ -31,6 +32,14 @@ import { HealthModule } from './health/health.module';
       ],
     }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.registerAsync({
+      global: true,
+      useFactory: (configService: ConfigService) => ({
+        secret:
+          configService.get<string>('JWT_SECRET') ?? 'fallback-secret-key',
+      }),
+      inject: [ConfigService],
+    }),
     DatabaseModule,
     AuthModule,
     OAuth2Module,
