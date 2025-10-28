@@ -3,6 +3,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
+import { User } from './user.entity';
+import { Client } from '../oauth2/client.entity';
+import { Token } from '../oauth2/token.entity';
+import { AuditLog } from '../common/audit-log.entity';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { TwoFactorService } from './two-factor.service';
@@ -10,10 +14,6 @@ import { TwoFactorController } from './two-factor.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard } from './permissions.guard';
-import { User } from './user.entity';
-import { Client } from '../oauth2/client.entity';
-import { Token } from '../oauth2/token.entity';
-import { AuthorizationCode } from '../oauth2/authorization-code.entity';
 import { UtilsModule } from '../utils/utils.module';
 import { JWT_CONSTANTS } from '../constants/auth.constants';
 import { UserManagementService } from './services/user-management.service';
@@ -23,10 +23,11 @@ import { TwoFactorAuthService } from './services/two-factor-auth.service';
 import { ValidationService } from './services/validation.service';
 import { UploadModule } from '../upload/upload.module';
 import { CommonModule } from '../common/common.module';
+import { AuditLogService } from '../common/audit-log.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Client, Token, AuthorizationCode]),
+    TypeOrmModule.forFeature([User, Client, Token, AuditLog]),
     PassportModule,
     UtilsModule,
     UploadModule,
@@ -51,6 +52,7 @@ import { CommonModule } from '../common/common.module';
     ClientAuthService,
     TwoFactorAuthService,
     ValidationService,
+    AuditLogService,
   ],
   controllers: [AuthController, TwoFactorController],
   exports: [

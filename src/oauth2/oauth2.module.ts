@@ -25,20 +25,29 @@ import { CleanupSchedulerService } from './cleanup-scheduler.service';
 import { OAuth2BearerGuard } from './guards/oauth2-bearer.guard';
 import { OAuth2ScopeGuard } from './guards/oauth2-scope.guard';
 import { OAuth2Strategy } from './guards/oauth2.strategy';
+import { AppConfigService } from '../config/app-config.service';
+import { CacheConfigModule } from '../cache/cache-config.module';
+import { CommonModule } from '../common/common.module';
+import { JWT_CONSTANTS } from '../constants/auth.constants';
+import { AuditLogService } from '../common/audit-log.service';
 import { User } from '../auth/user.entity';
 import { Client } from './client.entity';
 import { AuthorizationCode } from './authorization-code.entity';
 import { Token } from './token.entity';
 import { Scope } from './scope.entity';
+import { AuditLog } from '../common/audit-log.entity';
 import { OAuth2UserInfoBuilder } from './utils/oauth2-userinfo.util';
-import { AppConfigService } from '../config/app-config.service';
-import { CacheConfigModule } from '../cache/cache-config.module';
-import { CommonModule } from '../common/common.module';
-import { JWT_CONSTANTS } from '../constants/auth.constants';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Client, AuthorizationCode, Token, Scope]),
+    TypeOrmModule.forFeature([
+      User,
+      Client,
+      AuthorizationCode,
+      Token,
+      Scope,
+      AuditLog,
+    ]),
     ScheduleModule.forRoot(),
     CacheConfigModule,
     CommonModule,
@@ -78,6 +87,7 @@ import { JWT_CONSTANTS } from '../constants/auth.constants';
     OAuth2ScopeGuard,
     OAuth2Strategy,
     AppConfigService,
+    AuditLogService,
     OAuth2UserInfoBuilder,
   ],
   exports: [

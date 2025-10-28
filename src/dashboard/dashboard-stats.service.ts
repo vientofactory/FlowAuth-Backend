@@ -1,11 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
 import { Client } from '../oauth2/client.entity';
-import { User } from '../auth/user.entity';
 import { Token } from '../oauth2/token.entity';
 import { TokenStatistics } from './statistics.entity';
-import { TokenService } from '../oauth2/token.service';
 import { TOKEN_TYPES } from '../constants/auth.constants';
 import { CacheManagerService } from './cache-manager.service';
 import { DASHBOARD_CONFIG } from './dashboard.constants';
@@ -74,13 +72,10 @@ export class DashboardStatsService {
   constructor(
     @InjectRepository(Client)
     private clientRepository: Repository<Client>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
     @InjectRepository(TokenStatistics)
     private tokenStatisticsRepository: Repository<TokenStatistics>,
-    private tokenService: TokenService,
     private cacheManagerService: CacheManagerService,
   ) {}
 
@@ -193,7 +188,15 @@ export class DashboardStatsService {
   }
 
   async getActiveTokensCount(userId: number): Promise<number> {
-    return await this.tokenService.getActiveTokensCountForUser(userId);
+    const now = new Date();
+    return await this.tokenRepository.count({
+      where: {
+        user: { id: userId },
+        expiresAt: MoreThan(now), // 활성 토큰만 카운트 (만료되지 않은 토큰)
+        isRevoked: false,
+        tokenType: TOKEN_TYPES.OAUTH2,
+      },
+    });
   }
 
   async getTotalTokensIssuedCount(userId: number): Promise<number> {

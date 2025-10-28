@@ -11,7 +11,7 @@ import Redis from 'ioredis';
 import * as bcrypt from 'bcrypt';
 import { User } from '../auth/user.entity';
 import { UserManagementService } from '../auth/services/user-management.service';
-import { DashboardService } from '../dashboard/dashboard.service';
+import { CacheManagerService } from '../dashboard/cache-manager.service';
 import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
 import { VALIDATION_CONSTANTS } from '../constants/validation.constants';
@@ -23,7 +23,7 @@ export class ProfileService {
     private userRepository: Repository<User>,
     @Inject('REDIS_CLIENT') private readonly redisClient: Redis,
     private userManagementService: UserManagementService,
-    private dashboardService: DashboardService,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   async findById(id: number): Promise<User> {
@@ -253,8 +253,8 @@ export class ProfileService {
     await this.redisClient.del(CACHE_KEYS.profile.user(userId));
 
     // 대시보드 캐시도 무효화하여 프로필 변경이 즉시 반영되도록 함
-    await this.dashboardService.invalidateUserStatsCache(userId);
-    await this.dashboardService.invalidateUserActivitiesCache(userId);
+    await this.cacheManagerService.invalidateUserStatsCache(userId);
+    await this.cacheManagerService.invalidateUserActivitiesCache(userId);
 
     // 업데이트된 사용자 정보 조회
     const updatedUser = await this.userRepository.findOne({
@@ -306,8 +306,8 @@ export class ProfileService {
     await this.redisClient.del(CACHE_KEYS.profile.user(userId));
 
     // 대시보드 캐시도 무효화하여 프로필 변경이 즉시 반영되도록 함
-    await this.dashboardService.invalidateUserStatsCache(userId);
-    await this.dashboardService.invalidateUserActivitiesCache(userId);
+    await this.cacheManagerService.invalidateUserStatsCache(userId);
+    await this.cacheManagerService.invalidateUserActivitiesCache(userId);
   }
 
   async checkUsernameAvailability(
@@ -370,8 +370,8 @@ export class ProfileService {
     await this.redisClient.del(CACHE_KEYS.profile.user(userId));
 
     // 대시보드 캐시도 무효화하여 아바타 변경이 즉시 반영되도록 함
-    await this.dashboardService.invalidateUserStatsCache(userId);
-    await this.dashboardService.invalidateUserActivitiesCache(userId);
+    await this.cacheManagerService.invalidateUserStatsCache(userId);
+    await this.cacheManagerService.invalidateUserActivitiesCache(userId);
 
     return avatarUrl;
   }
@@ -383,7 +383,7 @@ export class ProfileService {
     await this.redisClient.del(CACHE_KEYS.profile.user(userId));
 
     // 대시보드 캐시도 무효화하여 아바타 변경이 즉시 반영되도록 함
-    await this.dashboardService.invalidateUserStatsCache(userId);
-    await this.dashboardService.invalidateUserActivitiesCache(userId);
+    await this.cacheManagerService.invalidateUserStatsCache(userId);
+    await this.cacheManagerService.invalidateUserActivitiesCache(userId);
   }
 }

@@ -3,6 +3,18 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SeedService } from './seed.service';
 import { DatabaseInitializationService } from './database-initialization.service';
+// Import all entities to register them globally
+import { User } from '../auth/user.entity';
+import { Client } from '../oauth2/client.entity';
+import { Token } from '../oauth2/token.entity';
+import { AuthorizationCode } from '../oauth2/authorization-code.entity';
+import { Scope } from '../oauth2/scope.entity';
+import { AuditLog } from '../common/audit-log.entity';
+import {
+  TokenStatistics,
+  ScopeStatistics,
+  ClientStatistics,
+} from '../dashboard/statistics.entity';
 
 @Module({
   imports: [
@@ -15,7 +27,17 @@ import { DatabaseInitializationService } from './database-initialization.service
         username: configService.get<string>('DB_USERNAME', 'root'),
         password: configService.get<string>('DB_PASSWORD', ''),
         database: configService.get<string>('DB_NAME', 'flowauth'),
-        entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+        entities: [
+          User,
+          Client,
+          Token,
+          AuthorizationCode,
+          Scope,
+          AuditLog,
+          TokenStatistics,
+          ScopeStatistics,
+          ClientStatistics,
+        ],
         synchronize: false,
         logging: configService.get<string>('NODE_ENV') === 'development',
       }),

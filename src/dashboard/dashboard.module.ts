@@ -9,7 +9,6 @@ import {
   ScopeStatistics,
   ClientStatistics,
 } from './statistics.entity';
-import { OAuth2Module } from '../oauth2/oauth2.module';
 import { DashboardController } from './dashboard.controller';
 import { DashboardService } from './dashboard.service';
 import { DashboardStatsService } from './dashboard-stats.service';
@@ -18,6 +17,7 @@ import { TokenAnalyticsService } from './token-analytics.service';
 import { SecurityMetricsService } from './security-metrics.service';
 import { CacheManagerService } from './cache-manager.service';
 import { StatisticsRecordingService } from './statistics-recording.service';
+import { AuditLogService } from '../common/audit-log.service';
 import { CommonModule } from '../common/common.module';
 
 @Module({
@@ -31,7 +31,6 @@ import { CommonModule } from '../common/common.module';
       ScopeStatistics,
       ClientStatistics,
     ]),
-    OAuth2Module,
     CommonModule,
   ],
   controllers: [DashboardController],
@@ -43,6 +42,7 @@ import { CommonModule } from '../common/common.module';
     SecurityMetricsService,
     CacheManagerService,
     StatisticsRecordingService,
+    AuditLogService,
   ],
   exports: [DashboardService, CacheManagerService, StatisticsRecordingService],
 })

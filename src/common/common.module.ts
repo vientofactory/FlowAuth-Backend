@@ -1,12 +1,11 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuditLog } from './audit-log.entity';
-import { AuditLogService } from './audit-log.service';
+import { DatabaseModule } from '../database/database.module';
 import { StatisticsEventService } from './statistics-event.service';
+import { JwtTokenService } from '../oauth2/services/jwt-token.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([AuditLog])],
-  providers: [AuditLogService, StatisticsEventService],
-  exports: [AuditLogService, StatisticsEventService],
+  imports: [DatabaseModule],
+  providers: [StatisticsEventService, JwtTokenService],
+  exports: [StatisticsEventService, JwtTokenService],
 })
 export class CommonModule {}

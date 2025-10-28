@@ -1,12 +1,10 @@
 import { Module } from '@nestjs/common';
 import { TerminusModule } from '@nestjs/terminus';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { HealthController } from './health.controller';
-import { JwtTokenService } from '../oauth2/services/jwt-token.service';
+import { CommonModule } from '../common/common.module';
 
 @Module({
-  imports: [TerminusModule, TypeOrmModule],
+  imports: [TerminusModule, CommonModule],
   controllers: [HealthController],
-  providers: [JwtTokenService],
 })
 export class HealthModule {}
