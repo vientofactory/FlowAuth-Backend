@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { QueryFailedError } from 'typeorm';
+import { LoggingService } from '../services/logging.service';
 
 export interface ErrorResponse {
   error: string;
@@ -56,20 +57,25 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         };
       }
     } else if (exception instanceof QueryFailedError) {
-      // Database errors
       status = HttpStatus.BAD_REQUEST;
+      const dbError = exception as QueryFailedError & { code?: string };
       errorResponse = {
         error: 'database_error',
-        error_description: 'A database error occurred',
+        error_description:
+          dbError.code === 'ER_DUP_ENTRY'
+            ? 'Duplicate entry'
+            : 'A database error occurred',
       };
-      this.logger.error('Database error:', exception);
+      LoggingService.logError('Database', exception, {
+        code: dbError.code,
+      });
     } else {
       // Unexpected errors
       errorResponse = {
         error: 'internal_server_error',
         error_description: 'An unexpected error occurred',
       };
-      this.logger.error('Unexpected error:', exception);
+      LoggingService.logError('Unexpected', exception);
     }
 
     // Add metadata for debugging (only in development)
@@ -78,25 +84,36 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       errorResponse.path = request.url;
     }
 
+    // Enhanced logging for production
+    if (process.env.NODE_ENV !== 'development') {
+      LoggingService.logError(
+        'Request',
+        new Error(errorResponse.error_description),
+        {
+          url: request.url,
+          method: request.method,
+          status,
+        },
+      );
+    }
+
     response.status(status).json(errorResponse);
   }
 
   private getErrorType(status: number): string {
-    switch (status) {
-      case 400:
-        return 'bad_request';
-      case 401:
-        return 'unauthorized';
-      case 403:
-        return 'forbidden';
-      case 404:
-        return 'not_found';
-      case 409:
-        return 'conflict';
-      case 429:
-        return 'too_many_requests';
-      default:
-        return 'internal_server_error';
-    }
+    const errorTypes: Record<number, string> = {
+      400: 'bad_request',
+      401: 'unauthorized',
+      403: 'forbidden',
+      404: 'not_found',
+      409: 'conflict',
+      422: 'unprocessable_entity',
+      429: 'too_many_requests',
+      500: 'internal_server_error',
+      502: 'bad_gateway',
+      503: 'service_unavailable',
+    };
+    // eslint-disable-next-line security/detect-object-injection
+    return errorTypes[status] || 'internal_server_error';
   }
 }
