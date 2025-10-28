@@ -43,7 +43,7 @@ export class CacheManagerService {
    */
   async invalidateUserStatsCache(userId: number): Promise<void> {
     try {
-      const cacheKey = DASHBOARD_CACHE_KEYS.stats(userId);
+      const cacheKey = DASHBOARD_CACHE_KEYS.dashboard.stats(userId);
       await this.cacheManager.del(cacheKey);
     } catch (error) {
       this.logger.warn('Failed to invalidate user stats cache:', error);
@@ -59,7 +59,9 @@ export class CacheManagerService {
       const commonLimits = [5, 10, 20, 50];
       await Promise.all(
         commonLimits.map((limit) =>
-          this.cacheManager.del(DASHBOARD_CACHE_KEYS.activities(userId, limit)),
+          this.cacheManager.del(
+            DASHBOARD_CACHE_KEYS.dashboard.activities(userId, limit, 0),
+          ),
         ),
       );
     } catch (error) {
@@ -72,7 +74,7 @@ export class CacheManagerService {
    */
   async invalidateUserProfileCache(userId: number): Promise<void> {
     try {
-      const cacheKey = DASHBOARD_CACHE_KEYS.user(userId);
+      const cacheKey = DASHBOARD_CACHE_KEYS.dashboard.user(userId);
       await this.cacheManager.del(cacheKey);
     } catch (error) {
       this.logger.warn('Failed to invalidate user profile cache:', error);
@@ -84,7 +86,7 @@ export class CacheManagerService {
    */
   async invalidateUserPermissionsCache(userId: number): Promise<void> {
     try {
-      const cacheKey = DASHBOARD_CACHE_KEYS.permissions(userId);
+      const cacheKey = DASHBOARD_CACHE_KEYS.dashboard.permissions(userId);
       await this.cacheManager.del(cacheKey);
     } catch (error) {
       this.logger.warn('Failed to invalidate user permissions cache:', error);

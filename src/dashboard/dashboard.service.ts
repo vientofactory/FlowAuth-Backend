@@ -24,7 +24,8 @@ import {
 } from '../common/audit-log.entity';
 import { TokenAnalyticsService } from './token-analytics.service';
 import { SecurityMetricsService } from './security-metrics.service';
-import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
+import { CACHE_CONFIG } from '../constants/cache.constants';
+import { CACHE_KEYS } from './dashboard.constants';
 import { StatisticsRecordingService } from './statistics-recording.service';
 import { DASHBOARD_CONFIG } from './dashboard.constants';
 import {
@@ -166,7 +167,8 @@ export class DashboardService {
   async getRecentActivities(
     userId: number,
     limit: number = 10,
-  ): Promise<RecentActivityDto[]> {
+    offset: number = 0,
+  ): Promise<{ activities: RecentActivityDto[]; total: number }> {
     let sanitizedLimit = Number(limit) || 10;
     sanitizedLimit = Math.max(1, Math.floor(sanitizedLimit));
     const configuredMax = DASHBOARD_CONFIG.ACTIVITIES.MAX_LIMIT;
@@ -177,18 +179,22 @@ export class DashboardService {
 
     limit = sanitizedLimit;
 
-    const cacheKey = CACHE_KEYS.dashboard.activities(userId, limit);
+    const cacheKey = CACHE_KEYS.dashboard.activities(userId, limit, offset);
 
     try {
       // Use cache first
-      const cached = await this.cacheManager.get<RecentActivityDto[]>(cacheKey);
+      const cached = await this.cacheManager.get<{
+        activities: RecentActivityDto[];
+        total: number;
+      }>(cacheKey);
       if (cached) {
         return cached;
       }
 
       // Get activity data from audit logs
       const [auditLogs] = await this.auditLogService.getUserAuditLogs(userId, {
-        limit,
+        limit: 1000, // Get enough data
+        offset: 0,
         eventTypes: [
           AuditEventType.USER_LOGIN,
           AuditEventType.TOKEN_ISSUED,
@@ -210,7 +216,8 @@ export class DashboardService {
       if (user?.email) {
         const [failedLogs] =
           await this.auditLogService.getFailedAuthAttemptsByEmail(user.email, {
-            limit,
+            limit: 1000, // Get enough data
+            offset: 0,
           });
         failedAuthLogs = failedLogs;
       }
@@ -219,7 +226,7 @@ export class DashboardService {
       const allAuditLogs = [...auditLogs, ...failedAuthLogs];
 
       // Convert audit logs to activity DTOs
-      const activities: RecentActivityDto[] = allAuditLogs.map((log) => {
+      const allActivities: RecentActivityDto[] = allAuditLogs.map((log) => {
         // Map cancellation reasons to user-friendly descriptions
         const mappedMetadata = { ...log.metadata };
         if (
@@ -248,19 +255,24 @@ export class DashboardService {
       });
 
       // Add default activities for compatibility with existing logic (when not in audit logs)
-      if (activities.length < limit) {
+      if (allActivities.length < limit + offset) {
         await this.addLegacyActivities(
           userId,
-          activities,
-          limit - activities.length,
+          allActivities,
+          limit + offset - allActivities.length,
         );
       }
 
       // Sort by time (newest first)
-      activities.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      allActivities.sort(
+        (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+      );
 
-      // Return limited number
-      const result = activities.slice(0, limit);
+      // Apply offset and limit
+      const resultActivities = allActivities.slice(offset, offset + limit);
+      const total = allActivities.length;
+
+      const result = { activities: resultActivities, total };
 
       // Save results to cache (2 minutes TTL)
       await this.cacheManager.set(
@@ -272,7 +284,11 @@ export class DashboardService {
     } catch (error) {
       this.logger.error('Failed to get recent activities:', error);
       // Fallback to legacy method on error
-      return this.getRecentActivitiesLegacy(userId, limit);
+      const legacyActivities = await this.getRecentActivitiesLegacy(
+        userId,
+        limit,
+      );
+      return { activities: legacyActivities, total: legacyActivities.length };
     }
   }
 

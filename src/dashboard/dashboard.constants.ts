@@ -52,14 +52,19 @@ export const DASHBOARD_CONFIG = {
  * 캐시 키 생성 헬퍼
  */
 export const CACHE_KEYS = {
-  stats: (userId: number) =>
-    `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.STATS}:${userId}`,
-  activities: (userId: number, limit: number) =>
-    `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.ACTIVITIES}:${userId}:${limit}`,
-  user: (userId: number) =>
-    `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.USER}:${userId}`,
-  permissions: (userId: number) =>
-    `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.PERMISSIONS}:${userId}`,
-  advancedStats: (userId: number, days: number) =>
-    `advanced_stats:${userId}:${days}`,
+  dashboard: {
+    stats: (userId: number) =>
+      `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.STATS}:${userId}`,
+    activities: (userId: number, limit: number, offset: number = 0) =>
+      `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.ACTIVITIES}:${userId}:${limit}:${offset}`,
+    user: (userId: number) =>
+      `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.USER}:${userId}`,
+    permissions: (userId: number) =>
+      `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.PERMISSIONS}:${userId}`,
+    advancedStats: (userId: number, days: number) =>
+      `advanced_stats:${userId}:${days}`,
+  },
+  oauth2: {
+    token: (accessToken: string) => `oauth2:token:${accessToken}`,
+  },
 } as const;

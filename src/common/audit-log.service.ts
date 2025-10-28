@@ -263,7 +263,7 @@ export class AuditLogService {
   /**
    * 오래된 감사 로그 정리 (30일 이상 된 로그 삭제)
    */
-  async cleanupOldLogs(daysToKeep: number = 90): Promise<number> {
+  async cleanupOldLogs(daysToKeep: number = 30): Promise<number> {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
@@ -271,7 +271,6 @@ export class AuditLogService {
       createdAt: LessThan(cutoffDate),
     });
 
-    this.logger.log(`Cleaned up ${result.affected} old audit logs`);
     return result.affected ?? 0;
   }
 

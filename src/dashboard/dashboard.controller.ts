@@ -69,26 +69,61 @@ export class DashboardController {
   @RequirePermissions(PERMISSIONS.READ_DASHBOARD)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
-    summary: '최근 활동 조회',
-    description: '사용자의 최근 활동 내역을 조회합니다.',
-  })
-  @ApiQuery({
-    name: 'limit',
-    description: '조회할 활동 수',
-    example: 10,
-    required: false,
+    summary: '최근 활동 목록 조회',
+    description: `
+사용자의 최근 활동 목록을 조회합니다.
+
+**포함 정보:**
+- 로그인, 토큰 발급/취소, 클라이언트 생성/수정/삭제 등의 활동
+- 활동별 메타데이터 (클라이언트 정보, 토큰 정보 등)
+- 페이징 지원 (limit, offset)
+    `,
   })
   @ApiResponse({
     status: 200,
     description: '최근 활동 목록',
-    type: [RecentActivityDto],
+    schema: {
+      type: 'object',
+      properties: {
+        activities: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/RecentActivityDto' },
+        },
+        total: {
+          type: 'number',
+          description: '전체 활동 수',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: '인증 필요',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: '조회할 활동 수 (기본값: 10, 최대: 50)',
+  })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    type: Number,
+    description: '건너뛸 활동 수 (기본값: 0)',
   })
   async getRecentActivities(
     @Request() req: AuthenticatedRequest,
     @Query('limit') limit?: string,
-  ): Promise<RecentActivityDto[]> {
+    @Query('offset') offset?: string,
+  ): Promise<{ activities: RecentActivityDto[]; total: number }> {
     const limitNum = limit ? parseInt(limit, 10) : 10;
-    return this.dashboardService.getRecentActivities(req.user.id, limitNum);
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    return this.dashboardService.getRecentActivities(
+      req.user.id,
+      limitNum,
+      offsetNum,
+    );
   }
 
   @Get('connected-apps')
