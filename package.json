@@ -59,6 +59,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sharp": "^0.34.4",
+    "snowflake-id-node": "^4.0.0",
     "speakeasy": "^2.0.0",
     "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.26",
@@ -114,8 +115,11 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "transformIgnorePatterns": [
-      "node_modules/(?!uuid/.*)"
+      "node_modules/(?!uuid/.*|snowflake-id-node)"
     ],
+    "moduleNameMapper": {
+      "^snowflake-id-node$": "<rootDir>/../node_modules/snowflake-id-node/dist/index.js"
+    },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
