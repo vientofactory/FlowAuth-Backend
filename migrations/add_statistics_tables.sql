@@ -3,6 +3,8 @@
 -- Date: 2025-01-28
 -- Purpose: Enable persistent statistics that survive token deletion/expiration
 
+USE flowauth;
+
 -- Create token_statistics table
 CREATE TABLE `token_statistics` (
     `id` int NOT NULL AUTO_INCREMENT,
