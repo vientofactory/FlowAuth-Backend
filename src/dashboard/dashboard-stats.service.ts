@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Client } from '../oauth2/client.entity';
 import { User } from '../auth/user.entity';
 import { Token } from '../oauth2/token.entity';
+import { TokenStatistics } from './statistics.entity';
 import { TokenService } from '../oauth2/token.service';
 import { TOKEN_TYPES } from '../constants/auth.constants';
 import { CacheManagerService } from './cache-manager.service';
@@ -77,6 +78,8 @@ export class DashboardStatsService {
     private userRepository: Repository<User>,
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
+    @InjectRepository(TokenStatistics)
+    private tokenStatisticsRepository: Repository<TokenStatistics>,
     private tokenService: TokenService,
     private cacheManagerService: CacheManagerService,
   ) {}
@@ -194,34 +197,71 @@ export class DashboardStatsService {
   }
 
   async getTotalTokensIssuedCount(userId: number): Promise<number> {
-    return await this.tokenRepository.count({
-      where: {
-        user: { id: userId },
-        tokenType: TOKEN_TYPES.OAUTH2,
-      },
-    });
+    try {
+      const result = (await this.tokenStatisticsRepository
+        .createQueryBuilder('stats')
+        .select('SUM(stats.count)', 'total')
+        .where('stats.userId = :userId', { userId })
+        .andWhere('stats.eventType = :eventType', { eventType: 'issued' })
+        .getRawOne()) as unknown;
+
+      const total = this.extractTotalFromResult(result);
+      return this.safeParseInt(total);
+    } catch (error) {
+      this.logger.error('Error getting total tokens issued count:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Type-safe helper to extract total from raw query result
+   */
+  private extractTotalFromResult(result: unknown): string | number | null {
+    if (result && typeof result === 'object' && 'total' in result) {
+      const total = (result as Record<string, unknown>).total;
+      if (
+        typeof total === 'string' ||
+        typeof total === 'number' ||
+        total === null
+      ) {
+        return total;
+      }
+    }
+    return null;
   }
 
   async getExpiredTokensCount(userId: number): Promise<number> {
-    const now = new Date();
-    return await this.tokenRepository.count({
-      where: {
-        user: { id: userId },
-        expiresAt: LessThan(now),
-        isRevoked: false,
-        tokenType: TOKEN_TYPES.OAUTH2,
-      },
-    });
+    try {
+      const result = (await this.tokenStatisticsRepository
+        .createQueryBuilder('stats')
+        .select('SUM(stats.count)', 'total')
+        .where('stats.userId = :userId', { userId })
+        .andWhere('stats.eventType = :eventType', { eventType: 'expired' })
+        .getRawOne()) as unknown;
+
+      const total = this.extractTotalFromResult(result);
+      return this.safeParseInt(total);
+    } catch (error) {
+      this.logger.error('Error getting expired tokens count:', error);
+      return 0;
+    }
   }
 
   async getRevokedTokensCount(userId: number): Promise<number> {
-    return await this.tokenRepository.count({
-      where: {
-        user: { id: userId },
-        isRevoked: true,
-        tokenType: TOKEN_TYPES.OAUTH2,
-      },
-    });
+    try {
+      const result = (await this.tokenStatisticsRepository
+        .createQueryBuilder('stats')
+        .select('SUM(stats.count)', 'total')
+        .where('stats.userId = :userId', { userId })
+        .andWhere('stats.eventType = :eventType', { eventType: 'revoked' })
+        .getRawOne()) as unknown;
+
+      const total = this.extractTotalFromResult(result);
+      return this.safeParseInt(total);
+    } catch (error) {
+      this.logger.error('Error getting revoked tokens count:', error);
+      return 0;
+    }
   }
 
   async getTokenIssuanceByHour(userId: number): Promise<TokenIssuanceHour[]> {

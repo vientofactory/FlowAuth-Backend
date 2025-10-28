@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
@@ -116,6 +116,24 @@ export class TokenService {
 
       // Check if token is expired
       if (token.expiresAt && new Date() > token.expiresAt) {
+        // 통계 기록: 토큰 만료 이벤트
+        if (token.user) {
+          try {
+            // TODO: Inject StatisticsRecordingService
+            // await this.statisticsRecordingService.recordTokenExpired(
+            //   token.user.id,
+            //   token.client?.id ?? null,
+            //   token.scopes ?? [],
+            //   new Date(),
+            // );
+          } catch (error) {
+            this.logger.error(
+              'Failed to record token expired statistics:',
+              error,
+            );
+          }
+        }
+
         // Remove expired token
         await this.tokenRepository.remove(token);
         return null;
@@ -210,7 +228,7 @@ export class TokenService {
     return await this.tokenRepository.count({
       where: {
         user: { id: userId },
-        expiresAt: LessThan(now),
+        expiresAt: MoreThan(now), // 활성 토큰만 카운트 (만료되지 않은 토큰)
         isRevoked: false,
         tokenType: TOKEN_TYPES.OAUTH2,
       },

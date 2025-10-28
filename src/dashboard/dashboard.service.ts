@@ -25,6 +25,7 @@ import {
 import { TokenAnalyticsService } from './token-analytics.service';
 import { SecurityMetricsService } from './security-metrics.service';
 import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
+import { StatisticsRecordingService } from './statistics-recording.service';
 import { DASHBOARD_CONFIG } from './dashboard.constants';
 import {
   TOKEN_REVOCATION_REASONS,
@@ -50,6 +51,7 @@ export class DashboardService {
     private auditLogService: AuditLogService,
     private tokenAnalyticsService: TokenAnalyticsService,
     private securityMetricsService: SecurityMetricsService,
+    private statisticsRecordingService: StatisticsRecordingService,
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
   ) {}
@@ -613,6 +615,15 @@ export class DashboardService {
       token.isRevoked = true;
       token.revokedAt = now;
       token.revokedReason = TOKEN_REVOCATION_REASONS.USER_REVOKED_CONNECTION;
+
+      // Record token revoked event
+      await this.statisticsRecordingService.recordTokenRevoked(
+        userId,
+        clientId,
+        token.scopes ?? [],
+        TOKEN_REVOCATION_REASONS.USER_REVOKED_CONNECTION,
+        now,
+      );
     }
 
     if (tokens.length > 0) {
@@ -678,8 +689,6 @@ export class DashboardService {
         await this.tokenAnalyticsService.getClientPerformanceMetrics(userId),
       userActivity:
         await this.tokenAnalyticsService.getUserActivityMetrics(userId),
-      systemHealth:
-        await this.tokenAnalyticsService.getSystemHealthMetrics(userId),
     };
   }
 

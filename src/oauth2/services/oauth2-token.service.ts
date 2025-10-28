@@ -15,6 +15,7 @@ import { IdTokenService } from './id-token.service';
 import { safeTokenCompare } from '../../utils/timing-security.util';
 import { AuditLogService } from '../../common/audit-log.service';
 import { AuditLog } from '../../common/audit-log.entity';
+import { StatisticsEventService } from '../../common/statistics-event.service';
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -43,6 +44,7 @@ export class OAuth2TokenService {
     private configService: ConfigService,
     private idTokenService: IdTokenService,
     private auditLogService: AuditLogService,
+    private statisticsEventService: StatisticsEventService,
     @Inject(CACHE_MANAGER)
     private cacheManager: Cache,
   ) {}
@@ -102,7 +104,25 @@ export class OAuth2TokenService {
 
       await manager.save(Token, token);
 
-      // 감사 로그 기록
+      // Record statistics event
+      if (user) {
+        try {
+          await this.statisticsEventService.recordTokenIssued(
+            user.id,
+            client.id,
+            scopes,
+            new Date(),
+          );
+        } catch (error) {
+          this.logger.error(error, 'OAuth2TokenService', {
+            operation: 'recordTokenStatistics',
+            userId: user.id,
+            clientId: client.id,
+          });
+        }
+      }
+
+      // Create audit log entry
       if (user) {
         try {
           await this.auditLogService.create(
@@ -110,11 +130,10 @@ export class OAuth2TokenService {
               user.id,
               client.id,
               scopes,
-              undefined, // IP 주소는 추후 request context에서 가져올 수 있음
+              undefined, // TODO: Implement IP address retrieval
             ),
           );
         } catch (error) {
-          // 감사 로그 기록 실패해도 토큰 발급은 계속 진행
           this.logger.error(error, 'OAuth2TokenService', {
             operation: 'createAuditLog',
             userId: user.id,
@@ -159,7 +178,6 @@ export class OAuth2TokenService {
             userId: user.id,
             clientId: client.clientId,
           });
-          // ID 토큰 생성 실패해도 액세스 토큰은 유지
         }
       }
 

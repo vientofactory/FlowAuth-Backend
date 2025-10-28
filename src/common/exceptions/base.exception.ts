@@ -23,7 +23,7 @@ export abstract class BaseException extends HttpException {
       } as Record<string, unknown>,
       status,
     );
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     this.errorCode = errorCode;
   }
 }

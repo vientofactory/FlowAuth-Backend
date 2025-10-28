@@ -31,12 +31,6 @@ interface RawDailyPattern {
   avgLifetime: string | number;
 }
 
-interface RawPeakResult {
-  hour?: string | number;
-  day?: string | number;
-  count?: string | number;
-}
-
 export interface TokenUsagePattern {
   hour: number;
   dayOfWeek: number;
@@ -67,19 +61,6 @@ export interface UserActivityMetrics {
   averageSessionDuration: number;
   preferredScopes: string[];
   riskScore: number; // 0-100, higher means higher risk
-}
-
-export interface SystemHealthMetrics {
-  totalTokens: number;
-  activeTokens: number;
-  expiredTokens: number;
-  revokedTokens: number;
-  averageTokenLifetime: number;
-  tokenExpirationRate: number;
-  systemUptime: number;
-  errorRate: number;
-  peakUsageHour: number;
-  peakUsageDay: number;
 }
 
 @Injectable()
@@ -343,119 +324,6 @@ export class TokenAnalyticsService {
     } catch (error) {
       this.logger.error('Error getting user activity metrics:', error);
       throw error;
-    }
-  }
-
-  /**
-   * 시스템 건강 메트릭스
-   */
-  async getSystemHealthMetrics(userId: number): Promise<SystemHealthMetrics> {
-    try {
-      const tokens = await this.tokenRepository.find({
-        where: { user: { id: userId } },
-        select: ['id', 'createdAt', 'expiresAt', 'isRevoked'],
-      });
-
-      const now = new Date();
-      const totalTokens = tokens.length;
-      const activeTokens = tokens.filter(
-        (t) => !t.isRevoked && t.expiresAt > now,
-      ).length;
-      const expiredTokens = tokens.filter(
-        (t) => t.expiresAt <= now && !t.isRevoked,
-      ).length;
-      const revokedTokens = tokens.filter((t) => t.isRevoked).length;
-
-      // 평균 토큰 수명
-      const lifetimes = tokens
-        .filter((t) => t.expiresAt)
-        .map((t) => t.expiresAt.getTime() - t.createdAt.getTime());
-      const averageTokenLifetime =
-        lifetimes.length > 0
-          ? lifetimes.reduce((sum, life) => sum + life, 0) /
-            lifetimes.length /
-            (1000 * 60 * 60)
-          : 0;
-
-      // 토큰 만료율
-      const tokenExpirationRate =
-        totalTokens > 0 ? (expiredTokens / totalTokens) * 100 : 0;
-
-      // 피크 사용 시간/요일
-      const peakUsageHour = await this.getPeakUsageHour(userId);
-      const peakUsageDay = await this.getPeakUsageDay(userId);
-
-      // 에러율 (취소된 토큰 비율)
-      const errorRate =
-        totalTokens > 0 ? (revokedTokens / totalTokens) * 100 : 0;
-
-      return {
-        totalTokens,
-        activeTokens,
-        expiredTokens,
-        revokedTokens,
-        averageTokenLifetime: Math.round(averageTokenLifetime * 10) / 10,
-        tokenExpirationRate: Math.round(tokenExpirationRate * 10) / 10,
-        systemUptime: 99.9, // TODO: 실제 시스템 uptime 계산
-        errorRate: Math.round(errorRate * 10) / 10,
-        peakUsageHour,
-        peakUsageDay,
-      };
-    } catch (error) {
-      this.logger.error('Error getting system health metrics:', error);
-      throw error;
-    }
-  }
-
-  private async getPeakUsageHour(userId: number): Promise<number> {
-    try {
-      const rawResult: unknown = await this.tokenRepository
-        .createQueryBuilder('token')
-        .select('HOUR(token.createdAt) as hour')
-        .addSelect('COUNT(*) as count')
-        .where('token.userId = :userId', { userId })
-        .groupBy('HOUR(token.createdAt)')
-        .orderBy('count', 'DESC')
-        .limit(1)
-        .getRawOne();
-
-      if (
-        rawResult &&
-        typeof rawResult === 'object' &&
-        'hour' in rawResult &&
-        typeof (rawResult as RawPeakResult).hour === 'number'
-      ) {
-        return Number((rawResult as RawPeakResult).hour) || 0;
-      }
-      return 0;
-    } catch {
-      return 0;
-    }
-  }
-
-  private async getPeakUsageDay(userId: number): Promise<number> {
-    try {
-      const rawResult: unknown = await this.tokenRepository
-        .createQueryBuilder('token')
-        .select('WEEKDAY(token.createdAt) as day')
-        .addSelect('COUNT(*) as count')
-        .where('token.userId = :userId', { userId })
-        .groupBy('WEEKDAY(token.createdAt)')
-        .orderBy('count', 'DESC')
-        .limit(1)
-        .getRawOne();
-
-      if (
-        rawResult &&
-        typeof rawResult === 'object' &&
-        'day' in rawResult &&
-        typeof (rawResult as RawPeakResult).day === 'number'
-      ) {
-        return Number((rawResult as RawPeakResult).day) || 0;
-      }
-      return 0;
-    } catch {
-      return 0;
     }
   }
 }
