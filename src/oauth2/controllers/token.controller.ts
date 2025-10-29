@@ -12,11 +12,12 @@ import { TokenGrantService } from '../services/token-grant.service';
 import { TokenService } from '../token.service';
 import { TokenIntrospectionService } from '../services/token-introspection.service';
 import { TokenRequestDto, TokenResponseDto } from '../dto/oauth2.dto';
-import { ErrorResponseDto } from '../../common/dto/response.dto';
+import { ProblemDetailsDto } from '../../common/dto/response.dto';
 import {
   mapExceptionToOAuth2Error,
   createOAuth2Error,
 } from '../utils/oauth2-error.util';
+import { ProblemDetailsUtil } from '../../common/utils/problem-details.util';
 import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
 import {
   AdvancedRateLimitGuard,
@@ -69,18 +70,20 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
   @ApiResponse({
     status: 400,
     description: '잘못된 요청 또는 유효하지 않은 authorization code',
-    type: ErrorResponseDto,
+    type: ProblemDetailsDto,
   })
   async token(
     @Body(DefaultFieldSizeLimitPipe) tokenDto: TokenRequestDto,
     @Headers('authorization') authHeader?: string,
-  ): Promise<TokenResponseDto | ErrorResponseDto> {
+  ): Promise<TokenResponseDto | ProblemDetailsDto> {
     try {
       if (tokenDto.grant_type !== 'authorization_code') {
-        return {
-          error: 'unsupported_grant_type',
-          error_description: 'Grant type must be "authorization_code"',
-        };
+        return ProblemDetailsUtil.fromOAuth2Error(
+          'unsupported_grant_type',
+          'Grant type must be "authorization_code"',
+          400,
+          '/oauth2/token',
+        );
       }
 
       // Parse Basic Authentication header if present
@@ -100,10 +103,12 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
           clientSecret ??= headerClientSecret;
         } catch (error) {
           this.logger.warn('Failed to parse Authorization header', error);
-          return {
-            error: 'invalid_client',
-            error_description: 'Invalid Authorization header format',
-          };
+          return ProblemDetailsUtil.fromOAuth2Error(
+            'invalid_client',
+            'Invalid Authorization header format',
+            400,
+            '/oauth2/token',
+          );
         }
       }
 
