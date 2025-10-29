@@ -9,6 +9,30 @@ export class ProblemDetailsUtil {
     'https://tools.ietf.org/html/rfc7807';
 
   /**
+   * HTTP 상태 코드에 따른 기본 에러 코드를 반환
+   */
+  private static getDefaultErrorCode(status: number): string {
+    switch (status) {
+      case 400:
+        return 'bad_request';
+      case 401:
+        return 'unauthorized';
+      case 403:
+        return 'forbidden';
+      case 404:
+        return 'not_found';
+      case 409:
+        return 'conflict';
+      case 422:
+        return 'unprocessable_entity';
+      case 500:
+        return 'internal_server_error';
+      default:
+        return 'internal_server_error';
+    }
+  }
+
+  /**
    * HTTP 예외를 RFC 7807 Problem Details로 변환
    */
   static fromHttpException(
@@ -35,12 +59,18 @@ export class ProblemDetailsUtil {
       }
       if (errorResponse.error_description) {
         extensions.error_description = errorResponse.error_description;
+      } else if (errorResponse.message) {
+        // message가 있으면 error_description으로도 추가
+        extensions.error_description = errorResponse.message as string;
       }
       if (errorResponse.state) {
         extensions.state = errorResponse.state;
       }
     } else if (typeof response === 'string') {
       detail = response;
+      // String response의 경우 기본적인 error와 error_description 추가
+      extensions.error = this.getDefaultErrorCode(status);
+      extensions.error_description = response;
     } else {
       detail = 'An error occurred';
     }

@@ -50,10 +50,15 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
       expect(mockResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'bad_request',
-          error_description: 'Test error',
-          timestamp: expect.any(String),
-          path: '/test',
+          type: 'https://tools.ietf.org/html/rfc7807#section-6.5.1',
+          title: 'Bad Request',
+          detail: 'Test error',
+          status: 400,
+          instance: '/test',
+          extensions: {
+            error: 'bad_request',
+            error_description: 'Test error',
+          },
         }),
       );
     });
@@ -81,10 +86,15 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED);
       expect(mockResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'custom_error',
-          error_description: 'Custom message',
-          timestamp: expect.any(String),
-          path: '/test',
+          type: 'https://tools.ietf.org/html/rfc7807#section-3.1',
+          title: 'Unauthorized',
+          detail: 'Custom message',
+          status: 401,
+          instance: '/test',
+          extensions: {
+            error: 'custom_error',
+            error_description: 'Custom message',
+          },
         }),
       );
     });
@@ -109,8 +119,9 @@ describe('GlobalExceptionFilter', () => {
       filter.catch(exception, mockHost as any);
 
       const jsonCall = mockResponse.json.mock.calls[0][0];
-      expect(jsonCall).toHaveProperty('timestamp');
-      expect(jsonCall).toHaveProperty('path', '/test');
+      expect(jsonCall).toHaveProperty('instance', '/test');
+      expect(jsonCall).not.toHaveProperty('timestamp');
+      expect(jsonCall).not.toHaveProperty('path');
 
       process.env.NODE_ENV = 'test';
     });
@@ -132,8 +143,8 @@ describe('GlobalExceptionFilter', () => {
 
       const exception = new QueryFailedError(
         'Duplicate entry',
-        'SELECT * FROM users',
         [],
+        new Error('Duplicate entry'),
       );
       (exception as any).code = 'ER_DUP_ENTRY';
 
@@ -142,10 +153,14 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
       expect(mockResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'database_error',
-          error_description: 'Duplicate entry',
-          timestamp: expect.any(String),
-          path: '/test',
+          type: 'https://tools.ietf.org/html/rfc7807#section-6.5.1',
+          title: 'Bad Request',
+          detail: 'Duplicate entry',
+          status: 400,
+          instance: '/test',
+          extensions: {
+            code: 'ER_DUP_ENTRY',
+          },
         }),
       );
       expect(logErrorSpy).toHaveBeenCalledWith('Database', exception, {
@@ -168,8 +183,8 @@ describe('GlobalExceptionFilter', () => {
 
       const exception = new QueryFailedError(
         'Some database error',
-        'SELECT * FROM users',
         [],
+        new Error('Some database error'),
       );
       (exception as any).code = 'ER_UNKNOWN';
 
@@ -178,10 +193,14 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
       expect(mockResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'database_error',
-          error_description: 'A database error occurred',
-          timestamp: expect.any(String),
-          path: '/test',
+          type: 'https://tools.ietf.org/html/rfc7807#section-6.5.1',
+          title: 'Bad Request',
+          detail: 'A database error occurred',
+          status: 400,
+          instance: '/test',
+          extensions: {
+            code: 'ER_UNKNOWN',
+          },
         }),
       );
       expect(logErrorSpy).toHaveBeenCalledWith('Database', exception, {
@@ -213,10 +232,11 @@ describe('GlobalExceptionFilter', () => {
       );
       expect(mockResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'internal_server_error',
-          error_description: 'An unexpected error occurred',
-          timestamp: expect.any(String),
-          path: '/test',
+          type: 'https://tools.ietf.org/html/rfc7807#section-6.6.1',
+          title: 'Internal Server Error',
+          detail: 'Unexpected error',
+          status: 500,
+          instance: '/test',
         }),
       );
       expect(logErrorSpy).toHaveBeenCalledWith('Unexpected', exception);

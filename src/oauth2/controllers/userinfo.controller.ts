@@ -1,4 +1,4 @@
-import { Controller, Get, Request, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Request, BadRequestException } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -12,7 +12,6 @@ import { OAuth2ScopeGuard } from '../guards/oauth2-scope.guard';
 import { RequireScopes } from '../decorators/require-scopes.decorator';
 import { UserinfoResponseDto } from '../dto/response.dto';
 import { OAuth2UserInfoBuilder } from '../utils/oauth2-userinfo.util';
-import { ProblemDetailsUtil } from '../../common/utils/problem-details.util';
 import { ProblemDetailsDto } from '../../common/dto/response.dto';
 
 interface OAuth2AuthenticatedRequest extends Request {
@@ -69,25 +68,15 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
   })
   async userinfo(
     @Request() req: OAuth2AuthenticatedRequest,
-  ): Promise<UserinfoResponseDto | ProblemDetailsDto> {
+  ): Promise<UserinfoResponseDto> {
     if (req.user.sub === null) {
-      return ProblemDetailsUtil.fromOAuth2Error(
-        'invalid_request',
-        'User ID not available for this token',
-        HttpStatus.BAD_REQUEST,
-        '/oauth2/userinfo',
-      );
+      throw new BadRequestException('User ID not available for this token');
     }
 
     const user = await this.oauth2Service.getUserInfo(req.user.sub);
 
     if (!user) {
-      return ProblemDetailsUtil.fromOAuth2Error(
-        'invalid_request',
-        'User not found',
-        HttpStatus.BAD_REQUEST,
-        '/oauth2/userinfo',
-      );
+      throw new BadRequestException('User not found');
     }
 
     // 토큰의 스코프에 따라 반환할 정보를 결정

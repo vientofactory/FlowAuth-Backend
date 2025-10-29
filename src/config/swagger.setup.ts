@@ -21,6 +21,53 @@ export function setupSwagger(app: NestExpressApplication): void {
     SWAGGER_DOCUMENT_OPTIONS,
   );
 
+  // RFC 7807 Problem Details 스키마를 Swagger 문서에 추가
+  document.components = {
+    ...document.components,
+    schemas: {
+      ...document.components?.schemas,
+      ProblemDetails: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            description: '문제 타입 URI',
+            example: 'https://tools.ietf.org/html/rfc7807#section-3.1',
+          },
+          title: {
+            type: 'string',
+            description: '문제의 간단한 설명',
+            example: 'Bad Request',
+          },
+          detail: {
+            type: 'string',
+            description: '문제의 자세한 설명',
+            example: 'The request is missing a required parameter',
+          },
+          status: {
+            type: 'number',
+            description: 'HTTP 상태 코드',
+            example: 400,
+          },
+          instance: {
+            type: 'string',
+            description: '문제 인스턴스 URI',
+            example: '/oauth2/token',
+          },
+          extensions: {
+            type: 'object',
+            description: '추가 확장 필드',
+            example: {
+              error: 'invalid_request',
+              error_description: 'Missing required parameter',
+            },
+          },
+        },
+        required: ['type', 'title', 'status'],
+      },
+    },
+  };
+
   SwaggerModule.setup('api', app, document, SWAGGER_SETUP_OPTIONS);
 }
 
