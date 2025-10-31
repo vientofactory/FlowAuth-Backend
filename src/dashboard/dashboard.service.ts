@@ -1,8 +1,6 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { Client } from '../oauth2/client.entity';
 import { User } from '../auth/user.entity';
 import { Token } from '../oauth2/token.entity';
@@ -15,7 +13,7 @@ import {
   ConnectedAppsResponseDto,
   RevokeConnectionResponseDto,
 } from './dto/connected-apps.dto';
-import { CacheManagerService } from './cache-manager.service';
+import { CacheManagerService } from '../cache/cache-manager.service';
 import { AuditLogService } from '../common/audit-log.service';
 import {
   AuditEventType,
@@ -53,8 +51,6 @@ export class DashboardService {
     private tokenAnalyticsService: TokenAnalyticsService,
     private securityMetricsService: SecurityMetricsService,
     private statisticsRecordingService: StatisticsRecordingService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
   ) {}
 
   async getDashboardStats(userId: number): Promise<DashboardStatsResponseDto> {
@@ -63,7 +59,9 @@ export class DashboardService {
     try {
       // Use cache first
       const cached =
-        await this.cacheManager.get<DashboardStatsResponseDto>(cacheKey);
+        await this.cacheManagerService.getCacheValue<DashboardStatsResponseDto>(
+          cacheKey,
+        );
       if (cached) {
         return cached;
       }
@@ -132,7 +130,7 @@ export class DashboardService {
       };
 
       // Save to cache
-      await this.cacheManager.set(
+      await this.cacheManagerService.setCacheValue(
         cacheKey,
         result,
         CACHE_CONFIG.TTL.DASHBOARD_STATS,
@@ -183,7 +181,7 @@ export class DashboardService {
 
     try {
       // Use cache first
-      const cached = await this.cacheManager.get<{
+      const cached = await this.cacheManagerService.getCacheValue<{
         activities: RecentActivityDto[];
         total: number;
       }>(cacheKey);
@@ -275,7 +273,7 @@ export class DashboardService {
       const result = { activities: resultActivities, total };
 
       // Save results to cache (2 minutes TTL)
-      await this.cacheManager.set(
+      await this.cacheManagerService.setCacheValue(
         cacheKey,
         result,
         CACHE_CONFIG.TTL.DASHBOARD_ACTIVITIES,
@@ -654,7 +652,9 @@ export class DashboardService {
     // Invalidate related cache when revoking tokens
     for (const token of tokens) {
       if (token.accessToken) {
-        await this.cacheManager.del(CACHE_KEYS.oauth2.token(token.accessToken));
+        await this.cacheManagerService.delCacheKey(
+          CACHE_KEYS.oauth2.token(token.accessToken),
+        );
       }
     }
 
@@ -729,7 +729,7 @@ export class DashboardService {
 
     try {
       // Check cache first
-      const cached = await this.cacheManager.get(cacheKey);
+      const cached = await this.cacheManagerService.getCacheValue(cacheKey);
       if (cached) {
         return cached;
       }
@@ -748,7 +748,7 @@ export class DashboardService {
       };
 
       // Save to cache (10 minutes)
-      await this.cacheManager.set(
+      await this.cacheManagerService.setCacheValue(
         cacheKey,
         result,
         CACHE_CONFIG.TTL.DASHBOARD_ADVANCED_STATS,

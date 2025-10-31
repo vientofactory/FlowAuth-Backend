@@ -1,20 +1,14 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  Logger,
-  Inject,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Strategy, ExtractJwt, StrategyOptions } from 'passport-jwt';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { Token } from '../token.entity';
 import { AUTH_ERROR_MESSAGES } from '../../constants/auth.constants';
 import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { OAuth2JwtPayload } from '../../types/oauth2.types';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 @Injectable()
 export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
@@ -24,8 +18,7 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
     private configService: ConfigService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {
     const jwtSecret = configService.get<string>('JWT_SECRET') ?? '';
 
@@ -54,7 +47,8 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
         const cacheKey = `oauth2_token:${tokenId}`;
 
         // Try to get token from cache first
-        let token = await this.cacheManager.get<Token>(cacheKey);
+        let token =
+          await this.cacheManagerService.getCacheValue<Token>(cacheKey);
 
         if (!token) {
           // Cache miss - fetch from database
@@ -67,7 +61,7 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
             token = dbToken;
             // Cache the token if found and valid
             if (!token.isRevoked && token.expiresAt > new Date()) {
-              await this.cacheManager.set(
+              await this.cacheManagerService.setCacheValue(
                 cacheKey,
                 token,
                 CACHE_CONFIG.TTL.TOKEN_VALIDATION,

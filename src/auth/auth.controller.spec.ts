@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { CacheManagerService } from '../cache/cache-manager.service';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -28,11 +28,11 @@ describe('AuthController', () => {
           },
         },
         {
-          provide: CACHE_MANAGER,
+          provide: CacheManagerService,
           useValue: {
-            get: jest.fn(),
-            set: jest.fn(),
-            del: jest.fn(),
+            getCacheValue: jest.fn(),
+            setCacheValue: jest.fn(),
+            delCacheKey: jest.fn(),
           },
         },
       ],

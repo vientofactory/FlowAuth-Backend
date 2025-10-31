@@ -3,15 +3,13 @@ import {
   UnauthorizedException,
   BadRequestException,
   ConflictException,
-  Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import Redis from 'ioredis';
 import * as bcrypt from 'bcrypt';
 import { User } from '../auth/user.entity';
 import { UserManagementService } from '../auth/services/user-management.service';
-import { CacheManagerService } from '../dashboard/cache-manager.service';
+import { CacheManagerService } from '../cache/cache-manager.service';
 import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
 import { VALIDATION_CONSTANTS } from '../constants/validation.constants';
@@ -21,7 +19,6 @@ export class ProfileService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @Inject('REDIS_CLIENT') private readonly redisClient: Redis,
     private userManagementService: UserManagementService,
     private cacheManagerService: CacheManagerService,
   ) {}
@@ -30,9 +27,9 @@ export class ProfileService {
     const cacheKey = CACHE_KEYS.profile.user(id);
 
     // 캐시에서 먼저 조회
-    const cached = await this.redisClient.get(cacheKey);
+    const cached = await this.cacheManagerService.getCacheValue<User>(cacheKey);
     if (cached) {
-      return JSON.parse(cached) as User;
+      return cached;
     }
 
     // 캐시에 없으면 DB 조회
@@ -43,10 +40,10 @@ export class ProfileService {
     }
 
     // 결과를 캐시에 저장 (10분 TTL)
-    await this.redisClient.setex(
+    await this.cacheManagerService.setCacheValue(
       cacheKey,
+      user,
       CACHE_CONFIG.TTL.USER_PROFILE,
-      JSON.stringify(user),
     );
     return user;
   }
@@ -250,11 +247,7 @@ export class ProfileService {
     await this.userRepository.update(userId, filteredData);
 
     // 캐시 무효화
-    await this.redisClient.del(CACHE_KEYS.profile.user(userId));
-
-    // 대시보드 캐시도 무효화하여 프로필 변경이 즉시 반영되도록 함
-    await this.cacheManagerService.invalidateUserStatsCache(userId);
-    await this.cacheManagerService.invalidateUserActivitiesCache(userId);
+    await this.cacheManagerService.invalidateAllUserCache(userId);
 
     // 업데이트된 사용자 정보 조회
     const updatedUser = await this.userRepository.findOne({
@@ -303,11 +296,7 @@ export class ProfileService {
     await this.userRepository.update(userId, { password: hashedNewPassword });
 
     // 캐시 무효화 (비밀번호 변경 시 사용자 정보 캐시도 무효화)
-    await this.redisClient.del(CACHE_KEYS.profile.user(userId));
-
-    // 대시보드 캐시도 무효화하여 프로필 변경이 즉시 반영되도록 함
-    await this.cacheManagerService.invalidateUserStatsCache(userId);
-    await this.cacheManagerService.invalidateUserActivitiesCache(userId);
+    await this.cacheManagerService.invalidateAllUserCache(userId);
   }
 
   async checkUsernameAvailability(
@@ -367,11 +356,7 @@ export class ProfileService {
     );
 
     // 아바타 변경 시 프로필 캐시 무효화
-    await this.redisClient.del(CACHE_KEYS.profile.user(userId));
-
-    // 대시보드 캐시도 무효화하여 아바타 변경이 즉시 반영되도록 함
-    await this.cacheManagerService.invalidateUserStatsCache(userId);
-    await this.cacheManagerService.invalidateUserActivitiesCache(userId);
+    await this.cacheManagerService.invalidateAllUserCache(userId);
 
     return avatarUrl;
   }
@@ -380,10 +365,6 @@ export class ProfileService {
     await this.userManagementService.removeAvatar(userId);
 
     // 아바타 제거 시 프로필 캐시 무효화
-    await this.redisClient.del(CACHE_KEYS.profile.user(userId));
-
-    // 대시보드 캐시도 무효화하여 아바타 변경이 즉시 반영되도록 함
-    await this.cacheManagerService.invalidateUserStatsCache(userId);
-    await this.cacheManagerService.invalidateUserActivitiesCache(userId);
+    await this.cacheManagerService.invalidateAllUserCache(userId);
   }
 }

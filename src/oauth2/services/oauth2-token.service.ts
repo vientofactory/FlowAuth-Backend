@@ -1,10 +1,8 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityManager } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import * as crypto from 'crypto';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
@@ -16,6 +14,7 @@ import { safeTokenCompare } from '../../utils/timing-security.util';
 import { AuditLogService } from '../../common/audit-log.service';
 import { AuditLog } from '../../common/audit-log.entity';
 import { StatisticsEventService } from '../../common/statistics-event.service';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -45,8 +44,7 @@ export class OAuth2TokenService {
     private idTokenService: IdTokenService,
     private auditLogService: AuditLogService,
     private statisticsEventService: StatisticsEventService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   async createToken(
@@ -427,7 +425,7 @@ export class OAuth2TokenService {
 
     // Remove all tokens from cache
     for (const token of tokensInFamily) {
-      await this.cacheManager.del(`oauth2_token:${token.id}`);
+      await this.cacheManagerService.delCacheKey(`oauth2_token:${token.id}`);
     }
   }
 

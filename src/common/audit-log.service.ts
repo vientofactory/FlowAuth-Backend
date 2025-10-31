@@ -1,10 +1,9 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, MoreThan } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { AuditLog, AuditEventType, AuditSeverity } from './audit-log.entity';
 import { CACHE_KEYS } from '../constants/cache.constants';
+import { CacheManagerService } from '../cache/cache-manager.service';
 
 @Injectable()
 export class AuditLogService {
@@ -13,8 +12,7 @@ export class AuditLogService {
   constructor(
     @InjectRepository(AuditLog)
     private auditLogRepository: Repository<AuditLog>,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   /**
@@ -34,7 +32,7 @@ export class AuditLogService {
               savedAuditLog.userId,
               limit,
             );
-            await this.cacheManager.del(cacheKey);
+            await this.cacheManagerService.delCacheKey(cacheKey);
           }
         } catch (cacheError) {
           // 캐시 무효화 실패는 로그만 기록하고 감사 로그 생성은 계속 진행

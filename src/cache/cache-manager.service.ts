@@ -1,31 +1,13 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
+import Redis from 'ioredis';
 import { User } from '../auth/user.entity';
+import { CACHE_KEYS as DASHBOARD_CACHE_KEYS } from '../dashboard/dashboard.constants';
 import {
-  CACHE_KEYS as DASHBOARD_CACHE_KEYS,
-  DASHBOARD_CONFIG,
-} from './dashboard.constants';
-
-// Redis 클라이언트 인터페이스 정의
-interface RedisClient {
-  scan(
-    cursor: string,
-    ...args: (
-      | string
-      | number
-      | ((err: Error | null, reply: [string, string[]]) => void)
-    )[]
-  ): void;
-  del(keys: string[], callback: (err: Error | null) => void): void;
-}
-
-// Cache store 인터페이스 정의
-interface CacheStore {
-  client?: RedisClient;
-}
+  CACHE_KEYS,
+  CACHE_INVALIDATION_PATTERNS,
+} from '../constants/cache.constants';
 
 @Injectable()
 export class CacheManagerService {
@@ -34,8 +16,7 @@ export class CacheManagerService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    @Inject('REDIS_CLIENT') private readonly redisClient: Redis,
   ) {}
 
   /**
@@ -44,7 +25,7 @@ export class CacheManagerService {
   async invalidateUserStatsCache(userId: number): Promise<void> {
     try {
       const cacheKey = DASHBOARD_CACHE_KEYS.dashboard.stats(userId);
-      await this.cacheManager.del(cacheKey);
+      await this.redisClient.del(cacheKey);
     } catch (error) {
       this.logger.warn('Failed to invalidate user stats cache:', error);
     }
@@ -59,7 +40,7 @@ export class CacheManagerService {
       const commonLimits = [5, 10, 20, 50];
       await Promise.all(
         commonLimits.map((limit) =>
-          this.cacheManager.del(
+          this.redisClient.del(
             DASHBOARD_CACHE_KEYS.dashboard.activities(userId, limit, 0),
           ),
         ),
@@ -74,8 +55,8 @@ export class CacheManagerService {
    */
   async invalidateUserProfileCache(userId: number): Promise<void> {
     try {
-      const cacheKey = DASHBOARD_CACHE_KEYS.dashboard.user(userId);
-      await this.cacheManager.del(cacheKey);
+      const cacheKey = CACHE_KEYS.profile.user(userId);
+      await this.redisClient.del(cacheKey);
     } catch (error) {
       this.logger.warn('Failed to invalidate user profile cache:', error);
     }
@@ -87,9 +68,21 @@ export class CacheManagerService {
   async invalidateUserPermissionsCache(userId: number): Promise<void> {
     try {
       const cacheKey = DASHBOARD_CACHE_KEYS.dashboard.permissions(userId);
-      await this.cacheManager.del(cacheKey);
+      await this.redisClient.del(cacheKey);
     } catch (error) {
       this.logger.warn('Failed to invalidate user permissions cache:', error);
+    }
+  }
+
+  /**
+   * 사용자 OAuth2 캐시 무효화 (클라이언트 등)
+   */
+  async invalidateUserOAuth2Cache(userId: number): Promise<void> {
+    try {
+      const cacheKey = CACHE_KEYS.oauth2.clients.byUser(userId);
+      await this.redisClient.del(cacheKey);
+    } catch (error) {
+      this.logger.warn('Failed to invalidate user OAuth2 cache:', error);
     }
   }
 
@@ -102,25 +95,19 @@ export class CacheManagerService {
       this.invalidateUserActivitiesCache(userId),
       this.invalidateUserProfileCache(userId),
       this.invalidateUserPermissionsCache(userId),
+      this.invalidateUserOAuth2Cache(userId),
     ]);
   }
 
   /**
-   * 모든 사용자 캐시 무효화 (Redis SCAN 방식 사용)
+   * 모든 사용자 캐시 무효화
    */
   async invalidateAllUsersCache(): Promise<void> {
     try {
-      // Redis SCAN을 사용하여 모든 사용자 캐시 키를 찾아서 삭제
-      // 패턴: {prefix}:* 형식
+      // 사용자별 캐시 패턴을 사용하여 모든 사용자 캐시 무효화
+      const userCachePatterns = CACHE_INVALIDATION_PATTERNS.user(0); // userId 0은 패턴용
 
-      const patterns = [
-        `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.STATS}:*`,
-        `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.ACTIVITIES}:*:*`,
-        `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.USER}:*`,
-        `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.PERMISSIONS}:*`,
-      ];
-
-      for (const pattern of patterns) {
+      for (const pattern of userCachePatterns) {
         await this.deleteKeysByPattern(pattern);
       }
     } catch (error) {
@@ -131,76 +118,33 @@ export class CacheManagerService {
   }
 
   /**
-   * 패턴에 맞는 모든 캐시 키 삭제 (Redis SCAN 사용)
+   * 패턴에 맞는 모든 캐시 키 삭제
    */
   private async deleteKeysByPattern(pattern: string): Promise<void> {
     try {
-      // Redis 클라이언트에 안전하게 접근
-      const cacheStore = (
-        this.cacheManager as unknown as { store?: CacheStore }
-      ).store;
+      const keysToDelete: string[] = [];
+      let cursor = '0';
 
-      if (!cacheStore?.client) {
-        this.logger.warn(
-          'Redis client not available, skipping pattern deletion',
+      do {
+        const [newCursor, keys] = await this.redisClient.scan(
+          cursor,
+          'MATCH',
+          pattern,
+          'COUNT',
+          100,
         );
-        return;
+        cursor = newCursor;
+        keysToDelete.push(...keys);
+      } while (cursor !== '0');
+
+      if (keysToDelete.length > 0) {
+        await this.redisClient.del(keysToDelete);
+        this.logger.log(
+          `Deleted ${keysToDelete.length} cache keys with pattern: ${pattern}`,
+        );
       }
-
-      const redisClient = cacheStore.client;
-
-      return new Promise<void>((resolve, reject) => {
-        const keysToDelete: string[] = [];
-        let cursor = '0';
-
-        const scanAndDelete = () => {
-          redisClient.scan(
-            cursor,
-            'MATCH',
-            pattern,
-            'COUNT',
-            100,
-            (err: Error | null, reply: [string, string[]]) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-
-              cursor = reply[0];
-              const keys = reply[1];
-
-              // 찾은 키들을 삭제 목록에 추가
-              keysToDelete.push(...keys);
-
-              // 모든 키를 스캔했으면 삭제 실행
-              if (cursor === '0') {
-                if (keysToDelete.length > 0) {
-                  redisClient.del(keysToDelete, (delErr: Error | null) => {
-                    if (delErr) {
-                      reject(delErr);
-                    } else {
-                      this.logger.log(
-                        `Deleted ${keysToDelete.length} cache keys with pattern: ${pattern}`,
-                      );
-                      resolve();
-                    }
-                  });
-                } else {
-                  resolve();
-                }
-              } else {
-                // 다음 배치를 스캔
-                scanAndDelete();
-              }
-            },
-          );
-        };
-
-        scanAndDelete();
-      });
     } catch (error) {
       this.logger.warn(`Failed to delete keys with pattern ${pattern}:`, error);
-      // SCAN 실패 시 조용히 무시
     }
   }
 
@@ -225,7 +169,7 @@ export class CacheManagerService {
           ];
         });
 
-        Promise.all(cacheDeletePromises).catch((error) => {
+        void Promise.all(cacheDeletePromises).catch((error) => {
           this.logger.warn('Failed to invalidate some caches:', error);
         });
       })
@@ -239,8 +183,8 @@ export class CacheManagerService {
    */
   async hasCacheKey(key: string): Promise<boolean> {
     try {
-      const value = await this.cacheManager.get(key);
-      return value !== undefined;
+      const value = await this.redisClient.get(key);
+      return value !== null;
     } catch {
       return false;
     }
@@ -251,7 +195,8 @@ export class CacheManagerService {
    */
   async getCacheValue<T>(key: string): Promise<T | undefined> {
     try {
-      return await this.cacheManager.get<T>(key);
+      const value = await this.redisClient.get(key);
+      return value ? (JSON.parse(value) as T) : undefined;
     } catch {
       return undefined;
     }
@@ -262,9 +207,25 @@ export class CacheManagerService {
    */
   async setCacheValue<T>(key: string, value: T, ttl?: number): Promise<void> {
     try {
-      await this.cacheManager.set(key, value, ttl);
+      const serializedValue = JSON.stringify(value);
+      if (ttl) {
+        await this.redisClient.setex(key, ttl, serializedValue);
+      } else {
+        await this.redisClient.set(key, serializedValue);
+      }
     } catch {
       this.logger.warn('Failed to set cache value');
+    }
+  }
+
+  /**
+   * 캐시에서 키 삭제하기
+   */
+  async delCacheKey(key: string): Promise<void> {
+    try {
+      await this.redisClient.del(key);
+    } catch {
+      this.logger.warn('Failed to delete cache key');
     }
   }
 }

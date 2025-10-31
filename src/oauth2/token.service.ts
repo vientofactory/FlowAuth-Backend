@@ -1,14 +1,7 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  Inject,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { Token } from './token.entity';
 import { User } from '../auth/user.entity';
 import { Client } from './client.entity';
@@ -18,6 +11,7 @@ import { TOKEN_TYPES } from '../constants/auth.constants';
 import { OAuth2TokenService } from './services/oauth2-token.service';
 import { TokenRevocationService } from './services/token-revocation.service';
 import { IdTokenService, IdTokenPayload } from './services/id-token.service';
+import { CacheManagerService } from '../cache/cache-manager.service';
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -43,8 +37,7 @@ export class TokenService {
     @InjectRepository(Token)
     private readonly tokenRepository: Repository<Token>,
     private readonly jwtService: JwtService,
-    @Inject(CACHE_MANAGER)
-    private readonly cacheManager: Cache,
+    private readonly cacheManagerService: CacheManagerService,
     private readonly oauth2TokenService: OAuth2TokenService,
     private readonly tokenRevocationService: TokenRevocationService,
     private readonly idTokenService: IdTokenService,
@@ -89,9 +82,10 @@ export class TokenService {
   async validateToken(accessToken: string): Promise<OAuth2JwtPayload | null> {
     try {
       // Check cache first for performance
-      const cachedToken = await this.cacheManager.get<OAuth2JwtPayload>(
-        CACHE_KEYS.oauth2.token(accessToken),
-      );
+      const cachedToken =
+        await this.cacheManagerService.getCacheValue<OAuth2JwtPayload>(
+          CACHE_KEYS.oauth2.token(accessToken),
+        );
       if (cachedToken) {
         return cachedToken;
       }
@@ -140,7 +134,7 @@ export class TokenService {
       }
 
       // 유효한 토큰을 캐시에 저장 (5분)
-      await this.cacheManager.set(
+      await this.cacheManagerService.setCacheValue(
         CACHE_KEYS.oauth2.token(accessToken),
         decoded,
         CACHE_CONFIG.TTL.TOKEN_VALIDATION,

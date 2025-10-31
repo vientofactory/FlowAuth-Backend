@@ -1,13 +1,12 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { Token } from '../token.entity';
 import { AuditLogService } from '../../common/audit-log.service';
 import { AuditEventType, AuditSeverity } from '../../common/audit-log.entity';
 import { CACHE_KEYS } from '../../constants/cache.constants';
 import { AUDIT_LOG_RESOURCE_TYPES } from '../../constants/oauth2.constants';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 @Injectable()
 export class TokenRevocationService {
@@ -15,8 +14,7 @@ export class TokenRevocationService {
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
     private auditLogService: AuditLogService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   async revokeToken(accessToken: string): Promise<void> {
@@ -31,7 +29,9 @@ export class TokenRevocationService {
       await this.tokenRepository.save(token);
 
       // 토큰 취소 시 캐시 무효화
-      await this.cacheManager.del(CACHE_KEYS.oauth2.token(accessToken));
+      await this.cacheManagerService.delCacheKey(
+        CACHE_KEYS.oauth2.token(accessToken),
+      );
 
       // 감사 로그 기록
       if (token.user) {
@@ -86,7 +86,9 @@ export class TokenRevocationService {
     // 사용자 토큰 취소 시 관련 캐시 무효화
     for (const token of tokens) {
       if (token.accessToken) {
-        await this.cacheManager.del(CACHE_KEYS.oauth2.token(token.accessToken));
+        await this.cacheManagerService.delCacheKey(
+          CACHE_KEYS.oauth2.token(token.accessToken),
+        );
       }
     }
   }

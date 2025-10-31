@@ -5,7 +5,7 @@ import { Client } from '../oauth2/client.entity';
 import { Token } from '../oauth2/token.entity';
 import { TokenStatistics } from './statistics.entity';
 import { TOKEN_TYPES } from '../constants/auth.constants';
-import { CacheManagerService } from './cache-manager.service';
+import { CacheManagerService } from '../cache/cache-manager.service';
 import { DASHBOARD_CONFIG } from './dashboard.constants';
 
 interface RawTokenStats {

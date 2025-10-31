@@ -3,12 +3,9 @@ import {
   UnauthorizedException,
   BadRequestException,
   Logger,
-  Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
 import { User } from '../user.entity';
 import { Client } from '../../oauth2/client.entity';
@@ -19,6 +16,7 @@ import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { TwoFactorService } from '../two-factor.service';
 import { FileUploadService } from '../../upload/file-upload.service';
 import { RecaptchaService } from '../../utils/recaptcha.util';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 @Injectable()
 export class UserManagementService {
@@ -34,15 +32,14 @@ export class UserManagementService {
     private twoFactorService: TwoFactorService,
     private fileUploadService: FileUploadService,
     private recaptchaService: RecaptchaService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   async findById(id: number): Promise<User> {
     const cacheKey = `user:${id}`;
 
     // Try cache first
-    const cached = await this.cacheManager.get<User>(cacheKey);
+    const cached = await this.cacheManagerService.getCacheValue<User>(cacheKey);
     if (cached) {
       return cached;
     }
@@ -57,7 +54,11 @@ export class UserManagementService {
     }
 
     // Cache the result
-    await this.cacheManager.set(cacheKey, user, CACHE_CONFIG.TTL.USER_PROFILE);
+    await this.cacheManagerService.setCacheValue(
+      cacheKey,
+      user,
+      CACHE_CONFIG.TTL.USER_PROFILE,
+    );
     return user;
   }
 
@@ -101,7 +102,7 @@ export class UserManagementService {
     const savedUser = await this.userRepository.save(user);
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     this.logger.log(`User profile updated: ${user.username}`);
     return savedUser;
@@ -113,7 +114,7 @@ export class UserManagementService {
     });
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
   }
 
   async enableTwoFactor(
@@ -134,7 +135,7 @@ export class UserManagementService {
     });
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     return { secret, qrCodeUrl };
   }
@@ -157,7 +158,7 @@ export class UserManagementService {
     });
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     this.logger.log(`2FA enabled for user: ${user.username}`);
   }
@@ -171,7 +172,7 @@ export class UserManagementService {
     });
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     this.logger.log(`2FA disabled for user: ${user.username}`);
   }
@@ -207,7 +208,7 @@ export class UserManagementService {
     await this.userRepository.update(userId, { avatar: avatarUrl });
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     this.logger.log(`Avatar uploaded for user: ${user.username}`);
     return avatarUrl;
@@ -233,7 +234,7 @@ export class UserManagementService {
     await this.userRepository.save(user);
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     this.logger.log(`Avatar removed for user: ${user.username}`);
   }
@@ -245,7 +246,7 @@ export class UserManagementService {
     await this.userRepository.update(userId, { isActive: false });
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     this.logger.log(`User deactivated: ${user.username}`);
   }

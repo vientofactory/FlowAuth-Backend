@@ -1,28 +1,14 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { CacheModule } from '@nestjs/cache-manager';
-import { redisStore } from 'cache-manager-redis-yet';
+import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { CacheManagerService } from './cache-manager.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AUTH_ENTITIES } from '../database/database.module';
 
 @Module({
-  imports: [
-    CacheModule.registerAsync({
-      isGlobal: true,
-      imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        store: await redisStore({
-          socket: {
-            host: configService.get<string>('REDIS_HOST') ?? 'localhost',
-            port: parseInt(configService.get<string>('REDIS_PORT') ?? '6379'),
-          },
-          password: configService.get<string>('REDIS_PASSWORD') ?? undefined,
-          ttl: 300, // 5분
-        }),
-      }),
-      inject: [ConfigService],
-    }),
-  ],
+  imports: [TypeOrmModule.forFeature(AUTH_ENTITIES)],
   providers: [
+    CacheManagerService,
     {
       provide: 'REDIS_CLIENT',
       useFactory: (configService: ConfigService) => {
@@ -35,6 +21,6 @@ import Redis from 'ioredis';
       inject: [ConfigService],
     },
   ],
-  exports: [CacheModule, 'REDIS_CLIENT'],
+  exports: [CacheManagerService, 'REDIS_CLIENT'],
 })
 export class CacheConfigModule {}

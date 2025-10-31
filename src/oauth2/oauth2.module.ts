@@ -27,24 +27,12 @@ import { AppConfigService } from '../config/app-config.service';
 import { CacheConfigModule } from '../cache/cache-config.module';
 import { CommonModule } from '../common/common.module';
 import { AuditLogService } from '../common/audit-log.service';
-import { User } from '../auth/user.entity';
-import { Client } from './client.entity';
-import { AuthorizationCode } from './authorization-code.entity';
-import { Token } from './token.entity';
-import { Scope } from './scope.entity';
-import { AuditLog } from '../common/audit-log.entity';
 import { OAuth2UserInfoBuilder } from './utils/oauth2-userinfo.util';
+import { AUTH_ENTITIES, OAUTH2_ENTITIES } from '../database/database.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      User,
-      Client,
-      AuthorizationCode,
-      Token,
-      Scope,
-      AuditLog,
-    ]),
+    TypeOrmModule.forFeature([...AUTH_ENTITIES, ...OAUTH2_ENTITIES]),
     ScheduleModule.forRoot(),
     CacheConfigModule,
     CommonModule,

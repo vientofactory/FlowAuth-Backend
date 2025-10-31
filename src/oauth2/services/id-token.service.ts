@@ -1,13 +1,12 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import * as crypto from 'crypto';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { JwtTokenService } from './jwt-token.service';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 export interface IdTokenPayload {
   iss: string;
@@ -50,8 +49,7 @@ export class IdTokenService {
   constructor(
     private configService: ConfigService,
     private jwtTokenService: JwtTokenService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   async generateIdToken(
@@ -122,14 +120,16 @@ export class IdTokenService {
       // Check public key in cache first
       const cacheKey = `rsa_public_key:${kid}`;
       let publicKey: crypto.KeyObject | undefined =
-        await this.cacheManager.get(cacheKey);
+        await this.cacheManagerService.getCacheValue<crypto.KeyObject>(
+          cacheKey,
+        );
 
       if (!publicKey) {
         // Get RSA public key from JWT service
         publicKey = this.jwtTokenService.getRsaPublicKey();
 
         // Cache the public key to avoid repeated internal calls
-        await this.cacheManager.set(
+        await this.cacheManagerService.setCacheValue(
           cacheKey,
           publicKey,
           CACHE_CONFIG.TTL.STATIC_DATA,

@@ -5,12 +5,11 @@ import { ImageProcessingService } from './image-processing.service';
 import { UploadController } from './upload.controller';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtStrategy } from '../auth/jwt.strategy';
-import { User } from '../auth/user.entity';
-import { Token } from '../oauth2/token.entity';
 import { UtilsModule } from '../utils/utils.module';
+import { AUTH_ENTITIES } from '../database/database.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Token]), UtilsModule],
+  imports: [TypeOrmModule.forFeature(AUTH_ENTITIES), UtilsModule],
   providers: [
     FileUploadService,
     ImageProcessingService,

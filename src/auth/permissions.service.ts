@@ -1,12 +1,11 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { User } from './user.entity';
 import { PermissionUtils } from '../utils/permission.util';
 import { ROLE_PERMISSIONS } from '../constants/auth.constants';
 import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
+import { CacheManagerService } from '../cache/cache-manager.service';
 
 @Injectable()
 export class PermissionsService {
@@ -15,8 +14,7 @@ export class PermissionsService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   /**
@@ -26,7 +24,8 @@ export class PermissionsService {
     const cacheKey = CACHE_KEYS.auth.permissions(userId);
 
     // 캐시에서 먼저 조회
-    const cached = await this.cacheManager.get<number>(cacheKey);
+    const cached =
+      await this.cacheManagerService.getCacheValue<number>(cacheKey);
     if (cached !== undefined) {
       return cached;
     }
@@ -42,7 +41,7 @@ export class PermissionsService {
     }
 
     // 결과를 캐시에 저장 (5분 TTL)
-    await this.cacheManager.set(
+    await this.cacheManagerService.setCacheValue(
       cacheKey,
       user.permissions,
       CACHE_CONFIG.TTL.USER_PERMISSIONS,
@@ -57,7 +56,9 @@ export class PermissionsService {
     const oldPermissions = await this.getUserPermissions(userId);
     await this.userRepository.update(userId, { permissions });
     // 권한 변경 시 캐시 무효화
-    await this.cacheManager.del(CACHE_KEYS.auth.permissions(userId));
+    await this.cacheManagerService.delCacheKey(
+      CACHE_KEYS.auth.permissions(userId),
+    );
 
     // 권한 변경 로그
     this.logger.log(
@@ -149,7 +150,9 @@ export class PermissionsService {
    * 사용자 권한 캐시 무효화
    */
   async invalidateUserCache(userId: number): Promise<void> {
-    await this.cacheManager.del(CACHE_KEYS.auth.permissions(userId));
+    await this.cacheManagerService.delCacheKey(
+      CACHE_KEYS.auth.permissions(userId),
+    );
   }
 
   /**

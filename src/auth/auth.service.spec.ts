@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { AuthService } from './auth.service';
 import { User } from './user.entity';
 import { Client } from '../oauth2/client.entity';
@@ -15,6 +14,7 @@ import { UserAuthService } from './services/user-auth.service';
 import { ClientAuthService } from './services/client-auth.service';
 import { TwoFactorAuthService } from './services/two-factor-auth.service';
 import { ValidationService } from './services/validation.service';
+import { CacheManagerService } from '../cache/cache-manager.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -118,11 +118,11 @@ describe('AuthService', () => {
           },
         },
         {
-          provide: CACHE_MANAGER,
+          provide: CacheManagerService,
           useValue: {
-            get: jest.fn(),
-            set: jest.fn(),
-            del: jest.fn(),
+            getCacheValue: jest.fn(),
+            setCacheValue: jest.fn(),
+            delCacheKey: jest.fn(),
           },
         },
       ],

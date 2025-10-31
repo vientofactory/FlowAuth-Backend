@@ -4,13 +4,10 @@ import {
   ForbiddenException,
   BadRequestException,
   Logger,
-  Inject,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { User } from '../user.entity';
 import { Client } from '../../oauth2/client.entity';
 import { Token } from '../../oauth2/token.entity';
@@ -31,6 +28,7 @@ import {
   AuditSeverity,
   RESOURCE_TYPES,
 } from '../../common/audit-log.entity';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 @Injectable()
 export class ClientAuthService {
@@ -44,8 +42,7 @@ export class ClientAuthService {
     @InjectDataSource()
     private dataSource: DataSource,
     private fileUploadService: FileUploadService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
     private auditLogService: AuditLogService,
   ) {}
 
@@ -152,6 +149,16 @@ export class ClientAuthService {
     } catch (error) {
       this.logger.warn(
         'Failed to create audit log for client creation:',
+        error,
+      );
+    }
+
+    // Invalidate user cache since client list may be cached
+    try {
+      await this.cacheManagerService.invalidateUserOAuth2Cache(userId);
+    } catch (error) {
+      this.logger.warn(
+        'Failed to invalidate user cache after client creation',
         error,
       );
     }
@@ -368,8 +375,13 @@ export class ClientAuthService {
 
           for (const pattern of clientCacheKeys) {
             // Note: Basic cache manager doesn't support patterns, so we clear what we can
-            await this.cacheManager.del(pattern);
+            await this.cacheManagerService.delCacheKey(pattern);
           }
+
+          // Invalidate user cache since client list may be cached
+          await this.cacheManagerService.invalidateUserOAuth2Cache(
+            client.userId,
+          );
         } catch (error) {
           this.logger.warn(
             'Failed to invalidate caches after client deletion',

@@ -1,20 +1,18 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { CACHE_CONFIG } from '../../constants/cache.constants';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 @Injectable()
 export class JwtTokenService {
   constructor(
     private configService: ConfigService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   /**
@@ -94,7 +92,7 @@ export class JwtTokenService {
     const cacheKey = 'dev_rsa_key';
 
     // Check cache first
-    const cached = await this.cacheManager.get<{
+    const cached = await this.cacheManagerService.getCacheValue<{
       privateKey: crypto.KeyObject;
       kid: string;
     }>(cacheKey);
@@ -116,7 +114,7 @@ export class JwtTokenService {
     const keyPair = { privateKey: crypto.createPrivateKey(privateKeyPem), kid };
 
     // Cache the key pair for future use
-    await this.cacheManager.set(
+    await this.cacheManagerService.setCacheValue(
       cacheKey,
       keyPair,
       CACHE_CONFIG.TTL.STATIC_DATA,

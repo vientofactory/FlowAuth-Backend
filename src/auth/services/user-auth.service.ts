@@ -3,13 +3,10 @@ import {
   ConflictException,
   UnauthorizedException,
   Logger,
-  Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../user.entity';
 import { Token } from '../../oauth2/token.entity';
@@ -35,6 +32,7 @@ import {
   AuditSeverity,
   AuditLog,
 } from '../../common/audit-log.entity';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 @Injectable()
 export class UserAuthService {
@@ -48,8 +46,7 @@ export class UserAuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private recaptchaService: RecaptchaService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
     private auditLogService: AuditLogService,
   ) {}
 
@@ -259,8 +256,8 @@ export class UserAuthService {
       }
 
       // Invalidate dashboard cache on successful login (statistics update due to lastLoginAt change)
-      await this.cacheManager.del(`stats:${user.id}`);
-      await this.cacheManager.del(`activities:${user.id}:10`); // default limit 10
+      await this.cacheManagerService.delCacheKey(`stats:${user.id}`);
+      await this.cacheManagerService.delCacheKey(`activities:${user.id}:10`); // default limit 10
 
       // Generate JWT token with enhanced payload
       const payload: JwtPayload = {

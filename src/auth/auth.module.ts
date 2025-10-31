@@ -1,9 +1,5 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from './user.entity';
-import { Client } from '../oauth2/client.entity';
-import { Token } from '../oauth2/token.entity';
-import { AuditLog } from '../common/audit-log.entity';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { TwoFactorService } from './two-factor.service';
@@ -20,13 +16,16 @@ import { ValidationService } from './services/validation.service';
 import { UploadModule } from '../upload/upload.module';
 import { CommonModule } from '../common/common.module';
 import { AuditLogService } from '../common/audit-log.service';
+import { CacheConfigModule } from '../cache/cache-config.module';
+import { AUTH_ENTITIES } from '../database/database.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Client, Token, AuditLog]),
+    TypeOrmModule.forFeature(AUTH_ENTITIES),
     UtilsModule,
     UploadModule,
     CommonModule,
+    CacheConfigModule,
   ],
   providers: [
     AuthService,
