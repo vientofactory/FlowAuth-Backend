@@ -36,15 +36,8 @@ export class CacheManagerService {
    */
   async invalidateUserActivitiesCache(userId: number): Promise<void> {
     try {
-      // 활동 캐시는 다양한 limit으로 저장될 수 있으므로 패턴으로 삭제
-      const commonLimits = [5, 10, 20, 50];
-      await Promise.all(
-        commonLimits.map((limit) =>
-          this.redisClient.del(
-            DASHBOARD_CACHE_KEYS.dashboard.activities(userId, limit, 0),
-          ),
-        ),
-      );
+      const cacheKey = DASHBOARD_CACHE_KEYS.dashboard.activities(userId);
+      await this.redisClient.del(cacheKey);
     } catch (error) {
       this.logger.warn('Failed to invalidate user activities cache:', error);
     }

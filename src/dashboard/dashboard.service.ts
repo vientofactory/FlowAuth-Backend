@@ -177,7 +177,7 @@ export class DashboardService {
 
     limit = sanitizedLimit;
 
-    const cacheKey = CACHE_KEYS.dashboard.activities(userId, limit, offset);
+    const cacheKey = CACHE_KEYS.dashboard.activities(userId);
 
     try {
       // Use cache first
@@ -186,7 +186,12 @@ export class DashboardService {
         total: number;
       }>(cacheKey);
       if (cached) {
-        return cached;
+        // Apply pagination to cached data
+        const resultActivities = cached.activities.slice(
+          offset,
+          offset + limit,
+        );
+        return { activities: resultActivities, total: cached.total };
       }
 
       // Get activity data from audit logs
@@ -272,12 +277,14 @@ export class DashboardService {
 
       const result = { activities: resultActivities, total };
 
-      // Save results to cache (2 minutes TTL)
+      // Cache the full activities data for efficient pagination
+      const fullCacheData = { activities: allActivities, total };
       await this.cacheManagerService.setCacheValue(
         cacheKey,
-        result,
+        fullCacheData,
         CACHE_CONFIG.TTL.DASHBOARD_ACTIVITIES,
       );
+
       return result;
     } catch (error) {
       this.logger.error('Failed to get recent activities:', error);

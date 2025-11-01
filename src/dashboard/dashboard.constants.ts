@@ -55,8 +55,8 @@ export const CACHE_KEYS = {
   dashboard: {
     stats: (userId: number) =>
       `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.STATS}:${userId}`,
-    activities: (userId: number, limit: number, offset: number = 0) =>
-      `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.ACTIVITIES}:${userId}:${limit}:${offset}`,
+    activities: (userId: number) =>
+      `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.ACTIVITIES}:${userId}`,
     user: (userId: number) =>
       `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.USER}:${userId}`,
     permissions: (userId: number) =>
