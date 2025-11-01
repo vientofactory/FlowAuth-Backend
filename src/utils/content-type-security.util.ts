@@ -249,7 +249,7 @@ export class ContentTypeSecurityValidator {
       // Add buffer analysis warnings
       if (bufferAnalysisResult.analysisSkipped) {
         result.warnings.push(
-          `Buffer analysis skipped: ${bufferAnalysisResult.skipReason || 'Unknown reason'}`,
+          `Buffer analysis skipped: ${bufferAnalysisResult.skipReason ?? 'Unknown reason'}`,
         );
       }
 

@@ -8,13 +8,9 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { QueryFailedError } from 'typeorm';
-
-export interface ErrorResponse {
-  error: string;
-  error_description: string;
-  timestamp?: string;
-  path?: string;
-}
+import { LoggingService } from '../services/logging.service';
+import { ProblemDetailsUtil } from '../utils/problem-details.util';
+import { ProblemDetailsDto } from '../dto/response.dto';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -26,77 +22,54 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let errorResponse: ErrorResponse;
+    let problemDetails: ProblemDetailsDto;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
-      const exceptionResponse = exception.getResponse();
-
-      if (typeof exceptionResponse === 'string') {
-        errorResponse = {
-          error: this.getErrorType(status),
-          error_description: exceptionResponse,
-        };
-      } else if (
-        typeof exceptionResponse === 'object' &&
-        exceptionResponse !== null
-      ) {
-        const responseObj = exceptionResponse as Record<string, unknown>;
-        errorResponse = {
-          error: (responseObj.error as string) || this.getErrorType(status),
-          error_description:
-            (responseObj.message as string) ||
-            (responseObj.error_description as string) ||
-            'An error occurred',
-        };
-      } else {
-        errorResponse = {
-          error: this.getErrorType(status),
-          error_description: 'An error occurred',
-        };
-      }
+      problemDetails = ProblemDetailsUtil.fromHttpException(
+        exception,
+        request.url,
+      );
     } else if (exception instanceof QueryFailedError) {
-      // Database errors
       status = HttpStatus.BAD_REQUEST;
-      errorResponse = {
-        error: 'database_error',
-        error_description: 'A database error occurred',
-      };
-      this.logger.error('Database error:', exception);
+      const dbError = exception as QueryFailedError & { code?: string };
+      const errorDescription =
+        dbError.code === 'ER_DUP_ENTRY'
+          ? 'Duplicate entry'
+          : 'A database error occurred';
+
+      problemDetails = ProblemDetailsUtil.fromError(
+        new Error(errorDescription),
+        status,
+        request.url,
+        { code: dbError.code },
+      );
+
+      LoggingService.logError('Database', exception, {
+        code: dbError.code,
+      });
     } else {
       // Unexpected errors
-      errorResponse = {
-        error: 'internal_server_error',
-        error_description: 'An unexpected error occurred',
-      };
-      this.logger.error('Unexpected error:', exception);
+      const error =
+        exception instanceof Error ? exception : new Error(String(exception));
+      problemDetails = ProblemDetailsUtil.fromError(error, status, request.url);
+
+      LoggingService.logError('Unexpected', exception);
     }
 
-    // Add metadata for debugging (only in development)
-    if (process.env.NODE_ENV === 'development') {
-      errorResponse.timestamp = new Date().toISOString();
-      errorResponse.path = request.url;
+    // Enhanced logging for production
+    if (process.env.NODE_ENV !== 'development') {
+      LoggingService.logError(
+        'Request',
+        new Error(problemDetails.detail ?? problemDetails.title),
+        {
+          url: request.url,
+          method: request.method,
+          status,
+        },
+      );
     }
 
-    response.status(status).json(errorResponse);
-  }
-
-  private getErrorType(status: number): string {
-    switch (status) {
-      case 400:
-        return 'bad_request';
-      case 401:
-        return 'unauthorized';
-      case 403:
-        return 'forbidden';
-      case 404:
-        return 'not_found';
-      case 409:
-        return 'conflict';
-      case 429:
-        return 'too_many_requests';
-      default:
-        return 'internal_server_error';
-    }
+    response.status(status).json(problemDetails);
   }
 }

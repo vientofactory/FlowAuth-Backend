@@ -10,6 +10,7 @@ import { plainToClass } from 'class-transformer';
 import {
   VALIDATION_PIPE_OPTIONS,
   FILE_UPLOAD_DTO_PATTERNS,
+  SECURITY_VALIDATION_REGEX,
 } from '../constants/security.constants';
 
 @Injectable()
@@ -141,21 +142,18 @@ export class ValidationSanitizationPipe
       // Check if the key itself is dangerous
       if (dangerousKeys.includes(key)) {
         hasViolation = true;
-        this.logger.warn(`Blocked dangerous property: ${key}`);
         continue;
       }
 
       // Check for nested dangerous property paths
       if (this.containsDangerousPath(key)) {
         hasViolation = true;
-        this.logger.warn(`Blocked dangerous property path: ${key}`);
         continue;
       }
 
       // Additional check for constructor.prototype chain attacks
       if (this.isConstructorPrototypeChain(key, value)) {
         hasViolation = true;
-        this.logger.warn(`Blocked constructor.prototype chain attack: ${key}`);
         continue;
       }
 
@@ -217,39 +215,9 @@ export class ValidationSanitizationPipe
 
   private containsDangerousPath(key: string): boolean {
     // Check for various forms of dangerous property paths
-    const dangerousPatterns = [
-      /^__proto__$/i,
-      /^constructor$/i,
-      /^prototype$/i,
-      /constructor\.prototype/i,
-      /__proto__\./i,
-      /\.constructor/i,
-      /\.prototype/i,
-      /\[constructor\]/i,
-      /\[prototype\]/i,
-      /\["constructor"\]/i,
-      /\["prototype"\]/i,
-      /\['constructor'\]/i,
-      /\['prototype'\]/i,
-      // Additional dangerous patterns
-      /__defineGetter__/i,
-      /__defineSetter__/i,
-      /__lookupGetter__/i,
-      /__lookupSetter__/i,
-      /\.valueOf/i,
-      /\.toString/i,
-      /\.toLocaleString/i,
-      /\.call/i,
-      /\.apply/i,
-      /\.bind/i,
-      /\.then/i,
-      // Unicode and encoded variations
-      /\\u005f\\u005f/i, // __
-      /%5f%5f/i, // URL encoded __
-      /\\\\/i, // Escaped backslash attacks
-    ];
-
-    return dangerousPatterns.some((pattern) => pattern.test(key));
+    return SECURITY_VALIDATION_REGEX.DANGEROUS_PATH_PATTERNS.some((pattern) =>
+      pattern.test(key),
+    );
   }
 
   private isConstructorPrototypeChain(key: string, value: unknown): boolean {
@@ -262,14 +230,9 @@ export class ValidationSanitizationPipe
     }
 
     // Check for encoded constructor.prototype patterns
-    const constructorPrototypePatterns = [
-      /constructor\s*\[\s*['"]*prototype['"]*\s*\]/i,
-      /constructor\s*\.\s*prototype/i,
-      /\['constructor'\]\s*\[\s*['"]*prototype['"]*\s*\]/i,
-      /\["constructor"\]\s*\[\s*['"]*prototype['"]*\s*\]/i,
-    ];
-
-    return constructorPrototypePatterns.some((pattern) => pattern.test(key));
+    return SECURITY_VALIDATION_REGEX.CONSTRUCTOR_PROTOTYPE_PATTERNS.some(
+      (pattern) => pattern.test(key),
+    );
   }
 
   private sanitizeString(str: string): string {
@@ -277,36 +240,50 @@ export class ValidationSanitizationPipe
     let hasChanges = false;
 
     // Remove null bytes and control characters
-    // eslint-disable-next-line no-control-regex
-    const controlCharRemoved = cleanStr.replace(/[\x00-\x1f\x7f-\x9f]/g, '');
+    const controlCharRemoved = cleanStr.replace(
+      SECURITY_VALIDATION_REGEX.CONTROL_CHARACTERS,
+      '',
+    );
     if (controlCharRemoved !== cleanStr) {
       cleanStr = controlCharRemoved;
       hasChanges = true;
     }
 
     // Remove potential script tags (more comprehensive)
-    const scriptRemoved = cleanStr.replace(/<script[\s\S]*?<\/script>/gi, '');
+    const scriptRemoved = cleanStr.replace(
+      SECURITY_VALIDATION_REGEX.SCRIPT_TAG,
+      '',
+    );
     if (scriptRemoved !== cleanStr) {
       cleanStr = scriptRemoved;
       hasChanges = true;
     }
 
     // Remove javascript: protocol
-    const jsProtocolRemoved = cleanStr.replace(/javascript:/gi, '');
+    const jsProtocolRemoved = cleanStr.replace(
+      SECURITY_VALIDATION_REGEX.JAVASCRIPT_PROTOCOL,
+      '',
+    );
     if (jsProtocolRemoved !== cleanStr) {
       cleanStr = jsProtocolRemoved;
       hasChanges = true;
     }
 
     // Remove data: protocol with script content
-    const dataScriptRemoved = cleanStr.replace(/data:.*script/gi, '');
+    const dataScriptRemoved = cleanStr.replace(
+      SECURITY_VALIDATION_REGEX.DATA_SCRIPT_PROTOCOL,
+      '',
+    );
     if (dataScriptRemoved !== cleanStr) {
       cleanStr = dataScriptRemoved;
       hasChanges = true;
     }
 
     // Remove potential XSS vectors (event handlers)
-    const eventHandlerRemoved = cleanStr.replace(/on\w+\s*=/gi, '');
+    const eventHandlerRemoved = cleanStr.replace(
+      SECURITY_VALIDATION_REGEX.EVENT_HANDLER,
+      '',
+    );
     if (eventHandlerRemoved !== cleanStr) {
       cleanStr = eventHandlerRemoved;
       hasChanges = true;
@@ -331,7 +308,6 @@ export class ValidationSanitizationPipe
   private sanitizeNumber(num: number): number {
     // Check for dangerous number values
     if (!Number.isFinite(num) || Number.isNaN(num)) {
-      this.logger.warn('Invalid number value detected, defaulting to 0');
       return 0;
     }
 
@@ -340,12 +316,10 @@ export class ValidationSanitizationPipe
     const MIN_SAFE_INTEGER = Number.MIN_SAFE_INTEGER;
 
     if (num > MAX_SAFE_INTEGER) {
-      this.logger.warn('Number too large, capping to MAX_SAFE_INTEGER');
       return MAX_SAFE_INTEGER;
     }
 
     if (num < MIN_SAFE_INTEGER) {
-      this.logger.warn('Number too small, capping to MIN_SAFE_INTEGER');
       return MIN_SAFE_INTEGER;
     }
 
@@ -409,7 +383,6 @@ export class ValidationSanitizationPipe
 
     // Skip validation for values that contain file-like data
     if (this.containsFileData(value)) {
-      this.logger.debug('Skipping payload size validation for file-like data');
       return;
     }
 
@@ -418,9 +391,6 @@ export class ValidationSanitizationPipe
       const payloadSize = Buffer.byteLength(serialized, 'utf8');
 
       if (payloadSize > MAX_PAYLOAD_SIZE) {
-        this.logger.warn(
-          `Payload size limit exceeded: ${payloadSize} > ${MAX_PAYLOAD_SIZE}`,
-        );
         throw new BadRequestException({
           message: 'Payload size exceeds maximum allowed limit',
           maxSize: MAX_PAYLOAD_SIZE,

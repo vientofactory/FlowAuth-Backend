@@ -1,13 +1,12 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import * as crypto from 'crypto';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
-import { JWT_CONSTANTS, CACHE_CONSTANTS } from '../../constants/jwt.constants';
-import { StructuredLogger } from '../../logging/structured-logger.service';
+import { JWT_CONSTANTS } from '../../constants/jwt.constants';
+import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { JwtTokenService } from './jwt-token.service';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 export interface IdTokenPayload {
   iss: string;
@@ -45,12 +44,12 @@ export interface AddressClaim {
 
 @Injectable()
 export class IdTokenService {
+  private readonly logger = new Logger(IdTokenService.name);
+
   constructor(
     private configService: ConfigService,
-    private structuredLogger: StructuredLogger,
     private jwtTokenService: JwtTokenService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   async generateIdToken(
@@ -61,16 +60,16 @@ export class IdTokenService {
     authTime?: number,
   ): Promise<string> {
     const baseUrl =
-      this.configService.get<string>('BACKEND_URL') || 'http://localhost:3000';
+      this.configService.get<string>('BACKEND_URL') ?? 'http://localhost:3000';
 
     // Define standard ID token claims
     const payload: IdTokenPayload = {
       iss: baseUrl,
       sub: user.id.toString(),
       aud: client.clientId,
-      exp: Math.floor(Date.now() / 1000) + JWT_CONSTANTS.TIME.ONE_HOUR_SECONDS, // 1 hour expiration
+      exp: Math.floor(Date.now() / 1000) + JWT_CONSTANTS.TIME.ONE_HOUR_SECONDS,
       iat: Math.floor(Date.now() / 1000),
-      auth_time: authTime || Math.floor(Date.now() / 1000),
+      auth_time: authTime ?? Math.floor(Date.now() / 1000),
     };
 
     // Add nonce if present (OpenID Connect requirement)
@@ -98,9 +97,9 @@ export class IdTokenService {
     if (scopes.includes('profile')) {
       payload.name = user.username || '';
       payload.preferred_username = user.username || '';
-      payload.given_name = user.firstName || '';
-      payload.family_name = user.lastName || '';
-      payload.picture = user.avatar || '';
+      payload.given_name = user.firstName ?? '';
+      payload.family_name = user.lastName ?? '';
+      payload.picture = user.avatar ?? '';
       payload.updated_at = user.updatedAt
         ? Math.floor(user.updatedAt.getTime() / 1000)
         : undefined;
@@ -121,23 +120,25 @@ export class IdTokenService {
       // Check public key in cache first
       const cacheKey = `rsa_public_key:${kid}`;
       let publicKey: crypto.KeyObject | undefined =
-        await this.cacheManager.get(cacheKey);
+        await this.cacheManagerService.getCacheValue<crypto.KeyObject>(
+          cacheKey,
+        );
 
       if (!publicKey) {
         // Get RSA public key from JWT service
         publicKey = this.jwtTokenService.getRsaPublicKey();
 
         // Cache the public key to avoid repeated internal calls
-        await this.cacheManager.set(
+        await this.cacheManagerService.setCacheValue(
           cacheKey,
           publicKey,
-          CACHE_CONSTANTS.JWKS_TTL,
+          CACHE_CONFIG.TTL.STATIC_DATA,
         );
       }
 
       return publicKey;
     } catch (error) {
-      this.structuredLogger.error(
+      this.logger.error(
         {
           message: 'Failed to get RSA public key internally',
           kid,
@@ -219,7 +220,7 @@ export class IdTokenService {
 
       return payload;
     } catch (error) {
-      this.structuredLogger.error(
+      this.logger.error(
         {
           message: 'ID token validation failed',
           error: error instanceof Error ? error.message : 'Unknown error',

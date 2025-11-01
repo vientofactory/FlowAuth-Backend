@@ -744,9 +744,8 @@ export function isFileContentSecure(
       file.originalname,
       mimeType,
     );
-  } catch (error) {
-    // Log error and return false as fallback
-    console.error('Content security check failed:', error);
+  } catch {
+    // Return false as fallback
     return false;
   }
 }
@@ -778,9 +777,8 @@ export async function analyzeFileContent(
       file.originalname,
       mimeType,
     );
-  } catch (error) {
-    // Log error and return null as fallback
-    console.error('File content analysis failed:', error);
+  } catch {
+    // Return null as fallback
     return null;
   }
 }

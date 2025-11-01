@@ -114,10 +114,16 @@ export class DatabaseInitializationService
           \`twoFactorSecret\` varchar(255) NULL,
           \`isTwoFactorEnabled\` tinyint NOT NULL DEFAULT 0,
           \`backupCodes\` json NULL,
+          \`isActive\` tinyint NOT NULL DEFAULT 1,
+          \`avatar\` text NULL,
+          \`bio\` text NULL,
+          \`website\` text NULL,
+          \`location\` text NULL,
           \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
           \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
           UNIQUE INDEX \`IDX_78a916df40e02a9deb1c4b75ed\` (\`username\`),
           UNIQUE INDEX \`IDX_e12875dfb3b1d92d7d7c5377e2\` (\`email\`),
+          INDEX \`IDX_4a916df40e02a9deb1c4b75eda\` (\`id\`, \`isActive\`),
           PRIMARY KEY (\`id\`)
         ) ENGINE=InnoDB
       `);
@@ -175,12 +181,22 @@ export class DatabaseInitializationService
           \`isRevoked\` tinyint NOT NULL DEFAULT 0,
           \`revokedAt\` datetime NULL,
           \`isRefreshTokenUsed\` tinyint NOT NULL DEFAULT 0,
+          \`revokedReason\` varchar(255) NULL,
+          \`tokenFamily\` varchar(255) NULL,
+          \`rotationGeneration\` int NOT NULL DEFAULT 1,
+          \`lastUsedAt\` datetime NULL,
+          \`lastUsedIp\` varchar(45) NULL,
           \`userId\` int NULL,
           \`clientId\` int NULL,
           \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+          \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
           UNIQUE INDEX \`IDX_1e4a750a8c1c3e4c8c1c3e4c8c\` (\`accessToken\`),
           UNIQUE INDEX \`IDX_2e4a750a8c1c3e4c8c1c3e4c8c\` (\`refreshToken\`),
+          UNIQUE INDEX \`IDX_3e4a750a8c1c3e4c8c1c3e4c8c\` (\`tokenFamily\`, \`rotationGeneration\`),
           INDEX \`IDX_1f4a750a8c1c3e4c8c1c3e4c8c\` (\`clientId\`, \`userId\`),
+          INDEX \`IDX_4f4a750a8c1c3e4c8c1c3e4c8c\` (\`isRevoked\`, \`expiresAt\`),
+          INDEX \`IDX_5f4a750a8c1c3e4c8c1c3e4c8c\` (\`lastUsedAt\`),
+          INDEX \`IDX_6f4a750a8c1c3e4c8c1c3e4c8c\` (\`refreshExpiresAt\`, \`isRefreshTokenUsed\`),
           PRIMARY KEY (\`id\`)
         ) ENGINE=InnoDB
       `);
@@ -196,6 +212,8 @@ export class DatabaseInitializationService
           \`state\` varchar(256) NULL,
           \`codeChallenge\` varchar(128) NULL,
           \`codeChallengeMethod\` varchar(10) NULL,
+          \`nonce\` varchar(128) NULL,
+          \`authTime\` bigint NULL,
           \`isUsed\` tinyint NOT NULL DEFAULT 0,
           \`userId\` int NOT NULL,
           \`clientId\` int NOT NULL,

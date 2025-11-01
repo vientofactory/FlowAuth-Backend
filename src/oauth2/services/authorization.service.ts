@@ -120,6 +120,13 @@ export class AuthorizationService {
     // Normalize legacy scopes to new scopes
     const normalizedScopes = this.scopeService.normalizeScopes(requestedScopes);
 
+    // Optional nonce validation for OIDC (OpenID Connect) requests
+    if (authorizeDto.nonce && typeof authorizeDto.nonce === 'string') {
+      if (authorizeDto.nonce.length > OAUTH2_CONSTANTS.NONCE_MAX_LENGTH) {
+        throw new BadRequestException('nonce parameter is too long');
+      }
+    }
+
     return { client, requestedScopes: normalizedScopes };
   }
 
@@ -152,6 +159,7 @@ export class AuthorizationService {
         code_challenge,
         code_challenge_method,
         nonce,
+        response_type,
       );
     } else if (
       response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN
@@ -198,6 +206,7 @@ export class AuthorizationService {
     codeChallenge?: string,
     codeChallengeMethod?: string,
     nonce?: string,
+    responseType?: string,
   ): Promise<AuthorizeResponseDto> {
     // PKCE parameter validation (OPTIONAL but RECOMMENDED for security)
     if (codeChallenge || codeChallengeMethod) {
@@ -224,6 +233,7 @@ export class AuthorizationService {
       codeChallenge,
       codeChallengeMethod,
       nonce,
+      responseType,
     );
     this.logger.log(`Authorization code created: ${authCode.code}`);
 
@@ -276,6 +286,7 @@ export class AuthorizationService {
       codeChallenge,
       codeChallengeMethod,
       nonce,
+      OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN,
     );
     this.logger.log(
       `Authorization code created for hybrid flow: ${authCode.code}`,
@@ -332,9 +343,11 @@ export class AuthorizationService {
       response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
       response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
     ) {
-      if (!nonce) {
+      // Optional nonce validation for ID token issuance
+      // Only require nonce if client provides it (selective security layer)
+      if (nonce && !nonce.trim()) {
         throw new BadRequestException(
-          'nonce is required for OpenID Connect implicit flow',
+          'nonce parameter cannot be empty if provided',
         );
       }
       response.id_token = implicitTokens.idToken;
@@ -379,32 +392,100 @@ export class AuthorizationService {
     }
   }
 
-  async getConsentInfo(
+  async authorizeConsent(
     authorizeDto: AuthorizeRequestDto,
-  ): Promise<{ client: Client; scopes: string[] }> {
-    const { client_id, redirect_uri, scope } = authorizeDto;
+    user: User,
+  ): Promise<AuthorizeResponseDto> {
+    // Minimal validation for consent - parameters should already be validated
+    const {
+      client_id,
+      redirect_uri,
+      response_type,
+      scope,
+      state,
+      code_challenge,
+      code_challenge_method,
+      nonce,
+    } = authorizeDto;
 
     // Find and validate client
     const client = await this.clientRepository.findOne({
       where: { clientId: client_id, isActive: true },
     });
-
     if (!client) {
-      throw new BadRequestException('Invalid client_id');
+      throw new BadRequestException(OAUTH2_ERROR_MESSAGES.INVALID_CLIENT);
     }
 
     // Validate redirect URI
+    if (!validateOAuth2RedirectUri(redirect_uri)) {
+      throw new BadRequestException(OAUTH2_ERROR_MESSAGES.INVALID_REDIRECT_URI);
+    }
     if (!client.redirectUris.includes(redirect_uri)) {
-      throw new BadRequestException('Invalid redirect_uri');
+      throw new BadRequestException(OAUTH2_ERROR_MESSAGES.INVALID_REDIRECT_URI);
     }
 
-    // Parse and validate scopes
-    const scopeValue = typeof scope === 'string' ? scope : '';
-    const requestedScopes = scopeValue ? scopeValue.split(' ') : [];
+    // Parse scopes
+    const requestedScopes = scope
+      ? scope.split(' ').filter((s) => s.trim().length > 0)
+      : [];
 
-    return {
-      client,
-      scopes: requestedScopes,
-    };
+    // Handle different response types
+    if (response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE) {
+      // Authorization Code Grant
+      return this.handleAuthorizationCodeGrant(
+        user,
+        client,
+        requestedScopes,
+        redirect_uri,
+        state,
+        code_challenge,
+        code_challenge_method,
+        nonce,
+        response_type,
+      );
+    } else if (
+      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN
+    ) {
+      // Hybrid Flow (Authorization Code + ID Token)
+      return this.handleHybridGrant(
+        user,
+        client,
+        requestedScopes,
+        redirect_uri,
+        state,
+        code_challenge,
+        code_challenge_method,
+        nonce,
+      );
+    } else if (
+      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN ||
+      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
+      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
+    ) {
+      // Implicit Grant (Access Token and/or ID Token)
+      return this.handleImplicitGrant(
+        user,
+        client,
+        requestedScopes,
+        redirect_uri,
+        response_type,
+        state,
+        nonce,
+      );
+    } else {
+      throw new BadRequestException(
+        `Unsupported response_type: ${response_type}`,
+      );
+    }
+  }
+
+  async getConsentInfo(
+    authorizeDto: AuthorizeRequestDto,
+  ): Promise<{ client: Client; scopes: string[] }> {
+    // Perform full validation for consent info display
+    const { client, requestedScopes } =
+      await this.validateAuthorizationRequest(authorizeDto);
+
+    return { client, scopes: requestedScopes };
   }
 }

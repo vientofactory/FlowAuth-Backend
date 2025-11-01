@@ -24,7 +24,7 @@ import { TokenUtils } from '../../utils/permission.util';
 import type { User } from '../../auth/user.entity';
 
 @Controller('oauth2')
-@ApiTags('OAuth2 Consent')
+@ApiTags('OAuth2 Flow')
 export class ConsentController {
   private readonly logger = new Logger(ConsentController.name);
 
@@ -121,9 +121,9 @@ export class ConsentController {
     }
 
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
     const backendUrl =
-      this.configService.get<string>('BACKEND_URL') || 'http://localhost:3000';
+      this.configService.get<string>('BACKEND_URL') ?? 'http://localhost:3000';
     return `${frontendUrl}/auth/login?returnUrl=${encodeURIComponent(`${backendUrl}/oauth2/authorize?${params.toString()}`)}`;
   }
 
@@ -133,7 +133,7 @@ export class ConsentController {
     res: Response,
   ): Promise<void> {
     try {
-      const result = await this.authorizationService.authorize(
+      const result = await this.authorizationService.authorizeConsent(
         authorizeDto,
         user,
       );
@@ -303,7 +303,7 @@ export class ConsentController {
 
     // User approved consent, handle the OAuth2 flow
     try {
-      const result = await this.authorizationService.authorize(
+      const result = await this.authorizationService.authorizeConsent(
         authorizeDto,
         user,
       );

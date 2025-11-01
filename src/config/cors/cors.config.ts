@@ -95,6 +95,6 @@ export const corsConfig: CorsConfig = {
   publicEndpoints: PUBLIC_OAUTH_ENDPOINTS,
   headers: CORS_HEADERS,
   developmentOrigins: DEVELOPMENT_ORIGINS,
-  nodeEnv: process.env.NODE_ENV || 'development',
+  nodeEnv: process.env.NODE_ENV ?? 'development',
   frontendUrl: process.env.FRONTEND_URL,
 };

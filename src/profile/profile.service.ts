@@ -3,32 +3,31 @@ import {
   UnauthorizedException,
   BadRequestException,
   ConflictException,
-  Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
 import { User } from '../auth/user.entity';
 import { UserManagementService } from '../auth/services/user-management.service';
+import { CacheManagerService } from '../cache/cache-manager.service';
+import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
+import { VALIDATION_CONSTANTS } from '../constants/validation.constants';
 
 @Injectable()
 export class ProfileService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
     private userManagementService: UserManagementService,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   async findById(id: number): Promise<User> {
-    const cacheKey = `user:${id}`;
+    const cacheKey = CACHE_KEYS.profile.user(id);
 
     // 캐시에서 먼저 조회
-    const cached = await this.cacheManager.get<User>(cacheKey);
+    const cached = await this.cacheManagerService.getCacheValue<User>(cacheKey);
     if (cached) {
       return cached;
     }
@@ -41,8 +40,25 @@ export class ProfileService {
     }
 
     // 결과를 캐시에 저장 (10분 TTL)
-    await this.cacheManager.set(cacheKey, user, 600000);
+    await this.cacheManagerService.setCacheValue(
+      cacheKey,
+      user,
+      CACHE_CONFIG.TTL.USER_PROFILE,
+    );
     return user;
+  }
+
+  async findSafeById(
+    id: number,
+  ): Promise<Omit<User, 'password' | 'twoFactorSecret' | 'backupCodes'>> {
+    const user = await this.findById(id);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password, twoFactorSecret, backupCodes, ...safeUser } = user;
+    return safeUser as Omit<
+      User,
+      'password' | 'twoFactorSecret' | 'backupCodes'
+    >;
   }
 
   async updateProfile(
@@ -122,9 +138,9 @@ export class ProfileService {
               '사용자명은 최대 100자까지 가능합니다.',
             );
           }
-          if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
+          if (!VALIDATION_CONSTANTS.PROFILE_USERNAME.REGEX.test(value)) {
             throw new BadRequestException(
-              '사용자명은 영문, 숫자, 하이픈, 언더스코어만 사용할 수 있습니다.',
+              VALIDATION_CONSTANTS.PROFILE_USERNAME.ERROR_MESSAGES.INVALID_FORMAT,
             );
           }
 
@@ -156,9 +172,9 @@ export class ProfileService {
               );
             }
             // 특수문자 제한 (기본적인 문자, 공백, 하이픈만 허용)
-            if (!/^[a-zA-Z가-힣\s\-.']+$/.test(trimmedValue)) {
+            if (!VALIDATION_CONSTANTS.NAME.REGEX.test(trimmedValue)) {
               throw new BadRequestException(
-                `${field === 'firstName' ? '이름' : '성'}은 한글, 영문, 공백, 하이픈, 점, 아포스트로피만 사용할 수 있습니다.`,
+                VALIDATION_CONSTANTS.NAME.ERROR_MESSAGES.INVALID_FORMAT,
               );
             }
             safeAssign(field, trimmedValue);
@@ -231,7 +247,7 @@ export class ProfileService {
     await this.userRepository.update(userId, filteredData);
 
     // 캐시 무효화
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.invalidateAllUserCache(userId);
 
     // 업데이트된 사용자 정보 조회
     const updatedUser = await this.userRepository.findOne({
@@ -280,7 +296,7 @@ export class ProfileService {
     await this.userRepository.update(userId, { password: hashedNewPassword });
 
     // 캐시 무효화 (비밀번호 변경 시 사용자 정보 캐시도 무효화)
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.invalidateAllUserCache(userId);
   }
 
   async checkUsernameAvailability(
@@ -310,11 +326,11 @@ export class ProfileService {
     }
 
     // 형식 검증
-    if (!/^[a-zA-Z0-9_-]+$/.test(trimmedUsername)) {
+    if (!VALIDATION_CONSTANTS.PROFILE_USERNAME.REGEX.test(trimmedUsername)) {
       return {
         available: false,
         message:
-          '사용자명은 영문, 숫자, 하이픈, 언더스코어만 사용할 수 있습니다.',
+          VALIDATION_CONSTANTS.PROFILE_USERNAME.ERROR_MESSAGES.INVALID_FORMAT,
       };
     }
 
@@ -334,10 +350,21 @@ export class ProfileService {
     userId: number,
     file: Express.Multer.File,
   ): Promise<string> {
-    return this.userManagementService.uploadAvatar(userId, file);
+    const avatarUrl = await this.userManagementService.uploadAvatar(
+      userId,
+      file,
+    );
+
+    // 아바타 변경 시 프로필 캐시 무효화
+    await this.cacheManagerService.invalidateAllUserCache(userId);
+
+    return avatarUrl;
   }
 
   async removeAvatar(userId: number): Promise<void> {
     await this.userManagementService.removeAvatar(userId);
+
+    // 아바타 제거 시 프로필 캐시 무효화
+    await this.cacheManagerService.invalidateAllUserCache(userId);
   }
 }

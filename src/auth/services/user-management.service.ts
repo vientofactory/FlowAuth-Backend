@@ -1,29 +1,22 @@
 import {
   Injectable,
-  ConflictException,
   UnauthorizedException,
   BadRequestException,
   Logger,
-  Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import * as bcrypt from 'bcrypt';
 import { User } from '../user.entity';
-import { CreateUserDto } from '../dto/create-user.dto';
-import {
-  AUTH_CONSTANTS,
-  AUTH_ERROR_MESSAGES,
-  USER_TYPES,
-  USER_TYPE_PERMISSIONS,
-  PERMISSION_UTILS,
-  CACHE_CONSTANTS,
-} from '../../constants/auth.constants';
+import { Client } from '../../oauth2/client.entity';
+import { Token } from '../../oauth2/token.entity';
+import { MoreThan } from 'typeorm';
+import { AUTH_CONSTANTS } from '../../constants/auth.constants';
+import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { TwoFactorService } from '../two-factor.service';
 import { FileUploadService } from '../../upload/file-upload.service';
 import { RecaptchaService } from '../../utils/recaptcha.util';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 @Injectable()
 export class UserManagementService {
@@ -32,95 +25,21 @@ export class UserManagementService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Client)
+    private clientRepository: Repository<Client>,
+    @InjectRepository(Token)
+    private tokenRepository: Repository<Token>,
     private twoFactorService: TwoFactorService,
     private fileUploadService: FileUploadService,
     private recaptchaService: RecaptchaService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {}
-
-  async register(createUserDto: CreateUserDto): Promise<User> {
-    const {
-      username,
-      email,
-      password,
-      firstName,
-      lastName,
-      userType,
-      recaptchaToken,
-    } = createUserDto;
-
-    // Verify reCAPTCHA token (required for registration)
-    const isValidRecaptcha = await this.recaptchaService.verifyToken(
-      recaptchaToken,
-      'register',
-    );
-    if (!isValidRecaptcha) {
-      throw new UnauthorizedException('reCAPTCHA verification failed');
-    }
-
-    // Check if user already exists
-    const existingUser = await this.userRepository.findOne({
-      where: [{ username }, { email }],
-    });
-
-    if (existingUser) {
-      if (existingUser.email === email) {
-        throw new ConflictException('이미 사용중인 이메일입니다.');
-      }
-      if (existingUser.username === username) {
-        throw new ConflictException('이미 사용중인 사용자명입니다.');
-      }
-      throw new ConflictException(AUTH_ERROR_MESSAGES.USER_ALREADY_EXISTS);
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(
-      password,
-      AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
-    );
-
-    // Check if this is the first user (should get admin permissions)
-    const userCount = await this.userRepository.count();
-    const isFirstUser = userCount === 0;
-
-    let permissions =
-      USER_TYPE_PERMISSIONS[userType as USER_TYPES] ||
-      USER_TYPE_PERMISSIONS[USER_TYPES.REGULAR];
-
-    if (isFirstUser) {
-      // First user gets admin permissions
-      permissions = PERMISSION_UTILS.getAllPermissionsMask();
-    }
-
-    // Create user
-    const user = this.userRepository.create({
-      username,
-      email,
-      password: hashedPassword,
-      firstName,
-      lastName,
-      permissions,
-      userType,
-      isEmailVerified: false,
-      isTwoFactorEnabled: false,
-      isActive: true,
-    });
-
-    const savedUser = await this.userRepository.save(user);
-
-    // Clear user cache
-    await this.cacheManager.del(`user:${savedUser.id}`);
-
-    this.logger.log(`User registered: ${username} (${email})`);
-    return savedUser;
-  }
 
   async findById(id: number): Promise<User> {
     const cacheKey = `user:${id}`;
 
     // Try cache first
-    const cached = await this.cacheManager.get<User>(cacheKey);
+    const cached = await this.cacheManagerService.getCacheValue<User>(cacheKey);
     if (cached) {
       return cached;
     }
@@ -135,7 +54,11 @@ export class UserManagementService {
     }
 
     // Cache the result
-    await this.cacheManager.set(cacheKey, user, CACHE_CONSTANTS.USER_CACHE_TTL);
+    await this.cacheManagerService.setCacheValue(
+      cacheKey,
+      user,
+      CACHE_CONFIG.TTL.USER_PROFILE,
+    );
     return user;
   }
 
@@ -179,7 +102,7 @@ export class UserManagementService {
     const savedUser = await this.userRepository.save(user);
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     this.logger.log(`User profile updated: ${user.username}`);
     return savedUser;
@@ -191,7 +114,7 @@ export class UserManagementService {
     });
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
   }
 
   async enableTwoFactor(
@@ -212,7 +135,7 @@ export class UserManagementService {
     });
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     return { secret, qrCodeUrl };
   }
@@ -235,7 +158,7 @@ export class UserManagementService {
     });
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     this.logger.log(`2FA enabled for user: ${user.username}`);
   }
@@ -249,7 +172,7 @@ export class UserManagementService {
     });
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     this.logger.log(`2FA disabled for user: ${user.username}`);
   }
@@ -285,7 +208,7 @@ export class UserManagementService {
     await this.userRepository.update(userId, { avatar: avatarUrl });
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     this.logger.log(`Avatar uploaded for user: ${user.username}`);
     return avatarUrl;
@@ -311,7 +234,7 @@ export class UserManagementService {
     await this.userRepository.save(user);
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     this.logger.log(`Avatar removed for user: ${user.username}`);
   }
@@ -323,7 +246,7 @@ export class UserManagementService {
     await this.userRepository.update(userId, { isActive: false });
 
     // Clear cache
-    await this.cacheManager.del(`user:${userId}`);
+    await this.cacheManagerService.delCacheKey(`user:${userId}`);
 
     this.logger.log(`User deactivated: ${user.username}`);
   }
@@ -335,19 +258,24 @@ export class UserManagementService {
   }> {
     const user = await this.findById(userId);
 
-    // TODO: Implement proper client and token counting
-    // For now, return placeholder values until related services are implemented
+    // Count user's OAuth2 clients
+    const totalClients = await this.clientRepository.count({
+      where: { userId },
+    });
 
-    // Count user's OAuth2 clients (when ClientService is implemented)
-    const totalClients = 0; // await this.clientService.countByUserId(userId);
-
-    // Count active tokens for user (when TokenService is implemented)
-    const activeTokens = 0; // await this.tokenService.countActiveByUserId(userId);
+    // Count active tokens for user (not revoked and not expired)
+    const activeTokens = await this.tokenRepository.count({
+      where: {
+        user: { id: userId },
+        isRevoked: false,
+        expiresAt: MoreThan(new Date()),
+      },
+    });
 
     return {
       totalClients,
       activeTokens,
-      lastLogin: user.lastLoginAt || null,
+      lastLogin: user.lastLoginAt ?? null,
     };
   }
 }

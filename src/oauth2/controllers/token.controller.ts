@@ -12,12 +12,7 @@ import { TokenGrantService } from '../services/token-grant.service';
 import { TokenService } from '../token.service';
 import { TokenIntrospectionService } from '../services/token-introspection.service';
 import { TokenRequestDto, TokenResponseDto } from '../dto/oauth2.dto';
-import { ErrorResponseDto } from '../../common/dto/response.dto';
-import {
-  mapExceptionToOAuth2Error,
-  createOAuth2Error,
-} from '../utils/oauth2-error.util';
-import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
+import { ProblemDetailsDto } from '../../common/dto/response.dto';
 import {
   AdvancedRateLimitGuard,
   RateLimit,
@@ -28,7 +23,7 @@ import { UseGuards } from '@nestjs/common';
 
 @Controller('oauth2')
 @UseGuards(AdvancedRateLimitGuard)
-@ApiTags('OAuth2 Token')
+@ApiTags('OAuth2 Flow')
 export class TokenController {
   private readonly logger = new Logger(TokenController.name);
 
@@ -69,65 +64,51 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
   @ApiResponse({
     status: 400,
     description: '잘못된 요청 또는 유효하지 않은 authorization code',
-    type: ErrorResponseDto,
+    type: ProblemDetailsDto,
   })
   async token(
     @Body(DefaultFieldSizeLimitPipe) tokenDto: TokenRequestDto,
     @Headers('authorization') authHeader?: string,
-  ): Promise<TokenResponseDto | ErrorResponseDto> {
-    try {
-      if (tokenDto.grant_type !== 'authorization_code') {
-        return {
-          error: 'unsupported_grant_type',
-          error_description: 'Grant type must be "authorization_code"',
-        };
-      }
-
-      // Parse Basic Authentication header if present
-      let clientId = tokenDto.client_id;
-      let clientSecret = tokenDto.client_secret;
-
-      if (authHeader?.startsWith('Basic ')) {
-        try {
-          const base64Credentials = authHeader.substring(6);
-          const credentials = Buffer.from(base64Credentials, 'base64').toString(
-            'utf8',
-          );
-          const [headerClientId, headerClientSecret] = credentials.split(':');
-
-          // Use credentials from header if not provided in body
-          clientId ??= headerClientId;
-          clientSecret ??= headerClientSecret;
-        } catch (error) {
-          this.logger.warn('Failed to parse Authorization header', error);
-          return {
-            error: 'invalid_client',
-            error_description: 'Invalid Authorization header format',
-          };
-        }
-      }
-
-      // Create a new request object with extracted credentials
-      const enhancedTokenDto = {
-        ...tokenDto,
-        client_id: clientId,
-        client_secret: clientSecret,
-      };
-
-      return await this.tokenGrantService.token(enhancedTokenDto);
-    } catch (error) {
-      // Convert exceptions to OAuth2 standard error responses
-      if (error instanceof BadRequestException) {
-        return mapExceptionToOAuth2Error(error);
-      }
-
-      // For unexpected errors
-      this.logger.error('Unexpected error in token endpoint', error);
-      return createOAuth2Error(
-        OAUTH2_CONSTANTS.ERRORS.SERVER_ERROR,
-        'An unexpected error occurred',
-      );
+  ): Promise<TokenResponseDto> {
+    if (tokenDto.grant_type !== 'authorization_code') {
+      throw new BadRequestException({
+        error: 'unsupported_grant_type',
+        error_description: 'Grant type must be "authorization_code"',
+      });
     }
+
+    // Parse Basic Authentication header if present
+    let clientId = tokenDto.client_id;
+    let clientSecret = tokenDto.client_secret;
+
+    if (authHeader?.startsWith('Basic ')) {
+      try {
+        const base64Credentials = authHeader.substring(6);
+        const credentials = Buffer.from(base64Credentials, 'base64').toString(
+          'utf8',
+        );
+        const [headerClientId, headerClientSecret] = credentials.split(':');
+
+        // Use credentials from header if not provided in body
+        clientId ??= headerClientId;
+        clientSecret ??= headerClientSecret;
+      } catch (error) {
+        this.logger.warn('Failed to parse Authorization header', error);
+        throw new BadRequestException({
+          error: 'invalid_client',
+          error_description: 'Invalid Authorization header format',
+        });
+      }
+    }
+
+    // Create a new request object with extracted credentials
+    const enhancedTokenDto = {
+      ...tokenDto,
+      client_id: clientId,
+      client_secret: clientSecret,
+    };
+
+    return await this.tokenGrantService.token(enhancedTokenDto);
   }
 
   @Post('introspect')

@@ -39,69 +39,69 @@ export class AppConfigService {
   constructor(private configService: ConfigService) {
     // OAuth2 Token Configuration
     this.accessTokenExpiryHours = parseInt(
-      this.configService.get<string>('OAUTH2_ACCESS_TOKEN_EXPIRY_HOURS') ||
+      this.configService.get<string>('OAUTH2_ACCESS_TOKEN_EXPIRY_HOURS') ??
         JWT_TOKEN_EXPIRY.OAUTH2_HOURS.toString(),
       10,
     );
     this.refreshTokenExpiryDays = parseInt(
-      this.configService.get<string>('OAUTH2_REFRESH_TOKEN_EXPIRY_DAYS') ||
+      this.configService.get<string>('OAUTH2_REFRESH_TOKEN_EXPIRY_DAYS') ??
         '30',
       10,
     );
 
     // OAuth2 Authorization Code Configuration
     this.codeExpiryMinutes = parseInt(
-      this.configService.get<string>('OAUTH2_CODE_EXPIRY_MINUTES') || '10',
+      this.configService.get<string>('OAUTH2_CODE_EXPIRY_MINUTES') ?? '10',
       10,
     );
     this.codeLength = parseInt(
-      this.configService.get<string>('OAUTH2_CODE_LENGTH') || '32',
+      this.configService.get<string>('OAUTH2_CODE_LENGTH') ?? '32',
       10,
     );
 
     // Database Configuration
-    this.dbHost = this.configService.get<string>('DB_HOST') || 'localhost';
+    this.dbHost = this.configService.get<string>('DB_HOST') ?? 'localhost';
     this.dbPort = parseInt(
-      this.configService.get<string>('DB_PORT') || '3306',
+      this.configService.get<string>('DB_PORT') ?? '3306',
       10,
     );
-    this.dbUsername = this.configService.get<string>('DB_USERNAME') || 'root';
-    this.dbPassword = this.configService.get<string>('DB_PASSWORD') || '';
-    this.dbName = this.configService.get<string>('DB_NAME') || 'flowauth';
+    this.dbUsername = this.configService.get<string>('DB_USERNAME') ?? 'root';
+    this.dbPassword = this.configService.get<string>('DB_PASSWORD') ?? '';
+    this.dbName = this.configService.get<string>('DB_NAME') ?? 'flowauth';
     this.dbConnectionLimit = parseInt(
-      this.configService.get<string>('DB_CONNECTION_LIMIT') || '10',
+      this.configService.get<string>('DB_CONNECTION_LIMIT') ?? '10',
       10,
     );
     this.dbAcquireTimeout = parseInt(
-      this.configService.get<string>('DB_ACQUIRE_TIMEOUT') || '60000',
+      this.configService.get<string>('DB_ACQUIRE_TIMEOUT') ?? '60000',
       10,
     );
     this.dbTimeout = parseInt(
-      this.configService.get<string>('DB_TIMEOUT') || '60000',
+      this.configService.get<string>('DB_TIMEOUT') ?? '60000',
       10,
     );
 
     // Cache Configuration
     this.cacheTtl = parseInt(
-      this.configService.get<string>('CACHE_TTL') || '300000', // 5 minutes
+      this.configService.get<string>('CACHE_TTL') ?? '300000', // 5 minutes
       10,
     );
 
     // JWT Configuration
     this.jwtSecret =
-      this.configService.get<string>('JWT_SECRET') || 'your-secret-key';
-    this.jwtExpiry = this.configService.get<string>('JWT_EXPIRY') || '1h';
+      this.configService.get<string>('JWT_SECRET') ?? 'your-secret-key';
+    this.jwtExpiry = this.configService.get<string>('JWT_EXPIRY') ?? '1h';
 
     // reCAPTCHA Configuration
     this.recaptchaSecretKey =
-      this.configService.get<string>('RECAPTCHA_SECRET_KEY') || '';
+      this.configService.get<string>('RECAPTCHA_SECRET_KEY') ?? '';
     this.recaptchaScoreThreshold = parseFloat(
-      this.configService.get<string>('RECAPTCHA_SCORE_THRESHOLD') || '0.5',
+      this.configService.get<string>('RECAPTCHA_SCORE_THRESHOLD') ?? '0.5',
     );
 
     // Cleanup Configuration
     this.cleanupCronExpression =
-      this.configService.get<string>('CLEANUP_CRON_EXPRESSION') || '0 0 * * *'; // 매일 자정
+      this.configService.get<string>('CLEANUP_CRON_EXPRESSION') ?? '0 0 * * *';
   }
 
   // Validation methods

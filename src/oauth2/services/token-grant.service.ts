@@ -170,23 +170,37 @@ export class TokenGrantService {
     const tokenResult = await this.tokenService.createToken(
       authCode.user,
       client,
-      authCode.scopes || [],
+      authCode.scopes ?? [],
       authCode.nonce,
       authCode.authTime,
     );
 
-    this.logger.log(
-      `Tokens issued for user ${authCode.user.id} with scopes: ${(authCode.scopes || []).join(', ')}`,
-    );
-
-    return {
+    const response: TokenResponseDto = {
       access_token: tokenResult.accessToken,
       token_type: tokenResult.tokenType,
       expires_in: tokenResult.expiresIn,
       refresh_token: tokenResult.refreshToken,
-      scope: (authCode.scopes || []).join(' '),
-      id_token: tokenResult.idToken,
+      scope: (authCode.scopes ?? []).join(' '),
     };
+
+    if ((authCode.scopes ?? []).includes('openid')) {
+      // Optional nonce validation for ID token issuance
+      const idToken = await this.tokenService.generateIdToken(
+        authCode.user,
+        client,
+        authCode.scopes ?? [],
+        authCode.nonce,
+        authCode.authTime,
+      );
+
+      response.id_token = idToken;
+    }
+
+    this.logger.log(
+      `Tokens issued for user ${authCode.user.id} with scopes: ${(authCode.scopes ?? []).join(', ')}`,
+    );
+
+    return response;
   }
 
   private async handleRefreshTokenGrant(
@@ -221,7 +235,7 @@ export class TokenGrantService {
     // Use the existing refreshToken method from TokenService
     const tokenResult = await this.tokenService.refreshToken(
       refresh_token,
-      client_id || '',
+      client_id ?? '',
     );
 
     if (!tokenResult) {

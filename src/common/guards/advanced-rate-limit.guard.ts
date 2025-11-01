@@ -4,12 +4,10 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
-  Inject,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 export interface RateLimitConfig {
   windowMs: number;
@@ -35,7 +33,7 @@ export const RateLimit = (config: RateLimitConfig): MethodDecorator => {
 export class AdvancedRateLimitGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -58,7 +56,7 @@ export class AdvancedRateLimitGuard implements CanActivate {
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
           message:
-            config.message || 'Too many requests, please try again later',
+            config.message ?? 'Too many requests, please try again later',
           error: 'Too Many Requests',
         },
         HttpStatus.TOO_MANY_REQUESTS,
@@ -77,19 +75,19 @@ export class AdvancedRateLimitGuard implements CanActivate {
     }
 
     const ip = this.getClientIP(request);
-    const userAgent = request.headers['user-agent'] || 'unknown';
-    const path = (request.route as { path?: string })?.path || request.path;
+    const userAgent = request.headers['user-agent'] ?? 'unknown';
+    const path = (request.route as { path?: string })?.path ?? request.path;
 
     return `rate_limit:${ip}:${this.hashString(userAgent)}:${path}`;
   }
 
   private getClientIP(request: Request): string {
     return (
-      (request.headers['cf-connecting-ip'] as string) ||
-      (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      (request.headers['x-real-ip'] as string) ||
-      request.connection.remoteAddress ||
-      request.socket.remoteAddress ||
+      ((request.headers['cf-connecting-ip'] as string) ||
+        (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+        (request.headers['x-real-ip'] as string) ||
+        request.connection.remoteAddress) ??
+      request.socket.remoteAddress ??
       'unknown'
     );
   }
@@ -111,7 +109,8 @@ export class AdvancedRateLimitGuard implements CanActivate {
     const now = Date.now();
     const windowStart = now - config.windowMs;
 
-    const requests = (await this.cacheManager.get<number[]>(key)) || [];
+    const requests =
+      (await this.cacheManagerService.getCacheValue<number[]>(key)) ?? [];
 
     const validRequests = requests.filter(
       (timestamp) => timestamp > windowStart,
@@ -122,7 +121,11 @@ export class AdvancedRateLimitGuard implements CanActivate {
     }
 
     validRequests.push(now);
-    await this.cacheManager.set(key, validRequests, config.windowMs);
+    await this.cacheManagerService.setCacheValue(
+      key,
+      validRequests,
+      config.windowMs,
+    );
 
     return true;
   }

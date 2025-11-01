@@ -202,7 +202,7 @@ export const KEY_GENERATORS = {
     try {
       const body = req.body as { client_id?: string };
       const query = req.query as { client_id?: string };
-      clientId = body?.client_id || query?.client_id || 'unknown';
+      clientId = body?.client_id ?? query?.client_id ?? 'unknown';
     } catch {
       clientId = 'unknown';
     }
@@ -212,7 +212,7 @@ export const KEY_GENERATORS = {
   // IP + User Agent 기반 (봇 탐지)
   IP_USER_AGENT: (req: AuthenticatedRequest) => {
     const ip = getClientIp(req);
-    const userAgent = req.headers['user-agent'] || 'unknown';
+    const userAgent = req.headers['user-agent'] ?? 'unknown';
     const hash = crypto
       .createHash('md5')
       .update(userAgent)
@@ -260,3 +260,86 @@ function getClientIp(req: AuthenticatedRequest): string {
 
   return 'unknown';
 }
+
+// URL 보안 검증을 위한 정규표현식 상수들
+export const URL_SECURITY_REGEX = {
+  // IPv4 주소 검증 (각 옥텟이 0-255 범위)
+  IPV4_ADDRESS: /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/,
+
+  // IPv4 매핑된 IPv6 주소 검증 (::ffff:192.0.2.1 형식)
+  IPV4_MAPPED_IPV6: /(?:::|^0*:0*:0*:0*:0*:)ffff:(\d+\.\d+\.\d+\.\d+)$/i,
+
+  // IPv4 매핑된 IPv6 주소 (16진수 형식) 검증 (::ffff:c0a8:101 형식)
+  IPV4_MAPPED_IPV6_HEX:
+    /(?:::|^0*:0*:0*:0*:0*:)ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i,
+
+  // IPv4 호환 IPv6 주소 검증 (::192.0.2.1 형식, deprecated)
+  IPV4_COMPATIBLE_IPV6: /(?:::|^0*:0*:0*:0*:0*:0*:)(\d+\.\d+\.\d+\.\d+)$/,
+
+  // IPv6 주소 파트 검증 (16진수 1-4자리)
+  IPV6_HEX_PART: /^[0-9a-fA-F]+$/,
+
+  // 도메인 레이블 검증 (알파벳, 숫자, 하이픈만 허용)
+  DOMAIN_LABEL: /^[a-zA-Z0-9-]+$/,
+
+  // IPv4 매핑된 IPv6 주소 매칭을 위한 패턴
+  IPV4_MAPPED_MATCH: /^(.+):(\d+\.\d+\.\d+\.\d+)$/,
+} as const;
+
+// 입력 검증 및 보안 정규표현식 상수들
+export const SECURITY_VALIDATION_REGEX = {
+  // 위험한 속성 경로 패턴들
+  DANGEROUS_PATH_PATTERNS: [
+    /^__proto__$/i,
+    /^constructor$/i,
+    /^prototype$/i,
+    /constructor\.prototype/i,
+    /__proto__\./i,
+    /\.constructor/i,
+    /\.prototype/i,
+    /\[constructor\]/i,
+    /\[prototype\]/i,
+    /\["constructor"\]/i,
+    /\["prototype"\]/i,
+    /\['constructor'\]/i,
+    /\['prototype'\]/i,
+    /__defineGetter__/i,
+    /__defineSetter__/i,
+    /__lookupGetter__/i,
+    /__lookupSetter__/i,
+    /\.valueOf/i,
+    /\.toString/i,
+    /\.toLocaleString/i,
+    /\.call/i,
+    /\.apply/i,
+    /\.bind/i,
+    /\.then/i,
+    /\\u005f\\u005f/i,
+    /%5f%5f/i,
+    /\\\\/i,
+  ] as const,
+
+  // 생성자 프로토타입 체인 패턴들
+  CONSTRUCTOR_PROTOTYPE_PATTERNS: [
+    /constructor\s*\[\s*['"]*prototype['"]*\s*\]/i,
+    /constructor\s*\.\s*prototype/i,
+    /\['constructor'\]\s*\[\s*['"]*prototype['"]*\s*\]/i,
+    /\["constructor"\]\s*\[\s*['"]*prototype['"]*\s*\]/i,
+  ] as const,
+
+  // 제어 문자 패턴 (null bytes and control characters)
+  // eslint-disable-next-line no-control-regex
+  CONTROL_CHARACTERS: /[\x00-\x1f\x7f-\x9f]/g,
+
+  // 스크립트 태그 패턴
+  SCRIPT_TAG: /<script[\s\S]*?<\/script>/gi,
+
+  // JavaScript 프로토콜 패턴
+  JAVASCRIPT_PROTOCOL: /javascript:/gi,
+
+  // Data 프로토콜 스크립트 패턴
+  DATA_SCRIPT_PROTOCOL: /data:.*script/gi,
+
+  // 이벤트 핸들러 패턴
+  EVENT_HANDLER: /on\w+\s*=/gi,
+} as const;

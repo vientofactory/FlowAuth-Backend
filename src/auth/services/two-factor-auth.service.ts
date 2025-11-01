@@ -1,13 +1,6 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  Logger,
-  Inject,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 import { User } from '../user.entity';
@@ -32,8 +25,6 @@ export class TwoFactorAuthService {
     private tokenRepository: Repository<Token>,
     private jwtService: JwtService,
     private twoFactorService: TwoFactorService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
   ) {}
 
   async verifyTwoFactorToken(

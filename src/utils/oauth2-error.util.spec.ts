@@ -12,8 +12,15 @@ describe('OAuth2 Error Utils', () => {
 
       const result = mapExceptionToOAuth2Error(error);
 
-      expect(result.error).toBe('invalid_client');
-      expect(result.error_description).toBe('Invalid client_id provided');
+      expect(result.extensions?.error).toBe('invalid_client');
+      expect(result.extensions?.error_description).toBe(
+        'Invalid client_id provided',
+      );
+      expect(result.status).toBe(400);
+      expect(result.type).toBe(
+        'https://tools.ietf.org/html/rfc6749#section-5.2',
+      );
+      expect(result.title).toBe('Invalid Client');
     });
 
     it('should map authorization code errors to invalid_grant', () => {
@@ -21,8 +28,15 @@ describe('OAuth2 Error Utils', () => {
 
       const result = mapExceptionToOAuth2Error(error);
 
-      expect(result.error).toBe('invalid_grant');
-      expect(result.error_description).toBe('Invalid authorization code');
+      expect(result.extensions?.error).toBe('invalid_grant');
+      expect(result.extensions?.error_description).toBe(
+        'Invalid authorization code',
+      );
+      expect(result.status).toBe(400);
+      expect(result.type).toBe(
+        'https://tools.ietf.org/html/rfc6749#section-5.2',
+      );
+      expect(result.title).toBe('Invalid Grant');
     });
 
     it('should map scope errors to invalid_scope', () => {
@@ -30,8 +44,15 @@ describe('OAuth2 Error Utils', () => {
 
       const result = mapExceptionToOAuth2Error(error);
 
-      expect(result.error).toBe('invalid_scope');
-      expect(result.error_description).toBe('Invalid scope requested');
+      expect(result.extensions?.error).toBe('invalid_scope');
+      expect(result.extensions?.error_description).toBe(
+        'Invalid scope requested',
+      );
+      expect(result.status).toBe(400);
+      expect(result.type).toBe(
+        'https://tools.ietf.org/html/rfc6749#section-5.2',
+      );
+      expect(result.title).toBe('Invalid Scope');
     });
 
     it('should map rate limit errors to temporarily_unavailable', () => {
@@ -39,8 +60,13 @@ describe('OAuth2 Error Utils', () => {
 
       const result = mapExceptionToOAuth2Error(error);
 
-      expect(result.error).toBe('temporarily_unavailable');
-      expect(result.error_description).toBe('rate limit exceeded');
+      expect(result.extensions?.error).toBe('temporarily_unavailable');
+      expect(result.extensions?.error_description).toBe('rate limit exceeded');
+      expect(result.status).toBe(400);
+      expect(result.type).toBe(
+        'https://tools.ietf.org/html/rfc6749#section-5.2',
+      );
+      expect(result.title).toBe('Temporarily Unavailable');
     });
 
     it('should default to invalid_request for unknown errors', () => {
@@ -48,8 +74,13 @@ describe('OAuth2 Error Utils', () => {
 
       const result = mapExceptionToOAuth2Error(error);
 
-      expect(result.error).toBe('invalid_request');
-      expect(result.error_description).toBe('Some unknown error');
+      expect(result.extensions?.error).toBe('invalid_request');
+      expect(result.extensions?.error_description).toBe('Some unknown error');
+      expect(result.status).toBe(400);
+      expect(result.type).toBe(
+        'https://tools.ietf.org/html/rfc6749#section-5.2',
+      );
+      expect(result.title).toBe('Invalid Request');
     });
   });
 
@@ -61,8 +92,14 @@ describe('OAuth2 Error Utils', () => {
       );
 
       expect(result).toEqual({
-        error: 'invalid_request',
-        error_description: 'Bad request parameters',
+        type: 'https://tools.ietf.org/html/rfc6749#section-5.2',
+        title: 'Invalid Request',
+        detail: 'Bad request parameters',
+        status: 500,
+        extensions: {
+          error: 'invalid_request',
+          error_description: 'Bad request parameters',
+        },
       });
     });
 
@@ -73,8 +110,14 @@ describe('OAuth2 Error Utils', () => {
       );
 
       expect(result).toEqual({
-        error: 'server_error',
-        error_description: 'An unexpected error occurred',
+        type: 'https://tools.ietf.org/html/rfc6749#section-5.2',
+        title: 'Server Error',
+        detail: 'An unexpected error occurred',
+        status: 500,
+        extensions: {
+          error: 'server_error',
+          error_description: 'An unexpected error occurred',
+        },
       });
     });
 
@@ -94,8 +137,10 @@ describe('OAuth2 Error Utils', () => {
 
       errorCodes.forEach((code) => {
         const result = createOAuth2Error(code, 'Test error');
-        expect(result.error).toBe(code);
-        expect(result.error_description).toBe('Test error');
+        expect(result.extensions?.error).toBe(code);
+        expect(result.extensions?.error_description).toBe('Test error');
+        expect(result.status).toBe(500);
+        expect(result.detail).toBe('Test error');
       });
     });
   });

@@ -22,10 +22,15 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProfileService } from './profile.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../auth/permissions.guard';
 import type { AuthenticatedRequest } from '../types/auth.types';
 import { User } from '../auth/user.entity';
 import { validateFileEnhanced } from '../upload/validators';
 import { UPLOAD_ERRORS } from '../upload/types';
+import { PERMISSIONS } from '../constants/auth.constants';
 
 @Controller('profile')
 @ApiTags('Profile')
@@ -45,8 +50,10 @@ export class ProfileController {
     status: 401,
     description: '인증되지 않은 사용자',
   })
-  async getProfile(@Request() req: AuthenticatedRequest): Promise<User> {
-    return this.profileService.findById(req.user.id);
+  async getProfile(
+    @Request() req: AuthenticatedRequest,
+  ): Promise<Omit<User, 'password' | 'twoFactorSecret' | 'backupCodes'>> {
+    return this.profileService.findSafeById(req.user.id);
   }
 
   @Put()
@@ -171,7 +178,8 @@ export class ProfileController {
   }
 
   @Post('avatar')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.UPLOAD_FILE)
   @UseInterceptors(FileInterceptor('avatar'))
   @ApiBearerAuth()
   @ApiOperation({ summary: '프로필 아바타 업로드' })
@@ -213,6 +221,10 @@ export class ProfileController {
     status: 401,
     description: '인증되지 않은 사용자',
   })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
+  })
   async uploadAvatar(
     @Request() req: AuthenticatedRequest,
     @UploadedFile() file: Express.Multer.File,
@@ -249,7 +261,8 @@ export class ProfileController {
   }
 
   @Delete('avatar')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions(PERMISSIONS.UPLOAD_FILE)
   @ApiBearerAuth()
   @ApiOperation({ summary: '프로필 아바타 제거' })
   @ApiResponse({
@@ -268,6 +281,10 @@ export class ProfileController {
   @ApiResponse({
     status: 401,
     description: '인증되지 않은 사용자',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '권한이 없음',
   })
   async removeAvatar(
     @Request() req: AuthenticatedRequest,

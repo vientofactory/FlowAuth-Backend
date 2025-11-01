@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { Scope } from '../oauth2/scope.entity';
 import { Client } from '../oauth2/client.entity';
 import { User } from '../auth/user.entity';
@@ -39,12 +39,8 @@ export class SeedService {
   ] as const;
 
   constructor(
-    @InjectRepository(Scope)
-    private readonly scopeRepository: Repository<Scope>,
-    @InjectRepository(Client)
-    private readonly clientRepository: Repository<Client>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   async seedDatabase(): Promise<void> {
@@ -59,14 +55,16 @@ export class SeedService {
   async seedScopes(): Promise<void> {
     this.logger.log('Seeding scopes...');
 
+    const scopeRepository = this.dataSource.getRepository(Scope);
+
     for (const scopeData of SeedService.DEFAULT_SCOPES) {
-      const existingScope = await this.scopeRepository.findOne({
+      const existingScope = await scopeRepository.findOne({
         where: { name: scopeData.name },
       });
 
       if (!existingScope) {
-        const scope = this.scopeRepository.create(scopeData);
-        await this.scopeRepository.save(scope);
+        const scope = scopeRepository.create(scopeData);
+        await scopeRepository.save(scope);
         this.logger.log(`Created scope: ${scopeData.name}`);
       } else {
         this.logger.log(`Scope already exists: ${scopeData.name}`);
@@ -77,14 +75,17 @@ export class SeedService {
   private async seedDefaultClient(): Promise<void> {
     this.logger.log('Seeding default OAuth2 client...');
 
-    const clientId = snowflakeGenerator.generate();
-    const existingClient = await this.clientRepository.findOne({
+    const clientRepository = this.dataSource.getRepository(Client);
+    const userRepository = this.dataSource.getRepository(User);
+
+    const clientId = await snowflakeGenerator.generate();
+    const existingClient = await clientRepository.findOne({
       where: { name: 'Test Client' },
     });
 
     if (!existingClient) {
       // Find the first user to assign as the owner of the test client
-      const firstUser = await this.userRepository
+      const firstUser = await userRepository
         .createQueryBuilder('user')
         .orderBy('user.id', 'ASC')
         .getOne();
@@ -94,7 +95,7 @@ export class SeedService {
         return;
       }
 
-      const client = this.clientRepository.create({
+      const client = clientRepository.create({
         name: 'Test Client',
         description: 'Default test client for OAuth2 development',
         clientId,
@@ -109,7 +110,7 @@ export class SeedService {
         userId: firstUser.id, // Assign to the first user
       });
 
-      await this.clientRepository.save(client);
+      await clientRepository.save(client);
       this.logger.log(
         `Created default client with ID: ${clientId} assigned to user: ${firstUser.id}`,
       );

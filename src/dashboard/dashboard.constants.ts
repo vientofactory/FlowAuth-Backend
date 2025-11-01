@@ -41,18 +41,30 @@ export const DASHBOARD_CONFIG = {
     BATCH_SIZE: 100,
     TIMEOUT: 30000, // 30초
   },
+
+  ACTIVITIES: {
+    DEFAULT_LIMIT: 10,
+    MAX_LIMIT: 50,
+  },
 } as const;
 
 /**
  * 캐시 키 생성 헬퍼
  */
 export const CACHE_KEYS = {
-  stats: (userId: number) =>
-    `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.STATS}:${userId}`,
-  activities: (userId: number, limit: number) =>
-    `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.ACTIVITIES}:${userId}:${limit}`,
-  user: (userId: number) =>
-    `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.USER}:${userId}`,
-  permissions: (userId: number) =>
-    `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.PERMISSIONS}:${userId}`,
+  dashboard: {
+    stats: (userId: number) =>
+      `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.STATS}:${userId}`,
+    activities: (userId: number) =>
+      `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.ACTIVITIES}:${userId}`,
+    user: (userId: number) =>
+      `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.USER}:${userId}`,
+    permissions: (userId: number) =>
+      `${DASHBOARD_CONFIG.CACHE.KEY_PREFIX.PERMISSIONS}:${userId}`,
+    advancedStats: (userId: number, days: number) =>
+      `advanced_stats:${userId}:${days}`,
+  },
+  oauth2: {
+    token: (accessToken: string) => `oauth2:token:${accessToken}`,
+  },
 } as const;

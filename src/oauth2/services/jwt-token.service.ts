@@ -1,24 +1,54 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
+import { CACHE_CONFIG } from '../../constants/cache.constants';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 @Injectable()
 export class JwtTokenService {
   constructor(
     private configService: ConfigService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {}
+
+  /**
+   * Get RSA private key from file or environment variable
+   */
+  private getRsaPrivateKey(): string {
+    // Try file first
+    const privateKeyFile = this.configService.get<string>(
+      'RSA_PRIVATE_KEY_FILE',
+    );
+    if (privateKeyFile) {
+      try {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        return fs.readFileSync(path.resolve(privateKeyFile), 'utf8');
+      } catch {
+        throw new Error(
+          `Failed to read RSA private key file: ${privateKeyFile}`,
+        );
+      }
+    }
+
+    // Fallback to environment variable
+    const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
+    if (!privateKeyPem) {
+      throw new Error(
+        'RSA private key not configured. Set RSA_PRIVATE_KEY_FILE or RSA_PRIVATE_KEY.',
+      );
+    }
+    return privateKeyPem;
+  }
 
   /**
    * Sign JWT with RSA private key
    */
   async signJwtWithRSA(payload: Record<string, unknown>): Promise<string> {
-    const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
+    const privateKeyPem = this.getRsaPrivateKey();
 
     if (privateKeyPem) {
       // Sign with RSA key
@@ -62,7 +92,7 @@ export class JwtTokenService {
     const cacheKey = 'dev_rsa_key';
 
     // Check cache first
-    const cached = await this.cacheManager.get<{
+    const cached = await this.cacheManagerService.getCacheValue<{
       privateKey: crypto.KeyObject;
       kid: string;
     }>(cacheKey);
@@ -71,11 +101,11 @@ export class JwtTokenService {
     }
 
     // Fetch development RSA private key from environment variable
-    const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
+    const privateKeyPem = this.getRsaPrivateKey();
 
     if (!privateKeyPem) {
       throw new Error(
-        'Development RSA private key not found. Please set RSA_PRIVATE_KEY environment variable.',
+        'Development RSA private key not found. Please set RSA_PRIVATE_KEY_FILE or RSA_PRIVATE_KEY.',
       );
     }
 
@@ -84,10 +114,10 @@ export class JwtTokenService {
     const keyPair = { privateKey: crypto.createPrivateKey(privateKeyPem), kid };
 
     // Cache the key pair for future use
-    await this.cacheManager.set(
+    await this.cacheManagerService.setCacheValue(
       cacheKey,
       keyPair,
-      JWT_CONSTANTS.TIME.ONE_HOUR_MILLISECONDS,
+      CACHE_CONFIG.TTL.STATIC_DATA,
     ); // 1 hour cache
 
     return keyPair;
@@ -97,7 +127,7 @@ export class JwtTokenService {
    * Fetch RSA public key
    */
   getRsaPublicKey(): crypto.KeyObject {
-    const privateKeyPem = this.configService.get<string>('RSA_PRIVATE_KEY');
+    const privateKeyPem = this.getRsaPrivateKey();
 
     if (!privateKeyPem) {
       throw new Error('RSA private key not configured');
@@ -105,5 +135,12 @@ export class JwtTokenService {
 
     const privateKey = crypto.createPrivateKey(privateKeyPem);
     return crypto.createPublicKey(privateKey);
+  }
+
+  /**
+   * Get RSA private key PEM string
+   */
+  getRsaPrivateKeyPem(): string {
+    return this.getRsaPrivateKey();
   }
 }

@@ -53,12 +53,18 @@ export class AuthService {
     return this.validationService.checkUsernameAvailability(username);
   }
 
-  async login(loginDto: {
-    email: string;
-    password: string;
-    recaptchaToken: string;
-  }): Promise<LoginResponse> {
-    return this.userAuthService.login(loginDto);
+  async login(
+    loginDto: {
+      email: string;
+      password: string;
+      recaptchaToken: string;
+    },
+    clientInfo?: {
+      userAgent: string;
+      ipAddress: string;
+    },
+  ): Promise<LoginResponse> {
+    return this.userAuthService.login(loginDto, clientInfo);
   }
 
   async verifyTwoFactorToken(
@@ -171,7 +177,7 @@ export class AuthService {
 
   async getUserTokens(userId: number): Promise<TokenDto[]> {
     const tokens = await this.tokenRepository.find({
-      where: { user: { id: userId } },
+      where: { user: { id: userId }, isRevoked: false },
       relations: ['client', 'user'],
       order: { createdAt: 'DESC' },
     });
@@ -191,7 +197,7 @@ export class AuthService {
           }
         : undefined,
       createdAt: token.createdAt.toISOString(),
-      updatedAt: token.createdAt.toISOString(), // updatedAt이 없으므로 createdAt 사용
+      updatedAt: token.createdAt.toISOString(), // Use createdAt since updatedAt doesn't exist
     }));
   }
 
@@ -204,7 +210,7 @@ export class AuthService {
       throw new UnauthorizedException('Token not found');
     }
 
-    // 토큰을 완전히 삭제하여 세션 만료 보장
+    // Completely delete token to ensure session expiration
     await this.tokenRepository.delete({ id: tokenId });
   }
 
@@ -219,13 +225,13 @@ export class AuthService {
     await this.tokenRepository.delete({ user: { id: userId }, tokenType });
   }
 
-  // JWT 토큰 리프래시 (일반 로그인용)
+  // JWT token refresh (for general login)
   async refreshToken(token: string): Promise<LoginResponse> {
     try {
-      // 토큰 검증
+      // Validate token
       const payload = this.jwtService.verify<JwtPayload>(token);
 
-      // 사용자 조회
+      // Find user
       const user = await this.userRepository.findOne({
         where: { id: parseInt(payload.sub, 10) },
         select: [
@@ -243,7 +249,7 @@ export class AuthService {
         throw new UnauthorizedException('User not found');
       }
 
-      // 새로운 토큰 생성 (기존과 동일한 방식)
+      // Generate new token (same method as before)
       const newPayload: JwtPayload = {
         sub: user.id.toString(),
         email: user.email,
@@ -266,10 +272,10 @@ export class AuthService {
     }
   }
 
-  // 로그아웃
+  // Logout
   logout(token: string): { message: string } {
     try {
-      // 토큰 검증 (옵션: 블랙리스트에 추가하거나 다른 정리 작업 수행)
+      // Validate token (optional: add to blacklist or perform other cleanup)
       this.jwtService.verify(token);
 
       return { message: 'Logged out successfully' };

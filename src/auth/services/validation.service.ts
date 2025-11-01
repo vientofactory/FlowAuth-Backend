@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import type { Request as ExpressRequest } from 'express';
 import { User } from '../user.entity';
+import type { AuthenticatedRequest } from '../../types/auth.types';
 import {
   VALIDATION_CONSTANTS,
   type AvailabilityResult,
@@ -281,5 +283,63 @@ export class ValidationService {
       );
     }
     return id;
+  }
+
+  /**
+   * Authorization 헤더 검증 및 토큰 추출
+   */
+  static extractBearerToken(req: ExpressRequest): string {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      throw new BadRequestException(
+        VALIDATION_CONSTANTS.AUTHORIZATION.ERROR_MESSAGES.HEADER_REQUIRED,
+      );
+    }
+
+    if (typeof authHeader !== 'string') {
+      throw new BadRequestException(
+        VALIDATION_CONSTANTS.AUTHORIZATION.ERROR_MESSAGES.INVALID_FORMAT,
+      );
+    }
+
+    if (
+      !authHeader.startsWith(VALIDATION_CONSTANTS.AUTHORIZATION.BEARER_PREFIX)
+    ) {
+      throw new BadRequestException(
+        VALIDATION_CONSTANTS.AUTHORIZATION.ERROR_MESSAGES.BEARER_REQUIRED,
+      );
+    }
+
+    const token = authHeader.substring(
+      VALIDATION_CONSTANTS.AUTHORIZATION.BEARER_PREFIX.length,
+    );
+    if (token?.trim().length === 0) {
+      throw new BadRequestException(
+        VALIDATION_CONSTANTS.AUTHORIZATION.ERROR_MESSAGES.TOKEN_EMPTY,
+      );
+    }
+
+    return token;
+  }
+
+  /**
+   * 요청이 인증되었는지 검증
+   */
+  static validateAuthenticatedRequest(
+    req: any,
+  ): asserts req is AuthenticatedRequest {
+    if (
+      !req ||
+      typeof req !== 'object' ||
+      !req.user ||
+      typeof req.user !== 'object' ||
+      typeof req.user.id !== 'number' ||
+      req.user.id <= 0
+    ) {
+      throw new BadRequestException(
+        VALIDATION_CONSTANTS.GENERAL.ERROR_MESSAGES.UNAUTHENTICATED,
+      );
+    }
   }
 }

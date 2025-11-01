@@ -34,6 +34,7 @@ export class AuthorizationCodeService {
     codeChallenge?: string,
     codeChallengeMethod?: string,
     nonce?: string,
+    responseType?: string,
   ): Promise<AuthorizationCode> {
     const code = this.generateCode();
 
@@ -50,6 +51,7 @@ export class AuthorizationCodeService {
       codeChallengeMethod,
       nonce,
       authTime: Math.floor(Date.now() / 1000),
+      responseType,
       user,
       client,
     });
@@ -126,7 +128,7 @@ export class AuthorizationCodeService {
     const result = await this.authCodeRepository.delete({
       expiresAt: LessThan(now),
     });
-    return result.affected || 0;
+    return result.affected ?? 0;
   }
 
   private generateCode(): string {

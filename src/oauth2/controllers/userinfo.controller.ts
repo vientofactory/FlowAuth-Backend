@@ -12,6 +12,7 @@ import { OAuth2ScopeGuard } from '../guards/oauth2-scope.guard';
 import { RequireScopes } from '../decorators/require-scopes.decorator';
 import { UserinfoResponseDto } from '../dto/response.dto';
 import { OAuth2UserInfoBuilder } from '../utils/oauth2-userinfo.util';
+import { ProblemDetailsDto } from '../../common/dto/response.dto';
 
 interface OAuth2AuthenticatedRequest extends Request {
   user: {
@@ -21,7 +22,7 @@ interface OAuth2AuthenticatedRequest extends Request {
 }
 
 @Controller('oauth2')
-@ApiTags('OAuth2 User Info')
+@ApiTags('OAuth2 Flow')
 export class UserInfoController {
   constructor(
     private readonly oauth2Service: OAuth2Service,
@@ -51,12 +52,19 @@ OAuth2 Access Token을 사용하여 사용자 정보를 조회합니다.
     type: UserinfoResponseDto,
   })
   @ApiResponse({
+    status: 400,
+    description: '잘못된 요청',
+    type: ProblemDetailsDto,
+  })
+  @ApiResponse({
     status: 401,
     description: '유효하지 않은 토큰',
+    type: ProblemDetailsDto,
   })
   @ApiResponse({
     status: 403,
     description: '권한 부족 (스코프 부족)',
+    type: ProblemDetailsDto,
   })
   async userinfo(
     @Request() req: OAuth2AuthenticatedRequest,

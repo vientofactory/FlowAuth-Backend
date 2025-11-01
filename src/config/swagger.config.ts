@@ -16,9 +16,10 @@ export const OAUTH2_SCOPES = {
 export const API_TAGS = {
   SYSTEM: 'System',
   AUTHENTICATION: 'Authentication',
+  PROFILE: 'Profile',
   OAUTH2_FLOW: 'OAuth2 Flow',
-  CLIENT_MANAGEMENT: 'Client Management',
-  USER_MANAGEMENT: 'User Management',
+  OAUTH2_MANAGEMENT: 'OAuth2 Management',
+  OPENID_CONNECT: 'OpenID Connect',
   FILE_UPLOAD: 'File Upload',
   DASHBOARD: 'Dashboard',
 } as const;
@@ -28,10 +29,11 @@ export const API_TAGS = {
  */
 export const API_TAG_DESCRIPTIONS = {
   [API_TAGS.SYSTEM]: '시스템 상태 및 기본 정보',
-  [API_TAGS.AUTHENTICATION]: '사용자 인증 및 계정 관리',
-  [API_TAGS.OAUTH2_FLOW]: 'OAuth2 인증 플로우 및 토큰 관리',
-  [API_TAGS.CLIENT_MANAGEMENT]: 'OAuth2 클라이언트 애플리케이션 관리',
-  [API_TAGS.USER_MANAGEMENT]: '사용자 관리 (관리자 전용)',
+  [API_TAGS.AUTHENTICATION]: '사용자 인증, 로그인 및 계정 관리',
+  [API_TAGS.PROFILE]: '사용자 프로필 및 개인정보 관리',
+  [API_TAGS.OAUTH2_FLOW]: 'OAuth2 인증 플로우 (인가, 토큰, 사용자정보, 동의)',
+  [API_TAGS.OAUTH2_MANAGEMENT]: 'OAuth2 시스템 관리 (스코프, 클라이언트)',
+  [API_TAGS.OPENID_CONNECT]: 'OpenID Connect 프로토콜 지원',
   [API_TAGS.FILE_UPLOAD]: '파일 업로드 및 관리',
   [API_TAGS.DASHBOARD]: '대시보드 및 통계 정보',
 } as const;
@@ -104,14 +106,15 @@ export function createSwaggerConfig() {
         API_TAGS.AUTHENTICATION,
         API_TAG_DESCRIPTIONS[API_TAGS.AUTHENTICATION],
       )
+      .addTag(API_TAGS.PROFILE, API_TAG_DESCRIPTIONS[API_TAGS.PROFILE])
       .addTag(API_TAGS.OAUTH2_FLOW, API_TAG_DESCRIPTIONS[API_TAGS.OAUTH2_FLOW])
       .addTag(
-        API_TAGS.CLIENT_MANAGEMENT,
-        API_TAG_DESCRIPTIONS[API_TAGS.CLIENT_MANAGEMENT],
+        API_TAGS.OAUTH2_MANAGEMENT,
+        API_TAG_DESCRIPTIONS[API_TAGS.OAUTH2_MANAGEMENT],
       )
       .addTag(
-        API_TAGS.USER_MANAGEMENT,
-        API_TAG_DESCRIPTIONS[API_TAGS.USER_MANAGEMENT],
+        API_TAGS.OPENID_CONNECT,
+        API_TAG_DESCRIPTIONS[API_TAGS.OPENID_CONNECT],
       )
       .addTag(API_TAGS.FILE_UPLOAD, API_TAG_DESCRIPTIONS[API_TAGS.FILE_UPLOAD])
       .addTag(API_TAGS.DASHBOARD, API_TAG_DESCRIPTIONS[API_TAGS.DASHBOARD])

@@ -1,10 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { WinstonModule } from 'nest-winston';
-import { winstonConfig } from './logging/winston.config';
-import { LoggingModule } from './logging/logging.module';
 import { CacheConfigModule } from './cache/cache-config.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -15,7 +13,8 @@ import { AppConfigService } from './config/app-config.service';
 import { UploadModule } from './upload/upload.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ProfileModule } from './profile/profile.module';
-import { SettingsModule } from './settings/settings.module';
+import { CommonModule } from './common/common.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -32,16 +31,23 @@ import { SettingsModule } from './settings/settings.module';
         },
       ],
     }),
-    WinstonModule.forRoot(winstonConfig),
-    LoggingModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.registerAsync({
+      global: true,
+      useFactory: (configService: ConfigService) => ({
+        secret:
+          configService.get<string>('JWT_SECRET') ?? 'fallback-secret-key',
+      }),
+      inject: [ConfigService],
+    }),
     DatabaseModule,
     AuthModule,
     OAuth2Module,
     UploadModule,
     DashboardModule,
     ProfileModule,
-    SettingsModule,
+    CommonModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppConfigService],

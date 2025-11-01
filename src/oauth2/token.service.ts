@@ -1,19 +1,17 @@
-import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { Token } from './token.entity';
 import { User } from '../auth/user.entity';
 import { Client } from './client.entity';
 import { OAuth2JwtPayload } from '../types/oauth2.types';
-import { CACHE_CONSTANTS } from '../constants/jwt.constants';
-import { StructuredLogger } from '../logging/structured-logger.service';
+import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
 import { TOKEN_TYPES } from '../constants/auth.constants';
 import { OAuth2TokenService } from './services/oauth2-token.service';
 import { TokenRevocationService } from './services/token-revocation.service';
 import { IdTokenService, IdTokenPayload } from './services/id-token.service';
+import { CacheManagerService } from '../cache/cache-manager.service';
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -33,13 +31,13 @@ interface ImplicitTokenResponse {
 
 @Injectable()
 export class TokenService {
+  private readonly logger = new Logger(TokenService.name);
+
   constructor(
     @InjectRepository(Token)
     private readonly tokenRepository: Repository<Token>,
     private readonly jwtService: JwtService,
-    @Inject(CACHE_MANAGER)
-    private readonly cacheManager: Cache,
-    private readonly structuredLogger: StructuredLogger,
+    private readonly cacheManagerService: CacheManagerService,
     private readonly oauth2TokenService: OAuth2TokenService,
     private readonly tokenRevocationService: TokenRevocationService,
     private readonly idTokenService: IdTokenService,
@@ -84,9 +82,10 @@ export class TokenService {
   async validateToken(accessToken: string): Promise<OAuth2JwtPayload | null> {
     try {
       // Check cache first for performance
-      const cachedToken = await this.cacheManager.get<OAuth2JwtPayload>(
-        `token:${accessToken}`,
-      );
+      const cachedToken =
+        await this.cacheManagerService.getCacheValue<OAuth2JwtPayload>(
+          CACHE_KEYS.oauth2.token(accessToken),
+        );
       if (cachedToken) {
         return cachedToken;
       }
@@ -104,18 +103,41 @@ export class TokenService {
         return null;
       }
 
+      // Check if token is revoked
+      if (token.isRevoked) {
+        return null;
+      }
+
       // Check if token is expired
       if (token.expiresAt && new Date() > token.expiresAt) {
+        // 통계 기록: 토큰 만료 이벤트
+        if (token.user) {
+          try {
+            // TODO: Inject StatisticsRecordingService
+            // await this.statisticsRecordingService.recordTokenExpired(
+            //   token.user.id,
+            //   token.client?.id ?? null,
+            //   token.scopes ?? [],
+            //   new Date(),
+            // );
+          } catch (error) {
+            this.logger.error(
+              'Failed to record token expired statistics:',
+              error,
+            );
+          }
+        }
+
         // Remove expired token
         await this.tokenRepository.remove(token);
         return null;
       }
 
       // 유효한 토큰을 캐시에 저장 (5분)
-      await this.cacheManager.set(
-        `token:${accessToken}`,
+      await this.cacheManagerService.setCacheValue(
+        CACHE_KEYS.oauth2.token(accessToken),
         decoded,
-        CACHE_CONSTANTS.TOKEN_VALIDATION_TTL,
+        CACHE_CONFIG.TTL.TOKEN_VALIDATION,
       );
 
       return decoded;
@@ -179,7 +201,7 @@ export class TokenService {
         expectedNonce,
       );
     } catch (error) {
-      this.structuredLogger.error(
+      this.logger.error(
         {
           message: 'ID token validation failed',
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -200,7 +222,7 @@ export class TokenService {
     return await this.tokenRepository.count({
       where: {
         user: { id: userId },
-        expiresAt: LessThan(now),
+        expiresAt: MoreThan(now),
         isRevoked: false,
         tokenType: TOKEN_TYPES.OAUTH2,
       },

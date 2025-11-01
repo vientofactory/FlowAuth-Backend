@@ -150,7 +150,7 @@ export class BufferAnalysisEngine {
       result.confidence = this.calculateConfidence(buffer, result);
 
       this.logger.debug(
-        `Buffer analysis completed for ${filename || 'unknown'}: ${JSON.stringify(result)}`,
+        `Buffer analysis completed for ${filename ?? 'unknown'}: ${JSON.stringify(result)}`,
       );
 
       return result;
@@ -367,7 +367,7 @@ export function logBufferAnalysisStatus(force = false): void {
   logger.debug(`Buffer Analysis Engine Status:`);
   logger.debug(`- Enabled: ${engine.isEnabled()}`);
   logger.debug(
-    `- Environment DISABLE_BUFFER_ANALYSIS: ${process.env.DISABLE_BUFFER_ANALYSIS || 'not set'}`,
+    `- Environment DISABLE_BUFFER_ANALYSIS: ${process.env.DISABLE_BUFFER_ANALYSIS ?? 'N/A'}`,
   );
   logger.debug(
     `- Global instance exists: ${globalBufferAnalysisEngine !== null}`,

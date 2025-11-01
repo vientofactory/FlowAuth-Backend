@@ -3,13 +3,10 @@ import {
   ConflictException,
   UnauthorizedException,
   Logger,
-  Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../user.entity';
 import { Token } from '../../oauth2/token.entity';
@@ -24,10 +21,18 @@ import {
   USER_TYPE_PERMISSIONS,
   TOKEN_TYPES,
   JWT_TOKEN_EXPIRY,
+  PERMISSION_UTILS,
 } from '../../constants/auth.constants';
 import { JwtPayload, LoginResponse } from '../../types/auth.types';
 import { PermissionUtils } from '../../utils/permission.util';
 import { RecaptchaService } from '../../utils/recaptcha.util';
+import { AuditLogService } from '../../common/audit-log.service';
+import {
+  AuditEventType,
+  AuditSeverity,
+  AuditLog,
+} from '../../common/audit-log.entity';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 @Injectable()
 export class UserAuthService {
@@ -41,8 +46,8 @@ export class UserAuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private recaptchaService: RecaptchaService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
+    private auditLogService: AuditLogService,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
@@ -85,11 +90,11 @@ export class UserAuthService {
     const isFirstUser = userCount === 0;
 
     // Determine user type and permissions
-    const finalUserType = userType || USER_TYPES.REGULAR;
+    const finalUserType = userType ?? USER_TYPES.REGULAR;
     let permissions: number;
 
     if (isFirstUser) {
-      // First user is always admin
+      // First user of entire system gets admin access
       permissions = PERMISSIONS.ADMIN_ACCESS;
     } else {
       // Set permissions based on user type
@@ -108,6 +113,15 @@ export class UserAuthService {
       }
     }
 
+    // Validate permissions
+    if (
+      permissions <= 0 ||
+      (permissions !== PERMISSIONS.ADMIN_ACCESS &&
+        (permissions & ~PERMISSION_UTILS.getAllPermissionsMask()) !== 0)
+    ) {
+      throw new Error(`Invalid permissions value: ${permissions}`);
+    }
+
     // Create user
     const user = this.userRepository.create({
       username,
@@ -122,11 +136,17 @@ export class UserAuthService {
     return this.userRepository.save(user);
   }
 
-  async login(loginDto: {
-    email: string;
-    password: string;
-    recaptchaToken: string;
-  }): Promise<LoginResponse> {
+  async login(
+    loginDto: {
+      email: string;
+      password: string;
+      recaptchaToken: string;
+    },
+    clientInfo?: {
+      userAgent: string;
+      ipAddress: string;
+    },
+  ): Promise<LoginResponse> {
     const { email, password, recaptchaToken } = loginDto;
 
     // Verify reCAPTCHA token (required for login)
@@ -135,6 +155,22 @@ export class UserAuthService {
       'login',
     );
     if (!isValidRecaptcha) {
+      // Log failed authentication due to reCAPTCHA
+      try {
+        await this.auditLogService.create(
+          AuditLog.createFailedAuthEvent(
+            email,
+            clientInfo?.ipAddress ?? 'unknown',
+            clientInfo?.userAgent ?? 'unknown',
+            'reCAPTCHA verification failed',
+          ),
+        );
+      } catch (auditError) {
+        this.logger.warn(
+          'Failed to create audit log for failed auth:',
+          auditError,
+        );
+      }
       throw new UnauthorizedException('reCAPTCHA verification failed');
     }
 
@@ -167,6 +203,22 @@ export class UserAuthService {
       const isPasswordValid = await bcrypt.compare(password, user.password);
 
       if (!isPasswordValid) {
+        // Log failed authentication due to invalid password
+        try {
+          await this.auditLogService.create(
+            AuditLog.createFailedAuthEvent(
+              email,
+              clientInfo?.ipAddress ?? 'unknown',
+              clientInfo?.userAgent ?? 'unknown',
+              'Invalid password',
+            ),
+          );
+        } catch (auditError) {
+          this.logger.warn(
+            'Failed to create audit log for failed auth:',
+            auditError,
+          );
+        }
         throw new UnauthorizedException(
           AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
         );
@@ -183,9 +235,29 @@ export class UserAuthService {
         lastLoginAt: new Date(),
       });
 
-      // 로그인 성공 시 대시보드 캐시 무효화 (lastLoginAt 변경으로 인한 통계 업데이트)
-      await this.cacheManager.del(`stats:${user.id}`);
-      await this.cacheManager.del(`activities:${user.id}:10`); // 기본 limit 10
+      // Log audit event for successful login
+      try {
+        await this.auditLogService.create({
+          eventType: AuditEventType.USER_LOGIN,
+          severity: AuditSeverity.LOW,
+          description: `사용자 ${user.username}(${user.email}) 로그인`,
+          userId: user.id,
+          userAgent: clientInfo?.userAgent ?? 'unknown',
+          ipAddress: clientInfo?.ipAddress ?? 'unknown',
+          metadata: {
+            loginMethod: 'password',
+            userAgent: clientInfo?.userAgent ?? 'unknown',
+            ipAddress: clientInfo?.ipAddress ?? 'unknown',
+          },
+        });
+      } catch (auditError) {
+        // Audit log creation failure should not affect login success
+        this.logger.warn('Failed to create audit log for login:', auditError);
+      }
+
+      // Invalidate dashboard cache on successful login (statistics update due to lastLoginAt change)
+      await this.cacheManagerService.delCacheKey(`stats:${user.id}`);
+      await this.cacheManagerService.delCacheKey(`activities:${user.id}:10`); // default limit 10
 
       // Generate JWT token with enhanced payload
       const payload: JwtPayload = {
@@ -195,7 +267,7 @@ export class UserAuthService {
         roles: [PermissionUtils.getRoleName(user.permissions)],
         permissions: user.permissions,
         type: TOKEN_TYPES.LOGIN,
-        avatar: user.avatar || undefined,
+        avatar: user.avatar ?? undefined,
       };
       // Generate JWT token (24 hours for login tokens)
       const accessToken = this.jwtService.sign(payload, {
@@ -215,10 +287,9 @@ export class UserAuthService {
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: undefined, // 로그인 토큰은 스코프 대신 JWT payload의 permissions 사용
+        scopes: undefined, // Login tokens use JWT payload permissions instead of scopes
         user,
         tokenType: TOKEN_TYPES.LOGIN,
-        // client: undefined, // No client for general login - removed to avoid NOT NULL constraint
         isRefreshTokenUsed: false,
       });
       await this.tokenRepository.save(tokenEntity);

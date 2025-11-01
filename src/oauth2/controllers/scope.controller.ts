@@ -23,7 +23,7 @@ import { TokenUtils } from '../../utils/permission.util';
 import { PermissionUtils } from '../../utils/permission.util';
 
 @Controller('oauth2')
-@ApiTags('OAuth2 Scopes')
+@ApiTags('OAuth2 Management')
 export class ScopeController {
   constructor(
     private readonly oauth2Service: OAuth2Service,
@@ -98,7 +98,7 @@ export class ScopeController {
   })
   async getAvailableScopes() {
     const scopes = await this.scopeService.findAll();
-    const cacheInfo = this.scopeService.getCacheInfo();
+    const cacheInfo = await this.scopeService.getCacheInfo();
 
     return {
       scopes: scopes.map((scope) => ({
@@ -109,7 +109,7 @@ export class ScopeController {
       meta: {
         total: scopes.length,
         cached: cacheInfo.initialized,
-        cacheSize: cacheInfo.cacheSize,
+        cacheKeys: cacheInfo.cacheKeys.length,
       },
     };
   }
@@ -140,7 +140,7 @@ export class ScopeController {
     }
 
     await this.scopeService.refreshCache();
-    const cacheInfo = this.scopeService.getCacheInfo();
+    const cacheInfo = await this.scopeService.getCacheInfo();
 
     return {
       message: 'Scopes cache refreshed successfully',

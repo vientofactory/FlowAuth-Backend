@@ -210,7 +210,37 @@ CREATE TABLE `scope` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-> **참고**: 위 SQL 쿼리문들은 TypeORM 마이그레이션에서 자동으로 생성되는 것과 동일합니다. 수동으로 테이블을 생성할 때만 사용하세요.
+#### 6. 감사 로그 테이블 (AuditLog)
+
+```sql
+CREATE TABLE `audit_log` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `eventType` varchar(50) NOT NULL,
+  `severity` varchar(20) NOT NULL DEFAULT 'low',
+  `description` text NOT NULL,
+  `metadata` json DEFAULT NULL,
+  `ipAddress` varchar(45) DEFAULT NULL,
+  `userAgent` varchar(500) DEFAULT NULL,
+  `httpMethod` varchar(10) DEFAULT NULL,
+  `endpoint` varchar(500) DEFAULT NULL,
+  `responseStatus` int DEFAULT NULL,
+  `userId` int DEFAULT NULL,
+  `clientId` int DEFAULT NULL,
+  `resourceId` int DEFAULT NULL,
+  `resourceType` varchar(100) DEFAULT NULL,
+  `createdAt` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  KEY `IDX_audit_log_user_created` (`userId`, `createdAt`),
+  KEY `IDX_audit_log_client_created` (`clientId`, `createdAt`),
+  KEY `IDX_audit_log_event_created` (`eventType`, `createdAt`),
+  KEY `IDX_audit_log_severity_created` (`severity`, `createdAt`),
+  KEY `IDX_audit_log_ip` (`ipAddress`),
+  KEY `FK_audit_log_user` (`userId`),
+  KEY `FK_audit_log_client` (`clientId`),
+  CONSTRAINT `FK_audit_log_user` FOREIGN KEY (`userId`) REFERENCES `user` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `FK_audit_log_client` FOREIGN KEY (`clientId`) REFERENCES `client` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
 
 ### 4. 개발 서버 실행
 
@@ -247,6 +277,10 @@ API 문서를 확인하려면 브라우저에서 `http://localhost:3000/api`로 
 - `POST /clients` - 새 클라이언트 생성
 - `PUT /clients/:id` - 클라이언트 수정
 - `DELETE /clients/:id` - 클라이언트 삭제
+
+#### 헬스체크
+
+- `GET /health` - 애플리케이션 헬스체크 (데이터베이스, 메모리, RSA 키 검증)
 
 ## 데이터베이스 스키마
 
@@ -358,23 +392,36 @@ npm run typeorm
 
 ### 추가 환경 변수 (선택사항)
 
+OIDC 관련 변수는 누락될 경우 OpenID Connect 관련 기능이 제대로 작동하지 않을 수 있습니다.
+
 ```env
+# Snowflake ID Generator Configuration
+NODE_ID=1  # Snowflake ID 생성에 사용되는 노드 ID (0-1023 범위, 기본값: 1)
+
 # OAuth2 Configuration
 OAUTH2_ACCESS_TOKEN_EXPIRY_HOURS=1
 OAUTH2_REFRESH_TOKEN_EXPIRY_DAYS=30
 OAUTH2_CODE_EXPIRY_MINUTES=10
 OAUTH2_CODE_LENGTH=32
 
-# OIDC Configuration (RSA 키 쌍)
+# OIDC Configuration (RSA 키)
+# RSA 키는 환경변수 또는 파일로부터 로드할 수 있습니다.
+
+# 방법 1: 환경변수에 직접 설정 (기존 방식)
+RSA_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYour RSA Private Key Here\n-----END PRIVATE KEY-----"
+RSA_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\nYour RSA Public Key Here\n-----END PUBLIC KEY-----"
+
+# 방법 2: 파일 경로 지정 (권장)
+RSA_PRIVATE_KEY_FILE="./keys/private.pem"
+RSA_PUBLIC_KEY_FILE="./keys/public.pem"
+
 # RSA 키 생성 방법:
 # 1. 수동 생성:
 #    openssl genrsa -out private.pem 2048
 #    openssl rsa -in private.pem -pubout -out public.pem
 # 2. 자동 생성 (권장):
-#    ./generate_rsa_keys.sh
-# 생성된 키를 환경변수에 설정
-RSA_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYour RSA Private Key Here\n-----END PRIVATE KEY-----"
-RSA_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\nYour RSA Public Key Here\n-----END PUBLIC KEY-----"
+#    ./generate_rsa_keys.sh --save-files
+# 생성된 키를 환경변수에 설정하거나 파일로 저장하세요.
 
 # Cache Configuration
 CACHE_TTL=300000
@@ -488,7 +535,32 @@ FRONTEND_URL=https://app.yourdomain.com,https://www.yourdomain.com,https://admin
 ./generate_rsa_keys.sh
 ```
 
-생성된 키쌍을 `.env` 파일에 복사하여 사용하세요.
+### 옵션
+
+- `--save-files`: 키를 파일로 저장 (`./keys` 디렉토리에 저장)
+- `--output-dir DIR`: 키 파일 저장 디렉토리 지정 (기본: `./keys`)
+- `--env-only`: 환경변수 형식으로만 출력 (기본 동작)
+- `--help`: 도움말 표시
+
+### 예시
+
+```bash
+# 환경변수만 출력 (기본)
+./generate_rsa_keys.sh
+
+# 파일로 저장하고 환경변수도 출력
+./generate_rsa_keys.sh --save-files
+
+# 사용자 지정 디렉토리에 저장
+./generate_rsa_keys.sh --save-files --output-dir ./config/keys
+```
+
+파일로 저장한 경우, 생성된 파일 경로를 환경변수에 설정하세요:
+
+```env
+RSA_PRIVATE_KEY_FILE="./keys/private.pem"
+RSA_PUBLIC_KEY_FILE="./keys/public.pem"
+```
 
 ## 라이선스
 

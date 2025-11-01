@@ -28,7 +28,7 @@ import { validateOAuth2RedirectUri } from '../../utils/url-security.util';
 
 @Controller('oauth2')
 @UseGuards(AdvancedRateLimitGuard)
-@ApiTags('OAuth2 Authorization')
+@ApiTags('OAuth2 Flow')
 export class AuthorizationController {
   constructor(
     private readonly oauth2Service: OAuth2Service,
@@ -131,7 +131,7 @@ export class AuthorizationController {
     }
 
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
 
     const oauthAuthorizeUrl = `${frontendUrl}/oauth2/authorize?${params.toString()}`;
 
@@ -166,7 +166,7 @@ export class AuthorizationController {
     }
 
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
     return `${frontendUrl}/oauth2/authorize?${params.toString()}`;
   }
 

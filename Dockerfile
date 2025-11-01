@@ -55,6 +55,7 @@ RUN adduser --system --uid 1001 nestjs
     COPY --from=builder /app/node_modules ./node_modules
     COPY --from=builder /app/backend/package*.json ./
     COPY --from=builder /app/backend/.env ./.env
+    COPY --from=builder /app/backend/keys ./keys
     COPY --from=builder /app/shared ./shared
 
     # Note: Using node_modules copied from builder stage to preserve @flowauth/shared module

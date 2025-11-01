@@ -1,4 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
+import { ProblemDetailsUtil } from '../../common/utils/problem-details.util';
+import { ProblemDetailsDto } from '../../common/dto/response.dto';
 
 /**
  * OAuth2 표준 에러 코드 타입
@@ -31,7 +33,7 @@ export interface OAuth2ErrorResponse {
  */
 export function mapExceptionToOAuth2Error(
   error: BadRequestException,
-): OAuth2ErrorResponse {
+): ProblemDetailsDto {
   const message = error.message;
   let errorCode: OAuth2ErrorCode = 'invalid_request';
   const errorDescription = message;
@@ -47,10 +49,12 @@ export function mapExceptionToOAuth2Error(
     errorCode = 'temporarily_unavailable';
   }
 
-  return {
-    error: errorCode,
-    error_description: errorDescription,
-  };
+  return ProblemDetailsUtil.fromOAuth2Error(
+    errorCode,
+    errorDescription,
+    400,
+    undefined,
+  );
 }
 
 /**
@@ -63,9 +67,11 @@ export function mapExceptionToOAuth2Error(
 export function createOAuth2Error(
   errorCode: OAuth2ErrorCode,
   errorDescription: string,
-): OAuth2ErrorResponse {
-  return {
-    error: errorCode,
-    error_description: errorDescription,
-  };
+): ProblemDetailsDto {
+  return ProblemDetailsUtil.fromOAuth2Error(
+    errorCode,
+    errorDescription,
+    500,
+    undefined,
+  );
 }

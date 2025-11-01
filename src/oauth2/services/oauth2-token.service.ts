@@ -1,19 +1,20 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityManager } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import * as crypto from 'crypto';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
 import { Token } from '../token.entity';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { TOKEN_TYPES } from '../../constants/auth.constants';
-import { StructuredLogger } from '../../logging/structured-logger.service';
 import { IdTokenService } from './id-token.service';
 import { safeTokenCompare } from '../../utils/timing-security.util';
+import { AuditLogService } from '../../common/audit-log.service';
+import { AuditLog } from '../../common/audit-log.entity';
+import { StatisticsEventService } from '../../common/statistics-event.service';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -33,15 +34,17 @@ interface ImplicitTokenResponse {
 
 @Injectable()
 export class OAuth2TokenService {
+  private readonly logger = new Logger(OAuth2TokenService.name);
+
   constructor(
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
     private jwtService: JwtService,
     private configService: ConfigService,
-    private structuredLogger: StructuredLogger,
     private idTokenService: IdTokenService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private auditLogService: AuditLogService,
+    private statisticsEventService: StatisticsEventService,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   async createToken(
@@ -54,7 +57,7 @@ export class OAuth2TokenService {
     return this.tokenRepository.manager.transaction(async (manager) => {
       // Debug logging only in development environment
       if (this.isDebugMode() && process.env.NODE_ENV === 'development') {
-        this.structuredLogger.debug(
+        this.logger.debug(
           {
             message: 'createToken called',
             userId: user?.id,
@@ -90,7 +93,7 @@ export class OAuth2TokenService {
         expiresAt,
         refreshExpiresAt,
         scopes,
-        user: user || undefined,
+        user: user ?? undefined,
         client,
         tokenType: TOKEN_TYPES.OAUTH2,
         tokenFamily,
@@ -98,6 +101,44 @@ export class OAuth2TokenService {
       });
 
       await manager.save(Token, token);
+
+      // Record statistics event
+      if (user) {
+        try {
+          await this.statisticsEventService.recordTokenIssued(
+            user.id,
+            client.id,
+            scopes,
+            new Date(),
+          );
+        } catch (error) {
+          this.logger.error(error, 'OAuth2TokenService', {
+            operation: 'recordTokenStatistics',
+            userId: user.id,
+            clientId: client.id,
+          });
+        }
+      }
+
+      // Create audit log entry
+      if (user) {
+        try {
+          await this.auditLogService.create(
+            AuditLog.createTokenIssuedEvent(
+              user.id,
+              client.id,
+              scopes,
+              undefined, // TODO: Implement IP address retrieval
+            ),
+          );
+        } catch (error) {
+          this.logger.error(error, 'OAuth2TokenService', {
+            operation: 'createAuditLog',
+            userId: user.id,
+            clientId: client.id,
+          });
+        }
+      }
 
       // Regenerate access token with jti for revocation capability
       const finalAccessToken = this.generateAccessTokenWithJti(
@@ -130,12 +171,11 @@ export class OAuth2TokenService {
             authTime,
           );
         } catch (error) {
-          this.structuredLogger.logError(error as Error, 'OAuth2TokenService', {
+          this.logger.error(error, 'OAuth2TokenService', {
             operation: 'generateIdToken',
             userId: user.id,
             clientId: client.clientId,
           });
-          // ID 토큰 생성 실패해도 액세스 토큰은 유지
         }
       }
 
@@ -225,12 +265,11 @@ export class OAuth2TokenService {
           'refresh_token_reuse',
         );
 
-        this.structuredLogger.logSecurity('refresh_token_reuse_detected', {
+        this.logger.warn('refresh_token_reuse_detected', {
           tokenFamily: token.tokenFamily,
           generation: token.rotationGeneration,
           clientId: token.client.clientId,
           userId: token.user?.id,
-          ip: null, // Should be passed from request context
         });
 
         return null;
@@ -248,9 +287,9 @@ export class OAuth2TokenService {
 
       // Generate new tokens
       const newAccessToken = this.generateAccessTokenWithJti(
-        token.user || null,
+        token.user ?? null,
         token.client,
-        token.scopes || [],
+        token.scopes ?? [],
         token.id,
       );
       const newRefreshToken = this.generateRefreshToken();
@@ -272,7 +311,7 @@ export class OAuth2TokenService {
         expiresAt: newExpiresAt,
         refreshExpiresAt: newRefreshExpiresAt,
         scopes: token.scopes,
-        user: token.user || undefined,
+        user: token.user ?? undefined,
         client: token.client,
         tokenType: TOKEN_TYPES.OAUTH2,
         tokenFamily: token.tokenFamily,
@@ -286,7 +325,7 @@ export class OAuth2TokenService {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
         expiresIn: this.getAccessTokenExpirySeconds(),
-        scopes: token.scopes || [],
+        scopes: token.scopes ?? [],
         tokenType: JWT_CONSTANTS.TOKEN_TYPE,
       };
     });
@@ -298,7 +337,7 @@ export class OAuth2TokenService {
     scopes: string[],
   ): string {
     const payload = {
-      sub: user?.id?.toString() || client.clientId,
+      sub: user?.id?.toString() ?? client.clientId,
       client_id: client.clientId,
       scope: scopes.join(' '),
       token_type: 'Bearer',
@@ -314,7 +353,7 @@ export class OAuth2TokenService {
     jti: number,
   ): string {
     const payload = {
-      sub: user?.id?.toString() || client.clientId,
+      sub: user?.id?.toString() ?? client.clientId,
       client_id: client.clientId,
       scope: scopes.join(' '),
       token_type: 'Bearer',
@@ -329,11 +368,11 @@ export class OAuth2TokenService {
   }
 
   private getAccessTokenExpiryHours(): number {
-    return this.configService.get<number>('ACCESS_TOKEN_EXPIRY_HOURS') || 1;
+    return this.configService.get<number>('ACCESS_TOKEN_EXPIRY_HOURS') ?? 1;
   }
 
   private getRefreshTokenExpiryDays(): number {
-    return this.configService.get<number>('REFRESH_TOKEN_EXPIRY_DAYS') || 30;
+    return this.configService.get<number>('REFRESH_TOKEN_EXPIRY_DAYS') ?? 30;
   }
 
   private getAccessTokenExpirySeconds(): number {
@@ -386,14 +425,8 @@ export class OAuth2TokenService {
 
     // Remove all tokens from cache
     for (const token of tokensInFamily) {
-      await this.cacheManager.del(`oauth2_token:${token.id}`);
+      await this.cacheManagerService.delCacheKey(`oauth2_token:${token.id}`);
     }
-
-    this.structuredLogger.logSecurity('token_family_revoked', {
-      tokenFamily,
-      reason,
-      revokedTokens: tokensInFamily.length,
-    });
   }
 
   /**

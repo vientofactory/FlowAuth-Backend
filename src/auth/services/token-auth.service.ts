@@ -3,12 +3,9 @@ import {
   NotFoundException,
   ForbiddenException,
   Logger,
-  Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../user.entity';
 import { Token } from '../../oauth2/token.entity';
@@ -22,6 +19,7 @@ import {
 } from '../../constants/auth.constants';
 import { JwtPayload, LoginResponse } from '../../types/auth.types';
 import { PermissionUtils } from '../../utils/permission.util';
+import { CacheManagerService } from '../../cache/cache-manager.service';
 
 @Injectable()
 export class TokenAuthService {
@@ -33,8 +31,7 @@ export class TokenAuthService {
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
     private jwtService: JwtService,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private cacheManagerService: CacheManagerService,
   ) {}
 
   async getUserTokens(userId: number): Promise<TokenDto[]> {
@@ -50,7 +47,7 @@ export class TokenAuthService {
       expiresAt: token.expiresAt.toISOString(),
       refreshExpiresAt: token.refreshExpiresAt?.toISOString(),
       scopes: token.scopes,
-      userId: token.user?.id || 0,
+      userId: token.user?.id ?? 0,
       clientId: token.client?.id,
       client: token.client
         ? {
@@ -93,7 +90,7 @@ export class TokenAuthService {
     await this.tokenRepository.save(token);
 
     // Clear any cached data related to this token
-    await this.cacheManager.del(`token:${tokenId}`);
+    await this.cacheManagerService.delCacheKey(`token:${tokenId}`);
   }
 
   async revokeAllUserTokens(userId: number): Promise<void> {
@@ -119,7 +116,7 @@ export class TokenAuthService {
     );
 
     // Clear user-related cache
-    await this.cacheManager.del(`tokens:${userId}`);
+    await this.cacheManagerService.delCacheKey(`tokens:${userId}`);
   }
 
   async revokeAllTokensForType(
@@ -192,7 +189,7 @@ export class TokenAuthService {
         roles: [PermissionUtils.getRoleName(tokenEntity.user.permissions)],
         permissions: tokenEntity.user.permissions,
         type: tokenEntity.tokenType,
-        avatar: tokenEntity.user.avatar || undefined,
+        avatar: tokenEntity.user.avatar ?? undefined,
         jti: tokenEntity.id.toString(),
       };
 

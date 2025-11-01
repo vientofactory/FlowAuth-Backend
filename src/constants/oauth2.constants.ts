@@ -4,10 +4,15 @@ export type OAuth2GrantType =
   | 'refresh_token'
   | 'client_credentials';
 export type OAuth2ResponseType =
+  // Authorization Code Grant
   | 'code'
+  // Implicit Grant
   | 'token'
+  // ID Token (OpenID Connect)
   | 'id_token'
+  // Hybrid Flow(Authorization Code + ID Token)
   | 'code id_token'
+  // Hybrid Flow(Implicit Grant + ID Token)
   | 'token id_token';
 export type OAuth2TokenType = 'Bearer';
 
@@ -83,11 +88,11 @@ export const OAUTH2_CONSTANTS = {
     INSUFFICIENT_SCOPE:
       'The request requires higher privileges than provided by the access token.',
   } as const,
+  // OAuth2 파라미터 제한
   PKCE_METHODS: ['plain', 'S256'] as const,
   CODE_CHALLENGE_S256_LENGTH: 43,
   CODE_CHALLENGE_PLAIN_MIN_LENGTH: 43,
   CODE_CHALLENGE_PLAIN_MAX_LENGTH: 128,
-  // 추가된 길이 제한 상수들
   STATE_MAX_LENGTH: 256,
   REDIRECT_URI_MAX_LENGTH: 2048,
   CLIENT_ID_MAX_LENGTH: 100,
@@ -179,3 +184,79 @@ export const DEFAULT_SCOPES = [
   OAUTH2_SCOPES.OPENID,
   OAUTH2_SCOPES.PROFILE,
 ] as const;
+
+// 토큰 취소 사유 상수들
+export const TOKEN_REVOCATION_REASONS = {
+  // 사용자 액션
+  USER_REVOKED_CONNECTION: 'user_revoked_connection',
+  USER_REVOKED_TOKENS: 'user_revoked_tokens',
+  USER_ACCOUNT_DELETED: 'user_account_deleted',
+  USER_REVOKED: 'user_revoked',
+  USER_LOGOUT: 'user_logout',
+
+  // 관리자 액션
+  ADMIN_REVOKED: 'admin_revoked',
+  ADMIN_SUSPENDED: 'admin_suspended',
+
+  // 보안 관련
+  SECURITY_BREACH: 'security_breach',
+  SUSPICIOUS_ACTIVITY: 'suspicious_activity',
+  TOKEN_COMPROMISED: 'token_compromised',
+
+  // 시스템 액션
+  TOKEN_EXPIRED: 'token_expired',
+  REFRESH_FAILED: 'refresh_failed',
+  CLIENT_DEACTIVATED: 'client_deactivated',
+
+  // 기타
+  MAINTENANCE: 'maintenance',
+  POLICY_VIOLATION: 'policy_violation',
+} as const;
+
+// 토큰 취소 사유 설명
+export const TOKEN_REVOCATION_REASON_DESCRIPTIONS = {
+  [TOKEN_REVOCATION_REASONS.USER_REVOKED_CONNECTION]: '사용자가 연결을 해제함',
+  [TOKEN_REVOCATION_REASONS.USER_LOGOUT]: '사용자 로그아웃',
+  [TOKEN_REVOCATION_REASONS.USER_ACCOUNT_DELETED]: '사용자 계정 삭제',
+  [TOKEN_REVOCATION_REASONS.ADMIN_REVOKED]: '관리자에 의해 취소됨',
+  [TOKEN_REVOCATION_REASONS.ADMIN_SUSPENDED]: '관리자에 의해 일시 정지됨',
+  [TOKEN_REVOCATION_REASONS.SECURITY_BREACH]: '보안 침해 감지',
+  [TOKEN_REVOCATION_REASONS.SUSPICIOUS_ACTIVITY]: '의심스러운 활동 감지',
+  [TOKEN_REVOCATION_REASONS.TOKEN_COMPROMISED]: '토큰이 유출됨',
+  [TOKEN_REVOCATION_REASONS.TOKEN_EXPIRED]: '토큰 만료',
+  [TOKEN_REVOCATION_REASONS.REFRESH_FAILED]: '토큰 갱신 실패',
+  [TOKEN_REVOCATION_REASONS.CLIENT_DEACTIVATED]: '클라이언트 비활성화',
+  [TOKEN_REVOCATION_REASONS.MAINTENANCE]: '시스템 유지보수',
+  [TOKEN_REVOCATION_REASONS.POLICY_VIOLATION]: '정책 위반',
+} as const;
+
+// 감사 로그 리소스 타입 상수들
+export const AUDIT_LOG_RESOURCE_TYPES = {
+  // OAuth2 관련
+  TOKEN: 'token',
+  CLIENT: 'client',
+  CLIENT_CONNECTION: 'client_connection',
+  USER: 'user',
+
+  // 시스템 관련
+  SYSTEM: 'system',
+  CONFIGURATION: 'configuration',
+
+  // 기타
+  OTHER: 'other',
+} as const;
+
+// 액티비티 타입 상수들 (대시보드 최근 활동용)
+export const ACTIVITY_TYPES = {
+  // 사용자 관련
+  ACCOUNT_CREATED: 'account_created',
+  LOGIN: 'login',
+
+  // 클라이언트 관련
+  CLIENT_CREATED: 'client_created',
+  CLIENT_UPDATED: 'client_updated',
+
+  // 토큰 관련
+  TOKEN_CREATED: 'token_created',
+  TOKEN_REVOKED: 'token_revoked',
+} as const;
