@@ -133,7 +133,7 @@ export class ConsentController {
     res: Response,
   ): Promise<void> {
     try {
-      const result = await this.authorizationService.authorize(
+      const result = await this.authorizationService.authorizeConsent(
         authorizeDto,
         user,
       );
@@ -303,7 +303,7 @@ export class ConsentController {
 
     // User approved consent, handle the OAuth2 flow
     try {
-      const result = await this.authorizationService.authorize(
+      const result = await this.authorizationService.authorizeConsent(
         authorizeDto,
         user,
       );

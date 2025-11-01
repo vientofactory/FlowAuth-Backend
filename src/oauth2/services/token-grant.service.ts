@@ -183,15 +183,8 @@ export class TokenGrantService {
       scope: (authCode.scopes ?? []).join(' '),
     };
 
-    // Hybrid Flow의 경우 ID token도 포함
-    if (
-      authCode.responseType === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN
-    ) {
-      if (!authCode.nonce) {
-        throw new BadRequestException('Nonce is required for hybrid flow');
-      }
-
-      // ID token 생성
+    if ((authCode.scopes ?? []).includes('openid')) {
+      // Optional nonce validation for ID token issuance
       const idToken = await this.tokenService.generateIdToken(
         authCode.user,
         client,

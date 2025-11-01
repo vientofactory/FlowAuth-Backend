@@ -222,7 +222,7 @@ export class TokenService {
     return await this.tokenRepository.count({
       where: {
         user: { id: userId },
-        expiresAt: MoreThan(now), // 활성 토큰만 카운트 (만료되지 않은 토큰)
+        expiresAt: MoreThan(now),
         isRevoked: false,
         tokenType: TOKEN_TYPES.OAUTH2,
       },
