@@ -26,14 +26,10 @@ export class AuditLogService {
       // 감사 로그 기록 시 관련 캐시 무효화 (사용자 활동 캐시)
       if (savedAuditLog.userId) {
         try {
-          const commonLimits = [10, 20, 50];
-          for (const limit of commonLimits) {
-            const cacheKey = CACHE_KEYS.dashboard.activities(
-              savedAuditLog.userId,
-              limit,
-            );
-            await this.cacheManagerService.delCacheKey(cacheKey);
-          }
+          const cacheKey = CACHE_KEYS.dashboard.activities(
+            savedAuditLog.userId,
+          );
+          await this.cacheManagerService.delCacheKey(cacheKey);
         } catch (cacheError) {
           // 캐시 무효화 실패는 로그만 기록하고 감사 로그 생성은 계속 진행
           this.logger.warn(

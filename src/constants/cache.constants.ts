@@ -69,8 +69,8 @@ export const CACHE_KEYS = {
   dashboard: {
     stats: (userId: number) =>
       `${CACHE_CONFIG.KEY_PREFIXES.DASHBOARD.STATS}:${userId}`,
-    activities: (userId: number, limit: number) =>
-      `${CACHE_CONFIG.KEY_PREFIXES.DASHBOARD.ACTIVITIES}:${userId}:${limit}`,
+    activities: (userId: number) =>
+      `${CACHE_CONFIG.KEY_PREFIXES.DASHBOARD.ACTIVITIES}:${userId}`,
     advancedStats: (userId: number, days: number) =>
       `${CACHE_CONFIG.KEY_PREFIXES.DASHBOARD.ADVANCED_STATS}:${userId}:${days}`,
   },
