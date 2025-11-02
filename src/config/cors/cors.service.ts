@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import {
   CorsConfig,
@@ -12,8 +11,6 @@ import {
  * CORS service for OAuth2/OpenID Connect provider
  */
 export class CorsService {
-  private readonly logger = new Logger(CorsService.name);
-
   /**
    * Get allowed origins from environment variables
    */
@@ -89,8 +86,6 @@ export class CorsService {
    * Create CORS middleware for OAuth2/OpenID Connect endpoints
    */
   static createCorsMiddleware(config: CorsConfig) {
-    const logger = new Logger('CORS');
-
     return (req: Request, res: Response, next: NextFunction) => {
       const origin = req.headers.origin;
       const path = req.path;
@@ -105,7 +100,6 @@ export class CorsService {
         res.header('Access-Control-Allow-Credentials', 'true');
       } else if (origin) {
         // Reject unauthorized origin for protected endpoints
-        logger.warn(`CORS blocked: ${origin} -> ${path}`);
         res.status(403).json({
           error: 'forbidden',
           error_description: `Origin '${origin}' not allowed for this endpoint`,
