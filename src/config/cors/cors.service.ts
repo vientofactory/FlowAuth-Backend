@@ -6,11 +6,14 @@ import {
   DEVELOPMENT_ORIGINS,
   CORS_HEADERS,
 } from './cors.config';
+import { Logger } from '@nestjs/common';
 
 /**
  * CORS service for OAuth2/OpenID Connect provider
  */
 export class CorsService {
+  private static readonly logger = new Logger(CorsService.name);
+
   /**
    * Get allowed origins from environment variables
    */
@@ -26,7 +29,7 @@ export class CorsService {
           .map((url) => url.trim());
         return [...productionOrigins, ...DEVELOPMENT_ORIGINS];
       } else {
-        console.warn(
+        this.logger.warn(
           'FRONTEND_URL not set in production environment. Using development origins as fallback.',
         );
         return [...DEVELOPMENT_ORIGINS];
