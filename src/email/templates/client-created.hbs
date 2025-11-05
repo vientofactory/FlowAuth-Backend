@@ -1,0 +1,174 @@
+<html lang='ko'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>OAuth2 클라이언트 생성 완료</title>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica',
+          'Arial', sans-serif;
+        line-height: 1.6;
+        color: #333333;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f8f9fa;
+      }
+      .container {
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #ffffff;
+        padding: 30px 40px;
+        text-align: center;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 600;
+      }
+      .content {
+        padding: 40px;
+      }
+      .content h2 {
+        color: #2c3e50;
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+      .content p {
+        margin-bottom: 16px;
+        font-size: 16px;
+        line-height: 1.6;
+      }
+      .button {
+        display: inline-block;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #ffffff;
+        text-decoration: none;
+        padding: 12px 30px;
+        border-radius: 6px;
+        font-weight: 600;
+        margin: 20px 0;
+        text-align: center;
+      }
+      .success-box {
+        background-color: #eafaf1;
+        border-left: 4px solid #27ae60;
+        padding: 15px 20px;
+        margin: 20px 0;
+        border-radius: 0 4px 4px 0;
+      }
+      .info-box {
+        background-color: #e8f4f8;
+        border-left: 4px solid #3498db;
+        padding: 15px 20px;
+        margin: 20px 0;
+        border-radius: 0 4px 4px 0;
+      }
+      .warning-box {
+        background-color: #fef9e7;
+        border-left: 4px solid #f39c12;
+        padding: 15px 20px;
+        margin: 20px 0;
+        border-radius: 0 4px 4px 0;
+      }
+      .footer {
+        background-color: #f8f9fa;
+        padding: 30px 40px;
+        text-align: center;
+        border-top: 1px solid #e9ecef;
+      }
+      .footer p {
+        margin: 5px 0;
+        font-size: 14px;
+        color: #6c757d;
+      }
+      .footer a {
+        color: #667eea;
+        text-decoration: none;
+      }
+      .code-block {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 4px;
+        padding: 10px;
+        font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+        font-size: 14px;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='container'>
+      <div class='header'>
+        <h1>{{appName}}</h1>
+      </div>
+
+      <div class='content'>
+        <h2>새로운 OAuth2 클라이언트가 생성되었습니다! 🚀</h2>
+
+        <p>안녕하세요, <strong>{{username}}</strong>님!</p>
+
+        <div class='success-box'>
+          <p><strong>OAuth2 클라이언트 생성이 완료되었습니다!</strong></p>
+          <p><strong>클라이언트명:</strong> {{clientName}}</p>
+          <p><strong>생성 시간:</strong> {{timestamp}}</p>
+        </div>
+
+        <p>새로운 OAuth2 클라이언트가 성공적으로 생성되었습니다. 이제
+          애플리케이션에서
+          {{appName}}의 인증 서비스를 이용할 수 있습니다.</p>
+
+        <div class='info-box'>
+          <p><strong>클라이언트 정보</strong></p>
+          <p><strong>클라이언트 ID:</strong></p>
+          <div class='code-block'>{{clientId}}</div>
+        </div>
+
+        <div class='warning-box'>
+          <p><strong>🔒 보안 주의사항</strong></p>
+          <ul>
+            <li>클라이언트 시크릿은 안전한 곳에 보관하세요</li>
+            <li>클라이언트 ID와 시크릿을 공개된 저장소에 업로드하지 마세요</li>
+            <li>정기적으로 클라이언트 시크릿을 갱신하는 것을 권장합니다</li>
+            <li>사용하지 않는 클라이언트는 비활성화하거나 삭제하세요</li>
+          </ul>
+        </div>
+
+        <p><strong>다음 단계</strong></p>
+        <ul>
+          <li>대시보드에서 클라이언트 설정을 확인하고 수정하세요</li>
+          <li>리다이렉트 URI를 올바르게 설정하세요</li>
+          <li>필요한 스코프(권한)를 설정하세요</li>
+          <li>애플리케이션에 OAuth2 인증 플로우를 구현하세요</li>
+        </ul>
+
+        <div style='text-align: center;'>
+          <a href='{{dashboardUrl}}' class='button'>대시보드에서 관리하기</a>
+        </div>
+
+        <div class='info-box'>
+          <p><strong>💡 개발 가이드</strong></p>
+          <p>OAuth2 클라이언트 구현에 대한 자세한 가이드와 예제는 개발자 문서를
+            참고하세요. API 문서와 SDK를 통해 빠르게 인증 기능을 구현할 수
+            있습니다.</p>
+        </div>
+      </div>
+
+      <div class='footer'>
+        <p><strong>{{appName}}</strong></p>
+        <p>이 이메일은 자동으로 발송된 메일입니다. 회신하지 마세요.</p>
+        <p>
+          문의사항이 있으시면
+          <a href='mailto:{{supportEmail}}'>{{supportEmail}}</a>으로 연락주세요.
+        </p>
+        <p>&copy; {{year}} {{appName}}. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+</html>

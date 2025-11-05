@@ -15,6 +15,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { ProfileModule } from './profile/profile.module';
 import { CommonModule } from './common/common.module';
 import { HealthModule } from './health/health.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { HealthModule } from './health/health.module';
     ProfileModule,
     CommonModule,
     HealthModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppConfigService],

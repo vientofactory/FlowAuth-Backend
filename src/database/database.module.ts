@@ -4,6 +4,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SeedService } from './seed.service';
 import { DatabaseInitializationService } from './database-initialization.service';
 import { User } from '../auth/user.entity';
+import { PasswordResetToken } from '../auth/password-reset-token.entity';
+import { EmailVerificationToken } from '../auth/email-verification-token.entity';
 import { Client } from '../oauth2/client.entity';
 import { Token } from '../oauth2/token.entity';
 import { AuthorizationCode } from '../oauth2/authorization-code.entity';
@@ -16,7 +18,14 @@ import {
 } from '../dashboard/statistics.entity';
 
 // Entity groups for better organization
-export const AUTH_ENTITIES = [User, Client, Token, AuditLog];
+export const AUTH_ENTITIES = [
+  User,
+  PasswordResetToken,
+  EmailVerificationToken,
+  Client,
+  Token,
+  AuditLog,
+];
 export const OAUTH2_ENTITIES = [AuthorizationCode, Scope];
 export const DASHBOARD_ENTITIES = [
   TokenStatistics,

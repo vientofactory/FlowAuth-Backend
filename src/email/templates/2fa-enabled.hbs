@@ -1,0 +1,141 @@
+<html lang='ko'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>2단계 인증 활성화</title>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica',
+          'Arial', sans-serif;
+        line-height: 1.6;
+        color: #333333;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f8f9fa;
+      }
+      .container {
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+      .header {
+        background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+        color: #ffffff;
+        padding: 30px 40px;
+        text-align: center;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 600;
+      }
+      .content {
+        padding: 40px;
+      }
+      .content h2 {
+        color: #2c3e50;
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+      .content p {
+        margin-bottom: 16px;
+        font-size: 16px;
+        line-height: 1.6;
+      }
+      .success-box {
+        background-color: #eafaf1;
+        border-left: 4px solid #27ae60;
+        padding: 15px 20px;
+        margin: 20px 0;
+        border-radius: 0 4px 4px 0;
+      }
+      .info-box {
+        background-color: #e8f4f8;
+        border-left: 4px solid #3498db;
+        padding: 15px 20px;
+        margin: 20px 0;
+        border-radius: 0 4px 4px 0;
+      }
+      .footer {
+        background-color: #f8f9fa;
+        padding: 30px 40px;
+        text-align: center;
+        border-top: 1px solid #e9ecef;
+      }
+      .footer p {
+        margin: 5px 0;
+        font-size: 14px;
+        color: #6c757d;
+      }
+      .footer a {
+        color: #667eea;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='container'>
+      <div class='header'>
+        <h1>{{appName}}</h1>
+      </div>
+
+      <div class='content'>
+        <h2>2단계 인증이 활성화되었습니다! 🔐✅</h2>
+
+        <p>안녕하세요, <strong>{{username}}</strong>님!</p>
+
+        <div class='success-box'>
+          <p><strong>계정 보안이 강화되었습니다!</strong></p>
+          <p>2단계 인증(2FA)이 성공적으로 설정되었습니다.</p>
+          <p><strong>설정 완료 시간:</strong> {{timestamp}}</p>
+        </div>
+
+        <p>이제부터 로그인할 때 비밀번호와 함께 인증 앱에서 생성된 6자리 코드를
+          입력해야 합니다.</p>
+
+        <div class='info-box'>
+          <p><strong>2단계 인증의 장점</strong></p>
+          <ul>
+            <li><strong>향상된 보안:</strong>
+              비밀번호만으로는 계정에 접근할 수 없습니다</li>
+            <li><strong>피싱 방지:</strong>
+              악의적인 로그인 시도로부터 보호됩니다</li>
+            <li><strong>계정 보호:</strong>
+              비밀번호가 유출되어도 안전합니다</li>
+          </ul>
+        </div>
+
+        <p><strong>백업 코드 관리</strong></p>
+        <p>2단계 인증을 설정할 때 받은 백업 코드를 안전한 곳에 보관하세요. 인증
+          앱을 사용할 수 없을 때 계정에 접근하는 데 필요합니다.</p>
+
+        <div class='info-box'>
+          <p><strong>💡 중요한 팁</strong></p>
+          <ul>
+            <li>백업 코드를 안전한 곳에 저장하세요</li>
+            <li>새 기기에서 로그인할 때는 더 많은 시간이 걸릴 수 있습니다</li>
+            <li>인증 앱을 정기적으로 백업하세요</li>
+            <li>계정 설정에서 언제든지 2FA를 관리할 수 있습니다</li>
+          </ul>
+        </div>
+
+        <p><strong>문제가 발생한다면?</strong></p>
+        <p>2단계 인증과 관련하여 문제가 발생하면 지원팀에 연락하거나 백업 코드를
+          사용하세요.</p>
+      </div>
+
+      <div class='footer'>
+        <p><strong>{{appName}}</strong></p>
+        <p>이 이메일은 자동으로 발송된 메일입니다. 회신하지 마세요.</p>
+        <p>
+          문의사항이 있으시면
+          <a href='mailto:{{supportEmail}}'>{{supportEmail}}</a>으로 연락주세요.
+        </p>
+        <p>&copy; {{year}} {{appName}}. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+</html>

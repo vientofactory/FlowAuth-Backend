@@ -47,9 +47,16 @@ export const RATE_LIMIT_CONFIGS = {
   },
   AUTH_PASSWORD_RESET: {
     windowMs: 60 * 60 * 1000, // 1시간
-    maxRequests: 3, // 1시간에 3회
+    maxRequests: 2, // 1시간에 2회 (더 엄격)
     message:
-      '비밀번호 재설정 요청이 너무 많습니다. 1시간 후 다시 시도해주세요.',
+      '보안상 비밀번호 재설정 요청이 제한되었습니다. 1시간 후 다시 시도해주세요.',
+  },
+  // 이메일별 비밀번호 재설정 요청 제한 (추가)
+  AUTH_PASSWORD_RESET_EMAIL: {
+    windowMs: 24 * 60 * 60 * 1000, // 24시간
+    maxRequests: 5, // 24시간에 5회 (같은 이메일)
+    message:
+      '해당 이메일로 너무 많은 비밀번호 재설정 요청이 있었습니다. 24시간 후 다시 시도해주세요.',
   },
   AUTH_2FA_VERIFY: {
     windowMs: 5 * 60 * 1000, // 5분
@@ -219,6 +226,23 @@ export const KEY_GENERATORS = {
       .digest('hex')
       .substring(0, 8);
     return `rate_limit:ip_ua:${ip}:${hash}:${req.path || 'unknown'}`;
+  },
+
+  // 이메일별 레이트리밋 (비밀번호 재설정 등)
+  EMAIL_BASED: (req: AuthenticatedRequest) => {
+    let email = 'unknown';
+    try {
+      const body = req.body as { email?: string };
+      email = body?.email ?? 'unknown';
+    } catch {
+      email = 'unknown';
+    }
+    const emailHash = crypto
+      .createHash('md5')
+      .update(email.toLowerCase())
+      .digest('hex')
+      .substring(0, 12);
+    return `rate_limit:email:${emailHash}:${req.path || 'unknown'}`;
   },
 } as const;
 
