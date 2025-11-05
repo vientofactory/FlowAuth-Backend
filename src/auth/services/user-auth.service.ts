@@ -27,6 +27,7 @@ import { JwtPayload, LoginResponse } from '../../types/auth.types';
 import { PermissionUtils } from '../../utils/permission.util';
 import { RecaptchaService } from '../../utils/recaptcha.util';
 import { AuditLogService } from '../../common/audit-log.service';
+import { snowflakeGenerator } from '../../utils/snowflake-id.util';
 import {
   AuditEventType,
   AuditSeverity,
@@ -122,6 +123,9 @@ export class UserAuthService {
       throw new Error(`Invalid permissions value: ${permissions}`);
     }
 
+    // Generate userId using Snowflake ID
+    const userId = await snowflakeGenerator.generate();
+
     // Create user
     const user = this.userRepository.create({
       username,
@@ -131,6 +135,7 @@ export class UserAuthService {
       lastName,
       userType: finalUserType,
       permissions,
+      userId,
     });
 
     return this.userRepository.save(user);
@@ -180,6 +185,7 @@ export class UserAuthService {
         where: { email },
         select: [
           'id',
+          'userId',
           'email',
           'username',
           'password',
@@ -196,6 +202,15 @@ export class UserAuthService {
       if (!user) {
         throw new UnauthorizedException(
           AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
+        );
+      }
+
+      // Generate userId if not exists (for existing users)
+      if (!user.userId) {
+        user.userId = await snowflakeGenerator.generate();
+        await this.userRepository.save(user);
+        this.logger.log(
+          `Generated Snowflake ID for existing user: ${user.username} (${user.userId})`,
         );
       }
 

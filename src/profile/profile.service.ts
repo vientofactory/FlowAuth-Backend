@@ -14,6 +14,19 @@ import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
 import { VALIDATION_CONSTANTS } from '../constants/validation.constants';
 
+export type SensitiveUserFields =
+  | 'password'
+  | 'twoFactorSecret'
+  | 'backupCodes';
+
+export type UpdatableUserFields =
+  | 'firstName'
+  | 'lastName'
+  | 'username'
+  | 'bio'
+  | 'website'
+  | 'location';
+
 @Injectable()
 export class ProfileService {
   constructor(
@@ -48,17 +61,15 @@ export class ProfileService {
     return user;
   }
 
-  async findSafeById(
-    id: number,
-  ): Promise<Omit<User, 'password' | 'twoFactorSecret' | 'backupCodes'>> {
+  async findSafeById(id: number): Promise<Omit<User, SensitiveUserFields>> {
     const user = await this.findById(id);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, twoFactorSecret, backupCodes, ...safeUser } = user;
-    return safeUser as Omit<
-      User,
-      'password' | 'twoFactorSecret' | 'backupCodes'
-    >;
+
+    return {
+      ...safeUser,
+    } as Omit<User, SensitiveUserFields>;
   }
 
   async updateProfile(
@@ -80,12 +91,7 @@ export class ProfileService {
       'website',
       'location',
     ] as const;
-    const filteredData: Partial<
-      Pick<
-        User,
-        'firstName' | 'lastName' | 'username' | 'bio' | 'website' | 'location'
-      >
-    > = {};
+    const filteredData: Partial<Pick<User, UpdatableUserFields>> = {};
 
     // 안전한 객체 할당을 위한 helper 함수
     const safeAssign = (
