@@ -7,6 +7,8 @@ import { User } from './user.entity';
 import { Client } from '../oauth2/client.entity';
 import { Token } from '../oauth2/token.entity';
 import { AuthorizationCode } from '../oauth2/authorization-code.entity';
+import { PasswordResetToken } from './password-reset-token.entity';
+import { EmailVerificationToken } from './email-verification-token.entity';
 import { TwoFactorService } from './two-factor.service';
 import { FileUploadService } from '../upload/file-upload.service';
 import { RecaptchaService } from '../utils/recaptcha.util';
@@ -15,6 +17,7 @@ import { ClientAuthService } from './services/client-auth.service';
 import { TwoFactorAuthService } from './services/two-factor-auth.service';
 import { ValidationService } from './services/validation.service';
 import { CacheManagerService } from '../cache/cache-manager.service';
+import { EmailService } from '../email/email.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -53,6 +56,24 @@ describe('AuthService', () => {
             findOne: jest.fn(),
             save: jest.fn(),
             create: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(PasswordResetToken),
+          useValue: {
+            findOne: jest.fn(),
+            save: jest.fn(),
+            create: jest.fn(),
+            update: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(EmailVerificationToken),
+          useValue: {
+            findOne: jest.fn(),
+            save: jest.fn(),
+            create: jest.fn(),
+            update: jest.fn(),
           },
         },
         {
@@ -123,6 +144,23 @@ describe('AuthService', () => {
             getCacheValue: jest.fn(),
             setCacheValue: jest.fn(),
             delCacheKey: jest.fn(),
+          },
+        },
+        {
+          provide: EmailService,
+          useValue: {
+            sendWelcomeEmailAsync: jest.fn(),
+            sendEmailVerificationAsync: jest.fn(),
+            sendPasswordResetAsync: jest.fn(),
+            sendSecurityAlertAsync: jest.fn(),
+            send2FAEnabledAsync: jest.fn(),
+            sendClientCreatedAsync: jest.fn(),
+            queueWelcomeEmail: jest.fn(),
+            queueEmailVerification: jest.fn(),
+            queuePasswordReset: jest.fn(),
+            queueSecurityAlert: jest.fn(),
+            queue2FAEnabled: jest.fn(),
+            queueClientCreated: jest.fn(),
           },
         },
       ],

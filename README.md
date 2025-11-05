@@ -242,6 +242,44 @@ CREATE TABLE `audit_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
+#### 7. 이메일 인증 토큰 테이블 (EmailVerificationToken)
+
+```sql
+CREATE TABLE `email_verification_tokens` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `token` varchar(255) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `user_id` int NOT NULL,
+  `used` tinyint NOT NULL DEFAULT 0,
+  `expires_at` datetime NOT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `IDX_email_verification_token` (`token`),
+  KEY `IDX_email_verification_email_used_expires` (`email`, `used`, `expires_at`),
+  KEY `FK_email_verification_user` (`user_id`),
+  CONSTRAINT `FK_email_verification_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+#### 8. 비밀번호 재설정 토큰 테이블 (PasswordResetToken)
+
+```sql
+CREATE TABLE `password_reset_tokens` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `token` varchar(255) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `user_id` int NOT NULL,
+  `used` tinyint NOT NULL DEFAULT 0,
+  `expires_at` datetime NOT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `IDX_password_reset_token` (`token`),
+  KEY `IDX_password_reset_email_used_expires` (`email`, `used`, `expires_at`),
+  KEY `FK_password_reset_user` (`user_id`),
+  CONSTRAINT `FK_password_reset_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
 ### 4. 개발 서버 실행
 
 ```bash
@@ -307,7 +345,7 @@ API 문서를 확인하려면 브라우저에서 `http://localhost:3000/api`로 
 - name: string
 - description: string
 - redirectUris: string[] (JSON Array)
-- isActive: boolean
+- isActive: tinyint (0/1)
 - createdAt: Date
 - updatedAt: Date
 ```
@@ -323,7 +361,7 @@ API 문서를 확인하려면 브라우저에서 `http://localhost:3000/api`로 
 - state: string
 - codeChallenge: string
 - codeChallengeMethod: string
-- isUsed: boolean
+- isUsed: tinyint (0/1)
 - user: User (Foreign Key)
 - client: Client (Foreign Key)
 ```
@@ -338,9 +376,9 @@ API 문서를 확인하려면 브라우저에서 `http://localhost:3000/api`로 
 - refreshExpiresAt: Date
 - scopes: string[] (JSON Array)
 - tokenType: string (기본값: 'login')
-- isRevoked: boolean (기본값: false)
+- isRevoked: tinyint (기본값: 0)
 - revokedAt: Date (Nullable)
-- isRefreshTokenUsed: boolean (기본값: false)
+- isRefreshTokenUsed: tinyint (기본값: 0)
 - revokedReason: string (Nullable)
 - tokenFamily: string (Nullable)
 - rotationGeneration: number (기본값: 1)
@@ -365,7 +403,7 @@ npm run test:cov
 npm run test:e2e
 ```
 
-## 📜 사용 가능한 스크립트
+## 사용 가능한 스크립트
 
 ```bash
 # 개발 서버
@@ -429,6 +467,34 @@ CACHE_TTL=300000
 # Cleanup Configuration
 CLEANUP_CRON_EXPRESSION=0 0 * * *
 
+# Email Configuration
+# SMTP 설정 (이메일 인증, 비밀번호 재설정 등에 사용)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=0
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+
+# 발신자 정보
+SMTP_FROM_NAME=FlowAuth
+SMTP_FROM_EMAIL=noreply@yourdomain.com
+
+# 이메일 템플릿 설정 (선택사항)
+# EMAIL_TEMPLATE_DIR=./src/email/templates
+
+# Email Queue Configuration (Redis 기반 Bull Queue)
+# Redis 연결 설정
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
+
+# 큐 설정
+QUEUE_NAME=email_queue
+QUEUE_CONCURRENCY=10
+QUEUE_MAX_ATTEMPTS=3
+QUEUE_RETRY_DELAY=5000
+
 # Frontend Configuration (for CORS)
 # Development environment
 FRONTEND_URL=http://localhost:5173
@@ -460,12 +526,183 @@ FRONTEND_URL=https://app.yourdomain.com,https://www.yourdomain.com,https://admin
 - 여러 도메인은 쉼표(`,`)로 구분하여 설정할 수 있습니다
 - 설정되지 않은 origin에서의 요청은 CORS 오류가 발생합니다
 
+## 이메일 및 큐 설정
+
+FlowAuth는 이메일 인증, 비밀번호 재설정, 알림 등을 위해 SMTP 기반의 이메일 시스템과 Redis 기반의 큐 시스템을 사용합니다.
+
+### 이메일 설정 (SMTP)
+
+#### 1. Gmail 사용 시 설정
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=0
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password  # Gmail 앱 비밀번호 필요
+```
+
+**Gmail 앱 비밀번호 생성 방법**:
+
+1. Google 계정 > 보안 > 2단계 인증 활성화
+2. Google 계정 > 보안 > 앱 비밀번호 생성
+3. 생성된 16자리 비밀번호를 `SMTP_PASS`에 설정
+
+#### 2. 기타 SMTP 서비스 설정 예시
+
+**Outlook/Hotmail**:
+
+**Outlook/Hotmail**:
+
+```env
+SMTP_HOST=smtp.live.com
+SMTP_PORT=587
+SMTP_SECURE=0
+```
+
+**Yahoo Mail**:
+
+````env
+**Yahoo Mail**:
+```env
+SMTP_HOST=smtp.mail.yahoo.com
+SMTP_PORT=587
+SMTP_SECURE=0
+````
+
+````
+
+**사용자 정의 SMTP 서버**:
+
+```env
+SMTP_HOST=mail.yourdomain.com
+SMTP_PORT=465
+SMTP_SECURE=1  # SSL/TLS 사용
+````
+
+### Redis 및 큐 설정
+
+FlowAuth는 이메일 전송을 위해 Redis 기반의 Bull Queue를 사용하여 비동기 처리를 수행합니다.
+
+#### 1. Redis 설치
+
+**macOS (Homebrew)**:
+
+```bash
+brew install redis
+brew services start redis
+```
+
+**Ubuntu/Debian**:
+
+```bash
+sudo apt update
+sudo apt install redis-server
+sudo systemctl start redis-server
+```
+
+**Docker**:
+
+```bash
+docker run -d --name redis -p 6379:6379 redis:alpine
+```
+
+#### 2. Redis 연결 설정
+
+```env
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=          # 비밀번호가 설정된 경우
+REDIS_DB=0              # 데이터베이스 번호 (0-15)
+```
+
+#### 3. 큐 성능 튜닝
+
+```env
+QUEUE_CONCURRENCY=10     # 동시 처리할 작업 수
+QUEUE_MAX_ATTEMPTS=3     # 실패 시 재시도 횟수
+QUEUE_RETRY_DELAY=5000   # 재시도 대기 시간 (밀리초)
+```
+
+### 이메일 템플릿
+
+FlowAuth는 다음과 같은 이메일 템플릿을 제공합니다:
+
+- **환영 이메일**: 회원가입 완료 시 발송
+- **이메일 인증**: 회원가입 시 이메일 주소 인증
+- **비밀번호 재설정**: 비밀번호 찾기 요청 시 발송
+- **보안 알림**: 로그인, 비밀번호 변경 등 보안 관련 알림
+- **2FA 활성화**: 2단계 인증 설정 완료 알림
+- **클라이언트 생성**: OAuth2 클라이언트 생성 알림
+
+### 이메일 기능 테스트
+
+이메일 설정이 올바른지 테스트하려면:
+
+1. **회원가입 테스트**: 새 계정으로 회원가입하여 인증 이메일 수신 확인
+2. **비밀번호 재설정 테스트**: 비밀번호 찾기 기능으로 재설정 이메일 수신 확인
+3. **Redis 연결 테스트**: 헬스체크 엔드포인트 (`GET /health`) 호출하여 Redis 상태 확인
+
+### 문제 해결
+
+#### 이메일이 발송되지 않는 경우
+
+1. **SMTP 설정 확인**:
+
+   ```bash
+   # 환경변수가 올바르게 설정되었는지 확인
+   echo $SMTP_HOST $SMTP_PORT $SMTP_USER
+   ```
+
+2. **방화벽 및 포트 확인**:
+
+   ```bash
+   # SMTP 포트 연결 테스트
+   telnet smtp.gmail.com 587
+   ```
+
+3. **앱 로그 확인**:
+   ```bash
+   # 이메일 관련 오류 로그 확인
+   npm run start:dev
+   ```
+
+#### Redis 연결 오류
+
+1. **Redis 서비스 상태 확인**:
+
+   ```bash
+   # Redis 서버 실행 상태 확인
+   redis-cli ping  # PONG 응답이 와야 함
+   ```
+
+2. **포트 및 연결 확인**:
+
+   ```bash
+   # Redis 포트 확인
+   netstat -tlnp | grep 6379
+   ```
+
+3. **Redis 로그 확인**:
+   ```bash
+   # Redis 로그 확인 (설치 방법에 따라 경로가 다를 수 있음)
+   tail -f /var/log/redis/redis-server.log
+   ```
+
+### 프로덕션 환경 권장사항
+
+1. **이메일 서비스**: 프로덕션에서는 SendGrid, AWS SES, Mailgun 등 전문 이메일 서비스 사용 권장
+2. **Redis 보안**: Redis에 비밀번호 설정 및 방화벽 구성
+3. **모니터링**: 이메일 발송 실패율 및 큐 처리 성능 모니터링
+4. **백업**: Redis 데이터 백업 설정 (큐 데이터 복구용)
+
 ## 보안 기능
 
 - **JWT 토큰 기반 인증**
 - **RSA 서명**: ID 토큰의 보안 서명 (RS256 알고리즘)
 - **OpenID Connect 지원**: ID 토큰 및 UserInfo 엔드포인트
 - **비밀번호 해싱 (bcrypt)**
+- **이메일 인증 강제**: 이메일 미인증 시 로그인 차단
 - **헬멧 (Helmet) 보안 헤더**
 - **CORS 설정**
 - **레이트 리미팅**
@@ -515,6 +752,42 @@ FRONTEND_URL=https://app.yourdomain.com,https://www.yourdomain.com,https://admin
 1. 데이터베이스가 생성되어 있는지 확인
 2. 이전 마이그레이션이 성공적으로 실행되었는지 확인
 3. 마이그레이션 파일의 구문 오류 확인
+
+### 이메일 인증 관련 오류
+
+**문제**: 이메일 인증 링크가 작동하지 않음
+
+**해결 방법**:
+
+1. **SMTP 설정 확인**:
+
+   ```bash
+   # .env 파일의 SMTP 설정이 올바른지 확인
+   cat .env | grep SMTP
+   ```
+
+2. **Redis 연결 확인**:
+
+   ```bash
+   # Redis 서비스 실행 상태 확인
+   redis-cli ping
+   ```
+
+3. **이메일 큐 상태 확인**:
+   - 헬스체크 엔드포인트 `/health` 호출
+   - 이메일 큐 처리 상태 및 실패 작업 확인
+
+4. **방화벽 설정**:
+   - SMTP 포트 (587, 465, 25) 방화벽 허용 확인
+   - 외부 SMTP 서버 연결 가능 여부 확인
+
+**문제**: 이메일이 스팸함으로 들어감
+
+**해결 방법**:
+
+1. SPF, DKIM, DMARC 레코드 설정 (도메인 이메일 사용 시)
+2. 전문 이메일 서비스 사용 (SendGrid, AWS SES 등)
+3. 발신자 이메일 주소와 실제 도메인 일치 확인
 
 ## 기여하기
 

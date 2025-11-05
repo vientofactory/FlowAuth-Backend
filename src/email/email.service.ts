@@ -4,6 +4,8 @@ import * as nodemailer from 'nodemailer';
 import * as handlebars from 'handlebars';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { EmailQueueService } from './email-queue.service';
+import { EmailJobOptions } from './interfaces/email-job.interface';
 
 export interface EmailContext {
   [key: string]: unknown;
@@ -21,7 +23,10 @@ export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private transporter: nodemailer.Transporter;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private emailQueueService: EmailQueueService,
+  ) {
     this.initializeTransporter();
   }
 
@@ -37,7 +42,10 @@ export class EmailService {
     };
 
     this.transporter = nodemailer.createTransport(smtpConfig);
-    this.logger.log('SMTP transporter initialized');
+
+    if (process.env.NODE_ENV === 'development') {
+      this.logger.debug('SMTP transporter initialized');
+    }
   }
 
   /**
@@ -53,7 +61,7 @@ export class EmailService {
   ] as const;
 
   /**
-   * 템플릿 경로를 동적으로 생성 (개발/프로덕션 환경 대응)
+   * 템플릿 경로를 동적으로 생성
    */
   private getTemplatePath(templateName: string): string | null {
     // 보안 검증: 허용된 템플릿만 사용
@@ -62,7 +70,6 @@ export class EmailService {
       return null;
     }
 
-    // 개발 환경에서는 src 폴더, 프로덕션에서는 dist 폴더 사용
     const isDevelopment = process.env.NODE_ENV === 'development';
     const baseDir = isDevelopment ? 'src' : 'dist';
 
@@ -110,9 +117,11 @@ export class EmailService {
         html,
       });
 
-      this.logger.log(
-        `Email sent successfully to ${to} using template ${templateName}`,
-      );
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.debug(
+          `Email sent successfully to ${to} using template ${templateName}`,
+        );
+      }
     } catch (error) {
       this.logger.error(
         `Failed to send email to ${options.to}: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -251,7 +260,11 @@ export class EmailService {
   async testConnection(): Promise<boolean> {
     try {
       await this.transporter.verify();
-      this.logger.log('SMTP connection test successful');
+
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.debug('SMTP connection test successful');
+      }
+
       return true;
     } catch (error) {
       this.logger.error(
@@ -262,72 +275,331 @@ export class EmailService {
     }
   }
 
-  // === 비동기 이메일 전송 메서드들 (즉시 응답) ===
+  // === 큐 기반 비동기 이메일 전송 메서드들 ===
 
   /**
-   * 환영 이메일을 백그라운드에서 전송 (즉시 응답)
+   * 환영 이메일을 큐에 추가하여 비동기 전송
+   */
+  async queueWelcomeEmail(
+    to: string,
+    username: string,
+    options?: EmailJobOptions,
+  ): Promise<void> {
+    try {
+      await this.emailQueueService.addWelcomeEmailJob(to, username, options);
+
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.debug(`Welcome email queued for ${to}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to queue welcome email for ${to}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * 이메일 인증을 큐에 추가하여 비동기 전송
+   */
+  async queueEmailVerification(
+    to: string,
+    username: string,
+    verificationToken: string,
+    options?: EmailJobOptions,
+  ): Promise<void> {
+    try {
+      await this.emailQueueService.addEmailVerificationJob(
+        to,
+        username,
+        verificationToken,
+        options,
+      );
+
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.debug(`Email verification queued for ${to}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to queue email verification for ${to}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * 비밀번호 재설정을 큐에 추가하여 비동기 전송
+   */
+  async queuePasswordReset(
+    to: string,
+    username: string,
+    resetToken: string,
+    options?: EmailJobOptions,
+  ): Promise<void> {
+    try {
+      await this.emailQueueService.addPasswordResetJob(
+        to,
+        username,
+        resetToken,
+        options,
+      );
+
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.debug(`Password reset email queued for ${to}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to queue password reset email for ${to}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * 보안 알림을 큐에 추가하여 비동기 전송
+   */
+  async queueSecurityAlert(
+    to: string,
+    username: string,
+    alertType: string,
+    details: { [key: string]: unknown },
+    options?: EmailJobOptions,
+  ): Promise<void> {
+    try {
+      await this.emailQueueService.addSecurityAlertJob(
+        to,
+        username,
+        alertType,
+        details,
+        options,
+      );
+
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.debug(`Security alert email queued for ${to}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to queue security alert email for ${to}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * 2FA 활성화 알림을 큐에 추가하여 비동기 전송
+   */
+  async queue2FAEnabled(
+    to: string,
+    username: string,
+    options?: EmailJobOptions,
+  ): Promise<void> {
+    try {
+      await this.emailQueueService.addTwoFAEnabledJob(to, username, options);
+
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.debug(`2FA enabled notification queued for ${to}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to queue 2FA enabled notification for ${to}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * 클라이언트 생성 알림을 큐에 추가하여 비동기 전송
+   */
+  async queueClientCreated(
+    to: string,
+    username: string,
+    clientName: string,
+    clientId: string,
+    options?: EmailJobOptions,
+  ): Promise<void> {
+    try {
+      await this.emailQueueService.addClientCreatedJob(
+        to,
+        username,
+        clientName,
+        clientId,
+        options,
+      );
+
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.debug(`Client created notification queued for ${to}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to queue client created notification for ${to}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * 템플릿 이메일을 큐에 추가하여 비동기 전송
+   */
+  async queueTemplateEmail(
+    to: string,
+    subject: string,
+    templateName: string,
+    context: { [key: string]: unknown },
+    options?: EmailJobOptions,
+  ): Promise<void> {
+    try {
+      await this.emailQueueService.addTemplateEmailJob(
+        to,
+        subject,
+        templateName,
+        context,
+        options,
+      );
+
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.debug(`Template email (${templateName}) queued for ${to}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to queue template email (${templateName}) for ${to}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * 지연된 이메일 전송을 큐에 추가
+   */
+  async queueDelayedEmail(
+    emailType:
+      | 'welcome'
+      | 'verification'
+      | 'password-reset'
+      | 'security-alert'
+      | '2fa-enabled'
+      | 'client-created',
+    emailData: Record<string, unknown>,
+    delayInMs: number,
+    options?: EmailJobOptions,
+  ): Promise<void> {
+    const { to } = emailData;
+
+    if (process.env.NODE_ENV === 'development') {
+      this.logger.debug(
+        `Delayed ${emailType} email queued for ${String(to)} (delay: ${delayInMs}ms)`,
+      );
+    }
+
+    try {
+      switch (emailType) {
+        case 'welcome':
+          await this.queueWelcomeEmail(
+            emailData.to as string,
+            emailData.username as string,
+            { ...options, delay: delayInMs },
+          );
+          break;
+        case 'verification':
+          await this.queueEmailVerification(
+            emailData.to as string,
+            emailData.username as string,
+            emailData.verificationToken as string,
+            { ...options, delay: delayInMs },
+          );
+          break;
+        case 'password-reset':
+          await this.queuePasswordReset(
+            emailData.to as string,
+            emailData.username as string,
+            emailData.resetToken as string,
+            { ...options, delay: delayInMs },
+          );
+          break;
+        case 'security-alert':
+          await this.queueSecurityAlert(
+            emailData.to as string,
+            emailData.username as string,
+            emailData.alertType as string,
+            emailData.details as { [key: string]: unknown },
+            { ...options, delay: delayInMs },
+          );
+          break;
+        case '2fa-enabled':
+          await this.queue2FAEnabled(
+            emailData.to as string,
+            emailData.username as string,
+            { ...options, delay: delayInMs },
+          );
+          break;
+        case 'client-created':
+          await this.queueClientCreated(
+            emailData.to as string,
+            emailData.username as string,
+            emailData.clientName as string,
+            emailData.clientId as string,
+            { ...options, delay: delayInMs },
+          );
+          break;
+        default:
+          throw new Error(`Unknown email type: ${String(emailType)}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to queue delayed ${emailType} email`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
+  }
+
+  // === 레거시 비동기 메서드들 (하위 호환성 유지) ===
+
+  /**
+   * @deprecated 큐 기반 메서드 사용 권장: queueWelcomeEmail
    */
   sendWelcomeEmailAsync(to: string, username: string): void {
-    setImmediate(() => {
-      this.sendWelcomeEmail(to, username).catch((error) => {
-        this.logger.error('Background welcome email failed', error);
-      });
+    this.queueWelcomeEmail(to, username).catch((error) => {
+      this.logger.error('Failed to queue welcome email', error);
     });
   }
 
   /**
-   * 이메일 인증을 백그라운드에서 전송 (즉시 응답)
+   * @deprecated 큐 기반 메서드 사용 권장: queueEmailVerification
    */
   sendEmailVerificationAsync(
     to: string,
     username: string,
     verificationToken: string,
   ): void {
-    setImmediate(() => {
-      this.sendEmailVerification(to, username, verificationToken).catch(
-        (error) => {
-          this.logger.error('Background email verification failed', error);
-          // 중요한 이메일이므로 재시도
-          setTimeout(() => {
-            this.sendEmailVerification(to, username, verificationToken).catch(
-              (retryError) => {
-                this.logger.error(
-                  'Email verification retry failed',
-                  retryError,
-                );
-              },
-            );
-          }, 5000);
-        },
-      );
-    });
+    this.queueEmailVerification(to, username, verificationToken).catch(
+      (error) => {
+        this.logger.error('Failed to queue email verification', error);
+      },
+    );
   }
 
   /**
-   * 비밀번호 재설정을 백그라운드에서 전송 (즉시 응답)
+   * @deprecated 큐 기반 메서드 사용 권장: queuePasswordReset
    */
   sendPasswordResetAsync(
     to: string,
     username: string,
     resetToken: string,
   ): void {
-    setImmediate(() => {
-      this.sendPasswordReset(to, username, resetToken).catch((error) => {
-        this.logger.error('Background password reset failed', error);
-        // 중요한 이메일이므로 재시도
-        setTimeout(() => {
-          this.sendPasswordReset(to, username, resetToken).catch(
-            (retryError) => {
-              this.logger.error('Password reset retry failed', retryError);
-            },
-          );
-        }, 5000);
-      });
+    this.queuePasswordReset(to, username, resetToken).catch((error) => {
+      this.logger.error('Failed to queue password reset', error);
     });
   }
 
   /**
-   * 보안 알림을 백그라운드에서 전송 (즉시 응답)
+   * @deprecated 큐 기반 메서드 사용 권장: queueSecurityAlert
    */
   sendSecurityAlertAsync(
     to: string,
@@ -335,28 +607,22 @@ export class EmailService {
     alertType: string,
     details: { [key: string]: unknown },
   ): void {
-    setImmediate(() => {
-      this.sendSecurityAlert(to, username, alertType, details).catch(
-        (error) => {
-          this.logger.error('Background security alert failed', error);
-        },
-      );
+    this.queueSecurityAlert(to, username, alertType, details).catch((error) => {
+      this.logger.error('Failed to queue security alert', error);
     });
   }
 
   /**
-   * 2FA 활성화 알림을 백그라운드에서 전송 (즉시 응답)
+   * @deprecated 큐 기반 메서드 사용 권장: queue2FAEnabled
    */
   send2FAEnabledAsync(to: string, username: string): void {
-    setImmediate(() => {
-      this.send2FAEnabled(to, username).catch((error) => {
-        this.logger.error('Background 2FA notification failed', error);
-      });
+    this.queue2FAEnabled(to, username).catch((error) => {
+      this.logger.error('Failed to queue 2FA enabled notification', error);
     });
   }
 
   /**
-   * 클라이언트 생성 알림을 백그라운드에서 전송 (즉시 응답)
+   * @deprecated 큐 기반 메서드 사용 권장: queueClientCreated
    */
   sendClientCreatedAsync(
     to: string,
@@ -364,15 +630,10 @@ export class EmailService {
     clientName: string,
     clientId: string,
   ): void {
-    setImmediate(() => {
-      this.sendClientCreated(to, username, clientName, clientId).catch(
-        (error) => {
-          this.logger.error(
-            'Background client created notification failed',
-            error,
-          );
-        },
-      );
-    });
+    this.queueClientCreated(to, username, clientName, clientId).catch(
+      (error) => {
+        this.logger.error('Failed to queue client created notification', error);
+      },
+    );
   }
 }

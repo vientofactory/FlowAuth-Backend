@@ -1037,7 +1037,7 @@ OAuth2 클라이언트를 삭제합니다.
   }
 
   @Post('verify-email')
-  @ApiOperation({ summary: '이메일 인증 확인' })
+  @ApiOperation({ summary: '이메일 인증 확인 (POST)' })
   @ApiResponse({
     status: 200,
     description: '이메일이 성공적으로 인증되었습니다.',
@@ -1047,6 +1047,11 @@ OAuth2 클라이언트를 삭제합니다.
         message: {
           type: 'string',
           example: '이메일이 성공적으로 인증되었습니다.',
+        },
+        email: {
+          type: 'string',
+          example: 'user@example.com',
+          description: '인증된 이메일 주소',
         },
       },
     },
@@ -1066,8 +1071,44 @@ OAuth2 클라이언트를 삭제합니다.
   })
   async verifyEmail(
     @Body(DefaultFieldSizeLimitPipe) body: { token: string },
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; email?: string }> {
     return await this.authService.verifyEmail(body.token);
+  }
+
+  @Get('verify-email/:token')
+  @ApiOperation({ summary: '이메일 인증 확인 (GET)' })
+  @ApiParam({
+    name: 'token',
+    type: 'string',
+    description: '이메일 인증 토큰',
+    example: 'abcd1234efgh5678...',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '이메일이 성공적으로 인증되었습니다.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: '이메일이 성공적으로 인증되었습니다.',
+        },
+        email: {
+          type: 'string',
+          example: 'user@example.com',
+          description: '인증된 이메일 주소',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: '유효하지 않거나 만료된 토큰입니다.',
+  })
+  async verifyEmailByToken(
+    @Param('token') token: string,
+  ): Promise<{ message: string; email?: string }> {
+    return await this.authService.verifyEmail(token);
   }
 
   @Get('validate-verification-token/:token')

@@ -425,9 +425,9 @@ export class AuthService {
         { used: true },
       );
 
-      // 보안 알림 이메일 전송
+      // 보안 알림 이메일 전송 (큐 기반 비동기)
       try {
-        await this.emailService.sendSecurityAlert(
+        await this.emailService.queueSecurityAlert(
           resetToken.user.email,
           resetToken.user.username,
           '비밀번호 변경',
@@ -523,7 +523,7 @@ export class AuthService {
         user.id,
       );
 
-      await this.emailService.sendEmailVerification(
+      await this.emailService.queueEmailVerification(
         user.email,
         user.username,
         verificationToken.token,
@@ -542,7 +542,9 @@ export class AuthService {
   /**
    * 이메일 인증 확인
    */
-  async verifyEmail(token: string): Promise<{ message: string }> {
+  async verifyEmail(
+    token: string,
+  ): Promise<{ message: string; email?: string }> {
     const verificationToken =
       await this.emailVerificationTokenRepository.findOne({
         where: {
@@ -573,7 +575,10 @@ export class AuthService {
       this.logger.log(
         `Email verification completed for user: ${verificationToken.user.email}`,
       );
-      return { message: '이메일이 성공적으로 인증되었습니다.' };
+      return {
+        message: '이메일이 성공적으로 인증되었습니다.',
+        email: verificationToken.user.email,
+      };
     } catch (error) {
       this.logger.error(
         `Failed to verify email: ${error instanceof Error ? error.message : 'Unknown error'}`,

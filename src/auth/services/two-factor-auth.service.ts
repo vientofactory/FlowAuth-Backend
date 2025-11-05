@@ -33,7 +33,7 @@ export class TwoFactorAuthService {
   ): Promise<LoginResponse> {
     this.logger.log(`2FA token verification attempt for email: ${email}`);
     try {
-      // Find user with 2FA fields
+      // Find user with 2FA fields and email verification status
       const user = await this.userRepository.findOne({
         where: { email },
         select: [
@@ -47,6 +47,7 @@ export class TwoFactorAuthService {
           'userType',
           'isTwoFactorEnabled',
           'twoFactorSecret',
+          'isEmailVerified',
           'avatar',
         ],
       });
@@ -54,6 +55,13 @@ export class TwoFactorAuthService {
       if (!user) {
         throw new UnauthorizedException(
           AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
+        );
+      }
+
+      // Check if email is verified
+      if (!user.isEmailVerified) {
+        throw new UnauthorizedException(
+          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
         );
       }
 
@@ -134,7 +142,7 @@ export class TwoFactorAuthService {
     backupCode: string,
   ): Promise<LoginResponse> {
     try {
-      // Find user
+      // Find user with email verification status
       const user = await this.userRepository.findOne({
         where: { email },
         select: [
@@ -147,6 +155,7 @@ export class TwoFactorAuthService {
           'permissions',
           'userType',
           'isTwoFactorEnabled',
+          'isEmailVerified',
           'avatar',
         ],
       });
@@ -154,6 +163,13 @@ export class TwoFactorAuthService {
       if (!user) {
         throw new UnauthorizedException(
           AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
+        );
+      }
+
+      // Check if email is verified
+      if (!user.isEmailVerified) {
+        throw new UnauthorizedException(
+          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
         );
       }
 
