@@ -4,12 +4,25 @@ import {
   Body,
   Get,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { EmailService } from './email.service';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { PermissionsGuard } from 'src/auth/permissions.guard';
+import { RequireAdminPermission } from 'src/auth/admin-permission.decorator';
 
 @Controller('email')
+@ApiBearerAuth()
 @ApiTags('Email Testing')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@RequireAdminPermission()
 export class EmailController {
   constructor(private readonly emailService: EmailService) {}
 
