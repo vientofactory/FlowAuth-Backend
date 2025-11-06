@@ -357,7 +357,7 @@ export class EmailQueueService {
    * 큐 정리 (완료된/실패한 작업 제거)
    */
   async cleanQueue(
-    grace = 0, // 즉시 정리 (0으로 변경)
+    grace = 24 * 60 * 60 * 1000, // 24시간 후 정리 (디버깅을 위한 충분한 시간 제공)
     limit = 1000,
   ): Promise<{ cleanedCompleted: number; cleanedFailed: number }> {
     try {
