@@ -257,7 +257,7 @@ export class EmailController {
     @Query('limit') limit?: number,
   ) {
     const result = await this.emailQueueService.cleanQueue(
-      grace ?? 0, // 즉시 정리 (0으로 변경)
+      grace ?? 86400000, // 24시간 보존 (디버깅을 위한 작업 기록 유지)
       limit ?? 1000,
     );
     return {
