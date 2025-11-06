@@ -241,11 +241,16 @@ export class EmailQueueController {
   @ApiOperation({ summary: '큐 정리 (완료/실패한 작업 제거)' })
   @ApiResponse({ status: 200, description: '큐 정리 성공' })
   async cleanQueue(
-    @Query('grace') grace = 24 * 60 * 60 * 1000, // 24시간
+    @Query('grace') grace = 0, // 즉시 정리 (0으로 변경)
     @Query('limit') limit = 1000,
   ) {
-    await this.emailQueueService.cleanQueue(grace, limit);
-    return { message: 'Queue cleaned successfully' };
+    const result = await this.emailQueueService.cleanQueue(grace, limit);
+    return {
+      message: 'Queue cleaned successfully',
+      cleanedCompleted: result.cleanedCompleted,
+      cleanedFailed: result.cleanedFailed,
+      totalCleaned: result.cleanedCompleted + result.cleanedFailed,
+    };
   }
 
   /**

@@ -357,18 +357,25 @@ export class EmailQueueService {
    * 큐 정리 (완료된/실패한 작업 제거)
    */
   async cleanQueue(
-    grace = 1000 * 60 * 60 * 24, // 24시간
+    grace = 0, // 즉시 정리 (0으로 변경)
     limit = 1000,
-  ): Promise<void> {
+  ): Promise<{ cleanedCompleted: number; cleanedFailed: number }> {
     try {
-      await this.emailQueue.clean(grace, 'completed', limit);
-      await this.emailQueue.clean(grace, 'failed', limit);
+      const [completedJobs, failedJobs] = await Promise.all([
+        this.emailQueue.clean(grace, 'completed', limit),
+        this.emailQueue.clean(grace, 'failed', limit),
+      ]);
+
+      const cleanedCompleted = completedJobs.length;
+      const cleanedFailed = failedJobs.length;
 
       if (process.env.NODE_ENV === 'development') {
         this.logger.debug(
-          `Cleaned email queue: removed old completed/failed jobs`,
+          `Cleaned email queue: removed ${cleanedCompleted} completed and ${cleanedFailed} failed jobs`,
         );
       }
+
+      return { cleanedCompleted, cleanedFailed };
     } catch (error) {
       this.logger.error(
         'Failed to clean email queue',

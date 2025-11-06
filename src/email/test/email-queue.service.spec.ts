@@ -22,7 +22,7 @@ describe('EmailQueueService', () => {
       getJob: jest.fn(),
       pause: jest.fn(),
       resume: jest.fn(),
-      clean: jest.fn(),
+      clean: jest.fn().mockResolvedValue([]), // 빈 배열 반환하도록 모킹
       empty: jest.fn(),
     };
 
@@ -200,16 +200,8 @@ describe('EmailQueueService', () => {
       await service.cleanQueue();
 
       expect(mockQueue.clean).toHaveBeenCalledTimes(2);
-      expect(mockQueue.clean).toHaveBeenCalledWith(
-        24 * 60 * 60 * 1000, // 24 hours
-        'completed',
-        1000,
-      );
-      expect(mockQueue.clean).toHaveBeenCalledWith(
-        24 * 60 * 60 * 1000,
-        'failed',
-        1000,
-      );
+      expect(mockQueue.clean).toHaveBeenCalledWith(0, 'completed', 1000);
+      expect(mockQueue.clean).toHaveBeenCalledWith(0, 'failed', 1000);
     });
   });
 

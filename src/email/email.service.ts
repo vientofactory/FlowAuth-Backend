@@ -275,6 +275,39 @@ export class EmailService {
     }
   }
 
+  /**
+   * SMTP 연결 정보 및 상태 조회
+   */
+  async getSmtpInfo(): Promise<{
+    connected: boolean;
+    host: string;
+    port: number;
+    auth: string;
+    secure: boolean;
+    lastChecked: string;
+  }> {
+    const host = this.configService.get<string>('SMTP_HOST', 'localhost');
+    const port = this.configService.get<number>('SMTP_PORT', 587);
+    const secure = Boolean(this.configService.get<number>('SMTP_SECURE', 0));
+    const user = this.configService.get<string>('SMTP_USER', '');
+
+    let connected = false;
+    try {
+      connected = await this.testConnection();
+    } catch (error) {
+      this.logger.error('Failed to test SMTP connection for info', error);
+    }
+
+    return {
+      connected,
+      host,
+      port,
+      auth: user ? `${user.substring(0, 3)}***` : '없음',
+      secure,
+      lastChecked: new Date().toISOString(),
+    };
+  }
+
   // === 큐 기반 비동기 이메일 전송 메서드들 ===
 
   /**
