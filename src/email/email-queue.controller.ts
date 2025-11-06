@@ -241,7 +241,7 @@ export class EmailQueueController {
   @ApiOperation({ summary: '큐 정리 (완료/실패한 작업 제거)' })
   @ApiResponse({ status: 200, description: '큐 정리 성공' })
   async cleanQueue(
-    @Query('grace') grace = 0, // 즉시 정리 (0으로 변경)
+    @Query('grace') grace = 86400000, // 24시간 후 정리 (디버깅을 위한 기록 보존)
     @Query('limit') limit = 1000,
   ) {
     const result = await this.emailQueueService.cleanQueue(grace, limit);
