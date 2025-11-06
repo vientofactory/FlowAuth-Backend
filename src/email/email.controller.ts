@@ -15,8 +15,10 @@ import {
 } from '@nestjs/swagger';
 import { EmailService } from './email.service';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
-import { PermissionsGuard } from 'src/auth/permissions.guard';
-import { RequireAdminPermission } from 'src/auth/admin-permission.decorator';
+import {
+  PermissionsGuard,
+  RequireAdminPermission,
+} from 'src/auth/permissions.guard';
 
 @Controller('email')
 @ApiBearerAuth()

@@ -17,8 +17,10 @@ import { EmailQueueService } from './email-queue.service';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionsGuard } from '../auth/permissions.guard';
-import { RequireAdminPermission } from '../auth/admin-permission.decorator';
+import {
+  PermissionsGuard,
+  RequireAdminPermission,
+} from '../auth/permissions.guard';
 
 @ApiTags('Email Queue Management')
 @ApiBearerAuth()
