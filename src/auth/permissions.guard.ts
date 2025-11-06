@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PermissionUtils } from '../utils/permission.util';
+import { PERMISSIONS } from '@flowauth/shared';
 
 export const PERMISSIONS_KEY = 'permissions';
 
@@ -21,6 +22,13 @@ export const RequireAllPermissions = (...permissions: number[]) =>
 // 하나라도 권한이 있으면 통과하는 데코레이터 (명시적)
 export const RequireAnyPermissions = (...permissions: number[]) =>
   SetMetadata(PERMISSIONS_KEY, { permissions, requireAll: false });
+
+// 관리자 권한 요구 데코레이터
+export const RequireAdminPermission = () =>
+  SetMetadata(PERMISSIONS_KEY, {
+    permissions: [PERMISSIONS.ADMIN_ACCESS],
+    requireAll: false,
+  });
 
 interface RequestWithUser {
   user?: {

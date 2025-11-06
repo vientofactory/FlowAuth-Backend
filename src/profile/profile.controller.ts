@@ -20,7 +20,7 @@ import {
   ApiConsumes,
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ProfileService } from './profile.service';
+import { ProfileService, SensitiveUserFields } from './profile.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   PermissionsGuard,
@@ -52,7 +52,7 @@ export class ProfileController {
   })
   async getProfile(
     @Request() req: AuthenticatedRequest,
-  ): Promise<Omit<User, 'password' | 'twoFactorSecret' | 'backupCodes'>> {
+  ): Promise<Omit<User, SensitiveUserFields>> {
     return this.profileService.findSafeById(req.user.id);
   }
 

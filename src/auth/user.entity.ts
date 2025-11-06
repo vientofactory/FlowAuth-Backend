@@ -13,9 +13,13 @@ import { USER_TYPES } from '../constants/auth.constants';
 @Index(['username'], { unique: true })
 @Index(['email'], { unique: true })
 @Index(['id', 'isActive'])
+@Index(['userId'], { unique: true })
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @Column({ type: 'varchar', length: 255, unique: true, nullable: true })
+  userId?: string;
 
   @Column({ type: 'varchar', length: 100, unique: true })
   username: string;

@@ -2,16 +2,25 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../auth/user.entity';
-import { Client } from './client.entity';
 
 @Injectable()
 export class OAuth2Service {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-    @InjectRepository(Client)
-    private readonly clientRepository: Repository<Client>,
   ) {}
+
+  /**
+   * Convert database tinyint values (0/1) to proper boolean values
+   */
+  private convertUserBooleans(user: User): User {
+    return {
+      ...user,
+      isEmailVerified: Boolean(user.isEmailVerified),
+      isTwoFactorEnabled: Boolean(user.isTwoFactorEnabled),
+      isActive: Boolean(user.isActive),
+    };
+  }
 
   async getUserInfo(userId: string): Promise<User> {
     const user = await this.userRepository.findOne({
@@ -22,6 +31,6 @@ export class OAuth2Service {
       throw new BadRequestException('User not found');
     }
 
-    return user;
+    return this.convertUserBooleans(user);
   }
 }

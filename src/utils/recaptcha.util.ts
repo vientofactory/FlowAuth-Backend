@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { ConfigService } from '@nestjs/config';
 
 interface RecaptchaResponse {
   success: boolean;
@@ -14,7 +15,10 @@ interface RecaptchaResponse {
 export class RecaptchaService {
   private readonly logger = new Logger(RecaptchaService.name);
 
-  constructor(private appConfigService: AppConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly appConfigService: AppConfigService,
+  ) {}
 
   async verifyToken(token: string, expectedAction?: string): Promise<boolean> {
     const secretKey = this.appConfigService.recaptchaSecretKey;
@@ -23,7 +27,7 @@ export class RecaptchaService {
       this.logger.warn(
         'RECAPTCHA_SECRET_KEY is not configured, skipping verification',
       );
-      return true; // 개발 환경에서는 검증을 스킵
+      return true;
     }
 
     if (!token) {
@@ -75,11 +79,16 @@ export class RecaptchaService {
         return false;
       }
 
+      const isDevelopment =
+        this.configService.get<string>('NODE_ENV') === 'development';
+
       // v3 점수 기반 검증
       if (data.score !== undefined) {
-        this.logger.debug(
-          `reCAPTCHA score: ${data.score}, action: ${data.action}`,
-        );
+        if (isDevelopment) {
+          this.logger.debug(
+            `reCAPTCHA score: ${data.score}, action: ${data.action}`,
+          );
+        }
 
         // 점수 임계값 검증
         if (data.score < this.appConfigService.recaptchaScoreThreshold) {
@@ -98,7 +107,9 @@ export class RecaptchaService {
         }
       }
 
-      this.logger.debug('reCAPTCHA verification successful');
+      if (isDevelopment) {
+        this.logger.debug('reCAPTCHA verification successful');
+      }
       return true;
     } catch (error) {
       this.logger.error('reCAPTCHA verification error:', error);

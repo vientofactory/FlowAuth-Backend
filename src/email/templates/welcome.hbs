@@ -1,0 +1,128 @@
+<html lang='ko'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>환영합니다!</title>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica',
+          'Arial', sans-serif;
+        line-height: 1.6;
+        color: #333333;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f8f9fa;
+      }
+      .container {
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #ffffff;
+        padding: 30px 40px;
+        text-align: center;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 600;
+      }
+      .content {
+        padding: 40px;
+      }
+      .content h2 {
+        color: #2c3e50;
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+      .content p {
+        margin-bottom: 16px;
+        font-size: 16px;
+        line-height: 1.6;
+      }
+      .button {
+        display: inline-block;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #ffffff;
+        text-decoration: none;
+        padding: 12px 30px;
+        border-radius: 6px;
+        font-weight: 600;
+        margin: 20px 0;
+        text-align: center;
+      }
+      .success-box {
+        background-color: #eafaf1;
+        border-left: 4px solid #27ae60;
+        padding: 15px 20px;
+        margin: 20px 0;
+        border-radius: 0 4px 4px 0;
+      }
+      .footer {
+        background-color: #f8f9fa;
+        padding: 30px 40px;
+        text-align: center;
+        border-top: 1px solid #e9ecef;
+      }
+      .footer p {
+        margin: 5px 0;
+        font-size: 14px;
+        color: #6c757d;
+      }
+      .footer a {
+        color: #667eea;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='container'>
+      <div class='header'>
+        <h1>{{appName}}</h1>
+      </div>
+
+      <div class='content'>
+        <h2>환영합니다, {{username}}님! 🎉</h2>
+
+        <div class='success-box'>
+          <p><strong>회원가입이 성공적으로 완료되었습니다!</strong></p>
+        </div>
+
+        <p>{{appName}}에 가입해주셔서 감사합니다. 이제 OAuth2 인증 시스템의 모든
+          기능을 이용하실 수 있습니다.</p>
+
+        <p><strong>다음과 같은 기능들을 이용하실 수 있습니다:</strong></p>
+        <ul>
+          <li>OAuth2 클라이언트 애플리케이션 생성 및 관리</li>
+          <li>안전한 인증 및 권한 부여 플로우</li>
+          <li>2단계 인증 (2FA) 보안 기능</li>
+          <li>실시간 대시보드 및 통계</li>
+        </ul>
+
+        <p>지금 바로 로그인하여 서비스를 시작해보세요!</p>
+
+        <div style='text-align: center;'>
+          <a href='{{loginUrl}}' class='button'>로그인 하기</a>
+        </div>
+
+        <p><small>보안을 위해 강력한 비밀번호를 사용하고, 2단계 인증 설정을
+            권장합니다.</small></p>
+      </div>
+
+      <div class='footer'>
+        <p><strong>{{appName}}</strong></p>
+        <p>이 이메일은 자동으로 발송된 메일입니다. 회신하지 마세요.</p>
+        <p>
+          문의사항이 있으시면
+          <a href='mailto:{{supportEmail}}'>{{supportEmail}}</a>으로 연락주세요.
+        </p>
+        <p>&copy; {{year}} {{appName}}. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+</html>

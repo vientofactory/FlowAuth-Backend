@@ -44,30 +44,51 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
         }
 
         const tokenId = parseInt(payload.jti, 10);
-        const cacheKey = `oauth2_token:${tokenId}`;
 
-        // Try to get token from cache first
-        let token =
-          await this.cacheManagerService.getCacheValue<Token>(cacheKey);
+        // Try to get token validation result from cache first
+        const validationCacheKey = `oauth2_validation:${tokenId}`;
+        let isValidToken =
+          await this.cacheManagerService.getCacheValue<boolean>(
+            validationCacheKey,
+          );
 
-        if (!token) {
-          // Cache miss - fetch from database
-          const dbToken = await this.tokenRepository.findOne({
+        let token: Token | null = null;
+
+        if (isValidToken === undefined) {
+          // Cache miss - fetch from database with relations
+          token = await this.tokenRepository.findOne({
             where: { id: tokenId },
             relations: ['client'],
           });
 
-          if (dbToken) {
-            token = dbToken;
-            // Cache the token if found and valid
-            if (!token.isRevoked && token.expiresAt > new Date()) {
-              await this.cacheManagerService.setCacheValue(
-                cacheKey,
-                token,
-                CACHE_CONFIG.TTL.TOKEN_VALIDATION,
-              );
-            }
+          if (
+            token &&
+            !token.isRevoked &&
+            token.expiresAt > new Date() &&
+            token.client
+          ) {
+            isValidToken = true;
+            // Cache the validation result
+            await this.cacheManagerService.setCacheValue(
+              validationCacheKey,
+              true,
+              CACHE_CONFIG.TTL.TOKEN_VALIDATION,
+            );
+          } else {
+            isValidToken = false;
+            // Cache negative result for shorter duration to avoid repeated DB calls
+            await this.cacheManagerService.setCacheValue(
+              validationCacheKey,
+              false,
+              Math.min(CACHE_CONFIG.TTL.TOKEN_VALIDATION, 300), // Max 5 minutes for negative cache
+            );
           }
+        } else if (isValidToken === true) {
+          // Token is cached as valid, but we still need to fetch it with relations for verification
+          token = await this.tokenRepository.findOne({
+            where: { id: tokenId },
+            relations: ['client'],
+          });
         }
 
         if (!token) {

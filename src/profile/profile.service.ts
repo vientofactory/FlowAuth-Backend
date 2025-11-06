@@ -14,6 +14,19 @@ import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
 import { VALIDATION_CONSTANTS } from '../constants/validation.constants';
 
+export type SensitiveUserFields =
+  | 'password'
+  | 'twoFactorSecret'
+  | 'backupCodes';
+
+export type UpdatableUserFields =
+  | 'firstName'
+  | 'lastName'
+  | 'username'
+  | 'bio'
+  | 'website'
+  | 'location';
+
 @Injectable()
 export class ProfileService {
   constructor(
@@ -23,42 +36,54 @@ export class ProfileService {
     private cacheManagerService: CacheManagerService,
   ) {}
 
+  /**
+   * Convert database tinyint values (0/1) to proper boolean values
+   */
+  private convertUserBooleans(user: User): User {
+    return {
+      ...user,
+      isEmailVerified: Boolean(user.isEmailVerified),
+      isTwoFactorEnabled: Boolean(user.isTwoFactorEnabled),
+      isActive: Boolean(user.isActive),
+    };
+  }
+
   async findById(id: number): Promise<User> {
     const cacheKey = CACHE_KEYS.profile.user(id);
 
-    // 캐시에서 먼저 조회
+    // Get from cache first
     const cached = await this.cacheManagerService.getCacheValue<User>(cacheKey);
     if (cached) {
-      return cached;
+      // Convert cached boolean values
+      return this.convertUserBooleans(cached);
     }
 
-    // 캐시에 없으면 DB 조회
+    // If not in cache, query the DB
     const user = await this.userRepository.findOne({ where: { id } });
 
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
 
-    // 결과를 캐시에 저장 (10분 TTL)
+    // Convert boolean values before caching and returning
+    const userWithBooleans = this.convertUserBooleans(user);
+
+    // Store in cache
     await this.cacheManagerService.setCacheValue(
       cacheKey,
-      user,
+      userWithBooleans,
       CACHE_CONFIG.TTL.USER_PROFILE,
     );
-    return user;
+    return userWithBooleans;
   }
 
-  async findSafeById(
-    id: number,
-  ): Promise<Omit<User, 'password' | 'twoFactorSecret' | 'backupCodes'>> {
+  async findSafeById(id: number): Promise<Omit<User, SensitiveUserFields>> {
     const user = await this.findById(id);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, twoFactorSecret, backupCodes, ...safeUser } = user;
-    return safeUser as Omit<
-      User,
-      'password' | 'twoFactorSecret' | 'backupCodes'
-    >;
+
+    return safeUser as Omit<User, SensitiveUserFields>;
   }
 
   async updateProfile(
@@ -71,7 +96,7 @@ export class ProfileService {
       throw new UnauthorizedException('User not found');
     }
 
-    // 업데이트 가능한 필드만 허용
+    // Filter only updatable fields
     const allowedFields = [
       'firstName',
       'lastName',
@@ -80,14 +105,9 @@ export class ProfileService {
       'website',
       'location',
     ] as const;
-    const filteredData: Partial<
-      Pick<
-        User,
-        'firstName' | 'lastName' | 'username' | 'bio' | 'website' | 'location'
-      >
-    > = {};
+    const filteredData: Partial<Pick<User, UpdatableUserFields>> = {};
 
-    // 안전한 객체 할당을 위한 helper 함수
+    // Helper function to safely assign values
     const safeAssign = (
       key: keyof typeof filteredData,
       value: string | undefined,
@@ -100,7 +120,7 @@ export class ProfileService {
       else if (key === 'location') filteredData.location = value;
     };
 
-    // 입력 데이터 유효성 검사 및 필터링
+    // Validate and assign fields
     for (const field of allowedFields) {
       if (
         Object.prototype.hasOwnProperty.call(updateData, field) &&
@@ -123,7 +143,7 @@ export class ProfileService {
                       ? updateData.location
                       : undefined;
 
-        // 필드별 유효성 검사
+        // Field-specific validations
         if (field === 'username') {
           if (typeof value !== 'string' || value.trim().length === 0) {
             throw new BadRequestException('사용자명은 비어있을 수 없습니다.');
@@ -144,7 +164,7 @@ export class ProfileService {
             );
           }
 
-          // 중복 검사
+          // Check for username uniqueness
           const existingUser = await this.userRepository.findOne({
             where: { username: value.trim() },
           });
@@ -171,7 +191,7 @@ export class ProfileService {
                 `${field === 'firstName' ? '이름' : '성'}은 최대 100자까지 가능합니다.`,
               );
             }
-            // 특수문자 제한 (기본적인 문자, 공백, 하이픈만 허용)
+            // Limit special characters (allow basic letters, spaces, hyphens)
             if (!VALIDATION_CONSTANTS.NAME.REGEX.test(trimmedValue)) {
               throw new BadRequestException(
                 VALIDATION_CONSTANTS.NAME.ERROR_MESSAGES.INVALID_FORMAT,
@@ -200,7 +220,7 @@ export class ProfileService {
             }
             const trimmedValue = value.trim();
             if (trimmedValue && trimmedValue.length > 0) {
-              // URL 형식 검증
+              // Validate URL format
               try {
                 new URL(trimmedValue);
               } catch {
@@ -238,18 +258,18 @@ export class ProfileService {
       }
     }
 
-    // 업데이트할 데이터가 있는지 확인
+    // Check if there is any data to update
     if (Object.keys(filteredData).length === 0) {
       throw new BadRequestException('업데이트할 데이터가 없습니다.');
     }
 
-    // 데이터베이스 업데이트
+    // Update the database
     await this.userRepository.update(userId, filteredData);
 
-    // 캐시 무효화
+    // Invalidate cache
     await this.cacheManagerService.invalidateAllUserCache(userId);
 
-    // 업데이트된 사용자 정보 조회
+    // Retrieve updated user information
     const updatedUser = await this.userRepository.findOne({
       where: { id: userId },
     });
@@ -258,7 +278,8 @@ export class ProfileService {
       throw new UnauthorizedException('User not found after update');
     }
 
-    return updatedUser;
+    // Convert 0/1 values to proper booleans
+    return this.convertUserBooleans(updatedUser);
   }
 
   async changePassword(
@@ -272,7 +293,7 @@ export class ProfileService {
       throw new UnauthorizedException('User not found');
     }
 
-    // 현재 비밀번호 검증
+    // Validate current password
     const isCurrentPasswordValid = await bcrypt.compare(
       currentPassword,
       user.password,
@@ -281,21 +302,21 @@ export class ProfileService {
       throw new BadRequestException('현재 비밀번호가 일치하지 않습니다.');
     }
 
-    // 새 비밀번호 유효성 검사
+    // Validate new password
     if (newPassword.length < 8) {
       throw new BadRequestException('비밀번호는 최소 8자 이상이어야 합니다.');
     }
 
-    // 새 비밀번호 해싱
+    // Hash new password
     const hashedNewPassword = await bcrypt.hash(
       newPassword,
       AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
     );
 
-    // 비밀번호 업데이트
+    // Update password
     await this.userRepository.update(userId, { password: hashedNewPassword });
 
-    // 캐시 무효화 (비밀번호 변경 시 사용자 정보 캐시도 무효화)
+    // Invalidate cache (also invalidate user info cache when password changes)
     await this.cacheManagerService.invalidateAllUserCache(userId);
   }
 
@@ -303,14 +324,14 @@ export class ProfileService {
     username: string,
     excludeUserId?: number,
   ): Promise<{ available: boolean; message: string }> {
-    // 입력 검증
+    // Validate input
     if (username?.trim().length === 0) {
       return { available: false, message: '사용자명을 입력해주세요.' };
     }
 
     const trimmedUsername = username.trim();
 
-    // 길이 검증
+    // Validate length
     if (trimmedUsername.length < 3) {
       return {
         available: false,
@@ -325,7 +346,7 @@ export class ProfileService {
       };
     }
 
-    // 형식 검증
+    // Validate format
     if (!VALIDATION_CONSTANTS.PROFILE_USERNAME.REGEX.test(trimmedUsername)) {
       return {
         available: false,
@@ -334,7 +355,7 @@ export class ProfileService {
       };
     }
 
-    // 중복 체크
+    // Check for username uniqueness
     const existingUser = await this.userRepository.findOne({
       where: { username: trimmedUsername },
     });
@@ -355,7 +376,7 @@ export class ProfileService {
       file,
     );
 
-    // 아바타 변경 시 프로필 캐시 무효화
+    // Invalidate cache when avatar changes
     await this.cacheManagerService.invalidateAllUserCache(userId);
 
     return avatarUrl;
@@ -364,7 +385,7 @@ export class ProfileService {
   async removeAvatar(userId: number): Promise<void> {
     await this.userManagementService.removeAvatar(userId);
 
-    // 아바타 제거 시 프로필 캐시 무효화
+    // Invalidate cache when avatar is removed
     await this.cacheManagerService.invalidateAllUserCache(userId);
   }
 }

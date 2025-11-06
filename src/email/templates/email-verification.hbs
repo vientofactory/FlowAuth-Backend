@@ -1,0 +1,145 @@
+<html lang='ko'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>이메일 주소 인증</title>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica',
+          'Arial', sans-serif;
+        line-height: 1.6;
+        color: #333333;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f8f9fa;
+      }
+      .container {
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #ffffff;
+        padding: 30px 40px;
+        text-align: center;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 600;
+      }
+      .content {
+        padding: 40px;
+      }
+      .content h2 {
+        color: #2c3e50;
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+      .content p {
+        margin-bottom: 16px;
+        font-size: 16px;
+        line-height: 1.6;
+      }
+      .button {
+        display: inline-block;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #ffffff;
+        text-decoration: none;
+        padding: 12px 30px;
+        border-radius: 6px;
+        font-weight: 600;
+        margin: 20px 0;
+        text-align: center;
+      }
+      .info-box {
+        background-color: #e8f4f8;
+        border-left: 4px solid #3498db;
+        padding: 15px 20px;
+        margin: 20px 0;
+        border-radius: 0 4px 4px 0;
+      }
+      .warning-box {
+        background-color: #fef9e7;
+        border-left: 4px solid #f39c12;
+        padding: 15px 20px;
+        margin: 20px 0;
+        border-radius: 0 4px 4px 0;
+      }
+      .footer {
+        background-color: #f8f9fa;
+        padding: 30px 40px;
+        text-align: center;
+        border-top: 1px solid #e9ecef;
+      }
+      .footer p {
+        margin: 5px 0;
+        font-size: 14px;
+        color: #6c757d;
+      }
+      .footer a {
+        color: #667eea;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='container'>
+      <div class='header'>
+        <h1>{{appName}}</h1>
+      </div>
+
+      <div class='content'>
+        <h2>이메일 주소를 인증해주세요 ✉️</h2>
+
+        <p>안녕하세요, <strong>{{username}}</strong>님!</p>
+
+        <p>{{appName}}
+          계정의 이메일 주소 인증을 완료하기 위해 아래 버튼을 클릭해주세요.</p>
+
+        <div class='info-box'>
+          <p><strong>왜 이메일 인증이 필요한가요?</strong></p>
+          <p>계정 보안을 위해 이메일 주소가 올바른지 확인하고, 중요한 알림을
+            안전하게 전송하기 위함입니다.</p>
+        </div>
+
+        <div style='text-align: center;'>
+          <a href='{{verificationUrl}}' class='button'>이메일 인증하기</a>
+        </div>
+
+        <p>위 버튼이 작동하지 않는다면, 아래 링크를 브라우저에 복사하여 붙여넣어
+          주세요:</p>
+        <p
+          style='word-break: break-all; background-color: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace;'
+        >
+          {{verificationUrl}}
+        </p>
+
+        <div class='warning-box'>
+          <p><strong>⚠️ 중요한 보안 알림</strong></p>
+          <ul>
+            <li>이 링크는
+              <strong>{{expiryHours}}시간</strong>
+              후에 만료됩니다</li>
+            <li>본인이 요청하지 않았다면 이 이메일을 무시하세요</li>
+            <li>링크를 다른 사람과 공유하지 마세요</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class='footer'>
+        <p><strong>{{appName}}</strong></p>
+        <p>이 이메일은 자동으로 발송된 메일입니다. 회신하지 마세요.</p>
+        <p>
+          문의사항이 있으시면
+          <a href='mailto:{{supportEmail}}'>{{supportEmail}}</a>으로 연락주세요.
+        </p>
+        <p>&copy; {{year}} {{appName}}. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+</html>

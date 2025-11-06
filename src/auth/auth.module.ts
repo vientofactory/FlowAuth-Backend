@@ -18,6 +18,7 @@ import { CommonModule } from '../common/common.module';
 import { AuditLogService } from '../common/audit-log.service';
 import { CacheConfigModule } from '../cache/cache-config.module';
 import { AUTH_ENTITIES } from '../database/database.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AUTH_ENTITIES } from '../database/database.module';
     UploadModule,
     CommonModule,
     CacheConfigModule,
+    EmailModule,
   ],
   providers: [
     AuthService,

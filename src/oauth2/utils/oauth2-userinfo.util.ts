@@ -176,7 +176,7 @@ export class OAuth2UserInfoBuilder {
       case 'email':
         return {
           email: user.email,
-          email_verified: !!user.isEmailVerified,
+          email_verified: Boolean(user.isEmailVerified),
         };
       case 'identify':
         return {
@@ -218,7 +218,7 @@ export class OAuth2UserInfoBuilder {
       case 'email':
         return {
           email: user.email,
-          email_verified: !!user.isEmailVerified,
+          email_verified: Boolean(user.isEmailVerified),
         };
       case 'identify':
         return {

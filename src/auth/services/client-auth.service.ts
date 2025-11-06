@@ -29,6 +29,7 @@ import {
   RESOURCE_TYPES,
 } from '../../common/audit-log.entity';
 import { CacheManagerService } from '../../cache/cache-manager.service';
+import { EmailService } from '../../email/email.service';
 
 @Injectable()
 export class ClientAuthService {
@@ -44,6 +45,7 @@ export class ClientAuthService {
     private fileUploadService: FileUploadService,
     private cacheManagerService: CacheManagerService,
     private auditLogService: AuditLogService,
+    private emailService: EmailService,
   ) {}
 
   async createClient(
@@ -160,6 +162,23 @@ export class ClientAuthService {
       this.logger.warn(
         'Failed to invalidate user cache after client creation',
         error,
+      );
+    }
+
+    // 클라이언트 생성 알림 이메일 전송 (큐 기반 비동기)
+    try {
+      await this.emailService.queueClientCreated(
+        user.email,
+        user.username,
+        savedClient.name,
+        savedClient.clientId,
+      );
+      this.logger.log(
+        `Client created notification queued for ${user.email} (client: ${savedClient.name})`,
+      );
+    } catch (emailError) {
+      this.logger.warn(
+        `Failed to queue client created notification for ${user.email}: ${emailError instanceof Error ? emailError.message : 'Unknown error'}`,
       );
     }
 

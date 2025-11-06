@@ -27,6 +27,10 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { CreateClientDto } from './dto/create-client.dto';
 import {
+  RequestPasswordResetDto,
+  ResetPasswordDto,
+} from './dto/password-reset.dto';
+import {
   TokenDto,
   LoginResponseDto,
   ClientCreateResponseDto,
@@ -49,6 +53,7 @@ import {
   AdvancedRateLimitGuard,
   RateLimit,
 } from '../common/guards/advanced-rate-limit.guard';
+import { PasswordResetRateLimitGuard } from '../common/guards/password-reset-rate-limit.guard';
 import {
   DefaultFieldSizeLimitPipe,
   RecaptchaFieldSizeLimitPipe,
@@ -899,5 +904,238 @@ OAuth2 클라이언트를 삭제합니다.
       trimmedTokenType as TokenType,
     );
     return { message: `${trimmedTokenType} tokens revoked successfully` };
+  }
+
+  @Post('request-password-reset')
+  @UseGuards(PasswordResetRateLimitGuard)
+  @ApiOperation({ summary: '비밀번호 재설정 요청' })
+  @ApiResponse({
+    status: 200,
+    description: '비밀번호 재설정 이메일이 전송되었습니다.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: '비밀번호 재설정 링크가 이메일로 전송되었습니다.',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: '잘못된 요청 데이터',
+  })
+  @ApiResponse({
+    status: 429,
+    description: '요청 제한 초과',
+  })
+  @ApiBody({ type: RequestPasswordResetDto })
+  async requestPasswordReset(
+    @Body(DefaultFieldSizeLimitPipe)
+    requestPasswordResetDto: RequestPasswordResetDto,
+  ): Promise<{ message: string }> {
+    return this.authService.requestPasswordReset(requestPasswordResetDto);
+  }
+
+  @Post('reset-password')
+  @RateLimit(RATE_LIMIT_CONFIGS.AUTH_PASSWORD_RESET)
+  @ApiOperation({ summary: '비밀번호 재설정 실행' })
+  @ApiResponse({
+    status: 200,
+    description: '비밀번호가 성공적으로 변경되었습니다.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: '비밀번호가 성공적으로 변경되었습니다.',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: '유효하지 않거나 만료된 토큰입니다.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: '요청 제한 초과',
+  })
+  @ApiBody({ type: ResetPasswordDto })
+  async resetPassword(
+    @Body(DefaultFieldSizeLimitPipe) resetPasswordDto: ResetPasswordDto,
+  ): Promise<{ message: string }> {
+    return this.authService.resetPassword(resetPasswordDto);
+  }
+
+  @Get('validate-reset-token/:token')
+  @ApiOperation({ summary: '비밀번호 재설정 토큰 유효성 확인' })
+  @ApiParam({
+    name: 'token',
+    description: '비밀번호 재설정 토큰',
+    example: 'abcd1234efgh5678...',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '토큰 유효성 확인 결과',
+    schema: {
+      type: 'object',
+      properties: {
+        valid: { type: 'boolean', example: true },
+        email: {
+          type: 'string',
+          example: 'user@example.com',
+          description: '토큰이 유효한 경우 해당 이메일',
+        },
+      },
+    },
+  })
+  async validateResetToken(
+    @Param('token') token: string,
+  ): Promise<{ valid: boolean; email?: string }> {
+    return this.authService.validatePasswordResetToken(token);
+  }
+
+  @Post('resend-verification')
+  @RateLimit(RATE_LIMIT_CONFIGS.AUTH_PASSWORD_RESET)
+  @ApiOperation({ summary: '이메일 인증 재전송' })
+  @ApiResponse({
+    status: 200,
+    description: '인증 이메일이 재전송되었습니다.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: '인증 이메일이 전송되었습니다.',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: '잘못된 요청 데이터 또는 이미 인증된 사용자',
+  })
+  @ApiResponse({
+    status: 429,
+    description: '요청 제한 초과',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email', example: 'user@example.com' },
+      },
+      required: ['email'],
+    },
+  })
+  async resendVerification(
+    @Body(DefaultFieldSizeLimitPipe) body: { email: string },
+  ): Promise<{ message: string }> {
+    return await this.authService.resendEmailVerification(body.email);
+  }
+
+  @Post('verify-email')
+  @ApiOperation({ summary: '이메일 인증 확인 (POST)' })
+  @ApiResponse({
+    status: 200,
+    description: '이메일이 성공적으로 인증되었습니다.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: '이메일이 성공적으로 인증되었습니다.',
+        },
+        email: {
+          type: 'string',
+          example: 'user@example.com',
+          description: '인증된 이메일 주소',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: '유효하지 않거나 만료된 토큰입니다.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', example: 'abcd1234efgh5678...' },
+      },
+      required: ['token'],
+    },
+  })
+  async verifyEmail(
+    @Body(DefaultFieldSizeLimitPipe) body: { token: string },
+  ): Promise<{ message: string; email?: string }> {
+    return await this.authService.verifyEmail(body.token);
+  }
+
+  @Get('verify-email/:token')
+  @ApiOperation({ summary: '이메일 인증 확인 (GET)' })
+  @ApiParam({
+    name: 'token',
+    type: 'string',
+    description: '이메일 인증 토큰',
+    example: 'abcd1234efgh5678...',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '이메일이 성공적으로 인증되었습니다.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: '이메일이 성공적으로 인증되었습니다.',
+        },
+        email: {
+          type: 'string',
+          example: 'user@example.com',
+          description: '인증된 이메일 주소',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: '유효하지 않거나 만료된 토큰입니다.',
+  })
+  async verifyEmailByToken(
+    @Param('token') token: string,
+  ): Promise<{ message: string; email?: string }> {
+    return await this.authService.verifyEmail(token);
+  }
+
+  @Get('validate-verification-token/:token')
+  @ApiOperation({ summary: '이메일 인증 토큰 유효성 확인' })
+  @ApiParam({
+    name: 'token',
+    description: '이메일 인증 토큰',
+    example: 'abcd1234efgh5678...',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '토큰 유효성 확인 결과',
+    schema: {
+      type: 'object',
+      properties: {
+        valid: { type: 'boolean', example: true },
+        email: {
+          type: 'string',
+          example: 'user@example.com',
+          description: '토큰이 유효한 경우 해당 이메일',
+        },
+      },
+    },
+  })
+  async validateVerificationToken(
+    @Param('token') token: string,
+  ): Promise<{ valid: boolean; email?: string }> {
+    return await this.authService.validateEmailVerificationToken(token);
   }
 }

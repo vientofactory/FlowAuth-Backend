@@ -27,6 +27,7 @@ import { JwtPayload, LoginResponse } from '../../types/auth.types';
 import { PermissionUtils } from '../../utils/permission.util';
 import { RecaptchaService } from '../../utils/recaptcha.util';
 import { AuditLogService } from '../../common/audit-log.service';
+import { snowflakeGenerator } from '../../utils/snowflake-id.util';
 import {
   AuditEventType,
   AuditSeverity,
@@ -122,6 +123,9 @@ export class UserAuthService {
       throw new Error(`Invalid permissions value: ${permissions}`);
     }
 
+    // Generate userId using Snowflake ID
+    const userId = await snowflakeGenerator.generate();
+
     // Create user
     const user = this.userRepository.create({
       username,
@@ -131,6 +135,7 @@ export class UserAuthService {
       lastName,
       userType: finalUserType,
       permissions,
+      userId,
     });
 
     return this.userRepository.save(user);
@@ -175,11 +180,12 @@ export class UserAuthService {
     }
 
     try {
-      // Find user with 2FA fields
+      // Find user with 2FA fields and email verification status
       const user = await this.userRepository.findOne({
         where: { email },
         select: [
           'id',
+          'userId',
           'email',
           'username',
           'password',
@@ -189,6 +195,7 @@ export class UserAuthService {
           'userType',
           'isTwoFactorEnabled',
           'twoFactorSecret',
+          'isEmailVerified',
           'avatar',
         ],
       });
@@ -196,6 +203,15 @@ export class UserAuthService {
       if (!user) {
         throw new UnauthorizedException(
           AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
+        );
+      }
+
+      // Generate userId if not exists (for existing users)
+      if (!user.userId) {
+        user.userId = await snowflakeGenerator.generate();
+        await this.userRepository.save(user);
+        this.logger.log(
+          `Generated Snowflake ID for existing user: ${user.username} (${user.userId})`,
         );
       }
 
@@ -221,6 +237,29 @@ export class UserAuthService {
         }
         throw new UnauthorizedException(
           AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
+        );
+      }
+
+      // Check if email is verified
+      if (!user.isEmailVerified) {
+        // Log failed authentication due to unverified email
+        try {
+          await this.auditLogService.create(
+            AuditLog.createFailedAuthEvent(
+              email,
+              clientInfo?.ipAddress ?? 'unknown',
+              clientInfo?.userAgent ?? 'unknown',
+              'Email not verified',
+            ),
+          );
+        } catch (auditError) {
+          this.logger.warn(
+            'Failed to create audit log for failed auth:',
+            auditError,
+          );
+        }
+        throw new UnauthorizedException(
+          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
         );
       }
 

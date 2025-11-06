@@ -16,6 +16,7 @@ import {
 } from '../constants/auth.constants';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class TwoFactorService {
@@ -24,6 +25,7 @@ export class TwoFactorService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private emailService: EmailService,
   ) {}
 
   /**
@@ -105,6 +107,16 @@ export class TwoFactorService {
       isTwoFactorEnabled: true,
       backupCodes: hashedBackupCodes,
     });
+
+    // 2FA 활성화 알림 이메일 전송 (큐 기반 비동기)
+    try {
+      await this.emailService.queue2FAEnabled(user.email, user.username);
+      this.logger.log(`2FA enabled notification queued for ${user.email}`);
+    } catch (emailError) {
+      this.logger.warn(
+        `Failed to queue 2FA enabled notification for ${user.email}: ${emailError instanceof Error ? emailError.message : 'Unknown error'}`,
+      );
+    }
   }
 
   /**
