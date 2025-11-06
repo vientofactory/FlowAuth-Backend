@@ -9,7 +9,13 @@ import {
   Logger,
   BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiQuery,
+} from '@nestjs/swagger';
 import type { Request as ExpressRequest, Response } from 'express';
 import { OAuth2Service } from '../oauth2.service';
 import { AuthorizationService } from '../services/authorization.service';
@@ -390,6 +396,73 @@ export class ConsentController {
   }
 
   @Get('consent')
+  @ApiOperation({
+    summary: 'OAuth2 동의 페이지 요청',
+    description: `
+OAuth2 동의 페이지를 요청합니다.
+
+**요구사항:**
+- 유효한 OAuth2 매개변수들이 쿼리 파라미터로 포함되어야 함
+- 사용자가 로그인되어 있지 않으면 로그인 페이지로 리다이렉트
+- 사용자가 로그인되어 있으면 자동으로 동의 처리 후 클라이언트로 리다이렉트
+    `,
+  })
+  @ApiQuery({
+    name: 'client_id',
+    type: String,
+    required: true,
+    description: 'OAuth2 클라이언트 ID',
+  })
+  @ApiQuery({
+    name: 'redirect_uri',
+    type: String,
+    required: true,
+    description: '인증 후 리다이렉트 URI',
+  })
+  @ApiQuery({
+    name: 'response_type',
+    type: String,
+    required: true,
+    description: '응답 타입 (code, token 등)',
+  })
+  @ApiQuery({
+    name: 'scope',
+    type: String,
+    required: false,
+    description: '요청 범위',
+  })
+  @ApiQuery({
+    name: 'state',
+    type: String,
+    required: false,
+    description: '상태 값',
+  })
+  @ApiQuery({
+    name: 'code_challenge',
+    type: String,
+    required: false,
+    description: 'PKCE 코드 챌린지',
+  })
+  @ApiQuery({
+    name: 'code_challenge_method',
+    type: String,
+    required: false,
+    description: 'PKCE 코드 챌린지 메서드',
+  })
+  @ApiQuery({
+    name: 'nonce',
+    type: String,
+    required: false,
+    description: 'Nonce 값',
+  })
+  @ApiResponse({
+    status: 302,
+    description: '리다이렉트 - 로그인 페이지 또는 클라이언트로의 인증 결과',
+  })
+  @ApiResponse({
+    status: 400,
+    description: '잘못된 요청 - 필수 매개변수 누락 또는 잘못된 값',
+  })
   async consent(
     @Query() authorizeDto: AuthorizeRequestDto,
     @Request() req: ExpressRequest,
