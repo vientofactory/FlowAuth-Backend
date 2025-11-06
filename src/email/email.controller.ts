@@ -329,7 +329,7 @@ export class EmailController {
   @Delete('queue/purge')
   @ApiOperation({
     summary: '이메일 큐 완전 비우기',
-    description: '⚠️ 주의: 모든 작업이 삭제됩니다.',
+    description: '주의: 모든 작업이 삭제됩니다.',
   })
   @ApiResponse({
     status: 200,

@@ -259,14 +259,14 @@ export class EmailQueueController {
   @Delete('purge')
   @ApiOperation({
     summary: '큐의 모든 작업 제거',
-    description: '⚠️ 주의: 이 작업은 되돌릴 수 없습니다!',
+    description: '주의: 이 작업은 되돌릴 수 없습니다!',
   })
   @ApiResponse({ status: 200, description: '큐 비우기 성공' })
   @ApiResponse({ status: 401, description: '인증이 필요합니다' })
   @ApiResponse({ status: 403, description: '관리자 권한이 필요합니다' })
   async purgeQueue() {
     await this.emailQueueService.purgeQueue();
-    return { message: '⚠️ All jobs purged from queue' };
+    return { message: 'All jobs purged from queue' };
   }
 
   /**
