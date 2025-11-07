@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { Queue, Job } from 'bull';
 import {
   EmailJobPayload,
   EmailJobType,
@@ -438,5 +438,158 @@ export class EmailQueueService {
   async purgeQueue(): Promise<void> {
     await this.emailQueue.empty();
     this.logger.warn('Email queue purged - all jobs removed');
+  }
+
+  /**
+   * Graceful shutdown을 위한 큐 종료
+   * 진행 중인 작업을 완료하고 새로운 작업은 받지 않음
+   */
+  async gracefulShutdown(timeout = 30000): Promise<void> {
+    this.logger.log('Starting graceful shutdown of email queue...');
+
+    try {
+      // 새로운 작업 추가 방지를 위해 큐 일시정지
+      await this.pauseQueue();
+
+      // 활성 작업 수 확인
+      const activeJobs = await this.emailQueue.getActive();
+      if (activeJobs.length > 0) {
+        this.logger.log(
+          `Waiting for ${activeJobs.length} active email jobs to complete...`,
+        );
+
+        // 활성 작업이 완료될 때까지 대기 (타임아웃과 함께)
+        await this.waitForJobsToComplete(activeJobs, timeout);
+      }
+
+      // 큐 연결 종료
+      await this.emailQueue.close();
+      this.logger.log('Email queue closed successfully');
+    } catch (error) {
+      this.logger.error(
+        'Error during email queue graceful shutdown',
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * 활성 작업들이 완료될 때까지 대기
+   */
+  private async waitForJobsToComplete(
+    activeJobs: Job[],
+    timeout: number,
+  ): Promise<void> {
+    const startTime = Date.now();
+
+    return new Promise<void>((resolve, reject) => {
+      const checkInterval = setInterval(() => {
+        void (async (): Promise<void> => {
+          try {
+            const currentActiveJobs = await this.emailQueue.getActive();
+            const elapsed = Date.now() - startTime;
+
+            if (currentActiveJobs.length === 0) {
+              clearInterval(checkInterval);
+              this.logger.log('All email jobs completed successfully');
+              resolve();
+            } else if (elapsed >= timeout) {
+              clearInterval(checkInterval);
+              this.logger.warn(
+                `Timeout reached. ${currentActiveJobs.length} email jobs still active after ${timeout}ms`,
+              );
+
+              // 타임아웃 시 남은 작업들을 처리
+              await this.handleRemainingJobs(currentActiveJobs);
+              resolve();
+            } else {
+              this.logger.debug(
+                `Waiting for ${currentActiveJobs.length} email jobs to complete (${elapsed}ms elapsed)`,
+              );
+            }
+          } catch (error) {
+            clearInterval(checkInterval);
+            reject(
+              error instanceof Error
+                ? error
+                : new Error('Unknown error during job completion check'),
+            );
+          }
+        })();
+      }, 1000); // 1초마다 체크
+    });
+  }
+
+  /**
+   * 타임아웃 시 남은 작업들을 처리
+   */
+  private async handleRemainingJobs(remainingJobs: Job[]): Promise<void> {
+    this.logger.log(`Handling ${remainingJobs.length} remaining email jobs...`);
+
+    for (const job of remainingJobs) {
+      try {
+        // Bull 큐의 Job은 moveToWaiting 메서드가 없으므로 discard를 사용
+        await job.discard();
+        this.logger.debug(`Discarded job ${job.id}`);
+      } catch (error) {
+        this.logger.error(
+          `Failed to handle job ${job.id}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      }
+    }
+  }
+
+  /**
+   * 큐 상태 확인 (헬스체크용)
+   */
+  async isHealthy(): Promise<boolean> {
+    try {
+      // Redis 연결 상태 확인
+      await this.getQueueStats();
+      return true;
+    } catch (error) {
+      this.logger.error('Email queue health check failed', error);
+      return false;
+    }
+  }
+
+  /**
+   * 현재 진행 중인 작업 목록 조회 (디버깅용)
+   */
+  async getActiveJobs(): Promise<
+    Array<{ id: string; type: string; progress: number }>
+  > {
+    try {
+      const activeJobs = await this.emailQueue.getActive();
+      return activeJobs.map((job) => ({
+        id: job.id?.toString() ?? 'unknown',
+        type: job.name,
+        progress: (job.progress() as number) || 0,
+      }));
+    } catch (error) {
+      this.logger.error('Failed to get active jobs', error);
+      return [];
+    }
+  }
+
+  /**
+   * 큐 이름 반환 (로깅/모니터링용)
+   */
+  getQueueName(): string {
+    return this.emailQueue.name;
+  }
+
+  /**
+   * 큐가 일시정지된 상태인지 확인
+   */
+  async isPaused(): Promise<boolean> {
+    try {
+      return await this.emailQueue.isPaused();
+    } catch (error) {
+      this.logger.error('Failed to check queue pause status', error);
+      return false;
+    }
   }
 }

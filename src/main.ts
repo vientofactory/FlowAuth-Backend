@@ -18,6 +18,7 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 import { createSizeLimitMiddleware } from './common/middleware/size-limit.middleware';
 import { SIZE_LIMIT_CONFIGS } from './constants/security.constants';
 import { CorsService, corsConfig, CorsConfig } from './config/cors';
+import { EmailQueueService } from './email/email-queue.service';
 
 /**
  * FlowAuth Application Bootstrap
@@ -250,6 +251,33 @@ async function gracefulShutdown(
   logger: Logger,
 ): Promise<void> {
   try {
+    logger.log('Starting graceful shutdown...');
+
+    // Gracefully shutdown email queue
+    try {
+      const emailQueueService = app.get(EmailQueueService);
+      if (emailQueueService) {
+        // Check for active jobs before shutdown
+        const activeJobs = await emailQueueService.getActiveJobs();
+        if (activeJobs.length > 0) {
+          logger.log(`Found ${activeJobs.length} active email jobs:`);
+          activeJobs.forEach((job) => {
+            logger.log(
+              `  - Job ${job.id} (${job.type}): ${job.progress}% complete`,
+            );
+          });
+        } else {
+          logger.log('No active email jobs found');
+        }
+
+        logger.log('Shutting down email queue...');
+        await emailQueueService.gracefulShutdown(30000); // Timeout after 30 seconds
+        logger.log('Email queue shutdown completed');
+      }
+    } catch (error) {
+      logger.warn('Failed to gracefully shutdown email queue:', error);
+    }
+
     logger.log('Closing application...');
     await app.close();
     logger.log('Application closed successfully');
