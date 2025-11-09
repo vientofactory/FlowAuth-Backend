@@ -436,8 +436,28 @@ export class EmailQueueService {
    * 큐의 모든 작업 제거 (주의!)
    */
   async purgeQueue(): Promise<void> {
-    await this.emailQueue.empty();
-    this.logger.warn('Email queue purged - all jobs removed');
+    try {
+      await this.emailQueue.clean(0, 'completed');
+      await this.emailQueue.clean(0, 'failed');
+      await this.emailQueue.clean(0, 'active');
+      await this.emailQueue.clean(0, 'delayed');
+
+      this.logger.warn('Email queue purged - all jobs removed');
+    } catch {
+      // fallback to empty() if clean() is not available
+      try {
+        await this.emailQueue.empty();
+        this.logger.warn(
+          'Email queue purged using fallback method - all jobs removed',
+        );
+      } catch (emptyError) {
+        this.logger.error(
+          'Failed to purge email queue',
+          emptyError instanceof Error ? emptyError.stack : undefined,
+        );
+        throw emptyError;
+      }
+    }
   }
 
   /**
@@ -478,7 +498,7 @@ export class EmailQueueService {
    * 활성 작업들이 완료될 때까지 대기
    */
   private async waitForJobsToComplete(
-    activeJobs: Job[],
+    _activeJobs: Job[],
     timeout: number,
   ): Promise<void> {
     const startTime = Date.now();

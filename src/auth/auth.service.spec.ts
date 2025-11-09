@@ -149,12 +149,6 @@ describe('AuthService', () => {
         {
           provide: EmailService,
           useValue: {
-            sendWelcomeEmailAsync: jest.fn(),
-            sendEmailVerificationAsync: jest.fn(),
-            sendPasswordResetAsync: jest.fn(),
-            sendSecurityAlertAsync: jest.fn(),
-            send2FAEnabledAsync: jest.fn(),
-            sendClientCreatedAsync: jest.fn(),
             queueWelcomeEmail: jest.fn(),
             queueEmailVerification: jest.fn(),
             queuePasswordReset: jest.fn(),
