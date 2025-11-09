@@ -67,7 +67,7 @@ export class AuthService {
         user.email,
         user.id,
       );
-      this.emailService.sendEmailVerificationAsync(
+      await this.emailService.queueEmailVerification(
         user.email,
         user.username,
         verificationToken.token,
@@ -80,8 +80,14 @@ export class AuthService {
     }
 
     // 회원가입 완료 시 환영 이메일 비동기 전송 (즉시 응답)
-    this.emailService.sendWelcomeEmailAsync(user.email, user.username);
-    this.logger.log(`Welcome email queued for ${user.email}`);
+    try {
+      await this.emailService.queueWelcomeEmail(user.email, user.username);
+      this.logger.log(`Welcome email queued for ${user.email}`);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to queue welcome email for ${user.email}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
 
     return user;
   }
@@ -368,13 +374,18 @@ export class AuthService {
       await this.passwordResetTokenRepository.save(resetToken);
 
       // 비밀번호 재설정 이메일 비동기 전송 (즉시 응답)
-      this.emailService.sendPasswordResetAsync(
-        user.email,
-        user.username,
-        token,
-      );
-
-      this.logger.log(`Password reset email queued for ${user.email}`);
+      try {
+        await this.emailService.queuePasswordReset(
+          user.email,
+          user.username,
+          token,
+        );
+        this.logger.log(`Password reset email queued for ${user.email}`);
+      } catch (emailError) {
+        this.logger.warn(
+          `Failed to queue password reset email for ${user.email}: ${emailError instanceof Error ? emailError.message : 'Unknown error'}`,
+        );
+      }
       return { message: '비밀번호 재설정 링크가 이메일로 전송되었습니다.' };
     } catch (error) {
       this.logger.error(

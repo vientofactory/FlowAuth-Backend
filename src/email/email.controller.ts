@@ -121,35 +121,35 @@ export class EmailController {
       required: ['to', 'templateName', 'username'],
     },
   })
-  sendTestEmail(
+  async sendTestEmail(
     @Body() body: { to: string; templateName: string; username: string },
-  ): { message: string } {
+  ): Promise<{ message: string }> {
     const { to, templateName, username } = body;
 
     try {
       switch (templateName) {
         case 'welcome':
-          this.emailService.sendWelcomeEmailAsync(to, username);
+          await this.emailService.queueWelcomeEmail(to, username);
           break;
         case 'email-verification':
-          this.emailService.sendEmailVerificationAsync(
+          await this.emailService.queueEmailVerification(
             to,
             username,
             'test-token-123456',
           );
           break;
         case 'password-reset':
-          this.emailService.sendPasswordResetAsync(
+          await this.emailService.queuePasswordReset(
             to,
             username,
             'test-reset-token-123456',
           );
           break;
         case '2fa-enabled':
-          this.emailService.send2FAEnabledAsync(to, username);
+          await this.emailService.queue2FAEnabled(to, username);
           break;
         case 'client-created':
-          this.emailService.sendClientCreatedAsync(
+          await this.emailService.queueClientCreated(
             to,
             username,
             'Test Client',
@@ -157,7 +157,7 @@ export class EmailController {
           );
           break;
         case 'security-alert':
-          this.emailService.sendSecurityAlertAsync(
+          await this.emailService.queueSecurityAlert(
             to,
             username,
             '테스트 알림',

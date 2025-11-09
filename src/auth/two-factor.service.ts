@@ -224,11 +224,10 @@ export class TwoFactorService {
     }
 
     // 2FA 비활성화
-    await this.userRepository.update(userId, {
-      twoFactorSecret: undefined,
-      isTwoFactorEnabled: false,
-      backupCodes: undefined,
-    });
+    user.twoFactorSecret = null;
+    user.isTwoFactorEnabled = false;
+    user.backupCodes = null;
+    await this.userRepository.save(user);
   }
 
   /**
