@@ -60,14 +60,28 @@ export class User {
   // 2FA 관련 필드들
   @Column({ type: 'varchar', length: 255, nullable: true })
   @Exclude()
-  twoFactorSecret?: string;
+  twoFactorSecret?: string | null;
 
   @Column({ type: 'tinyint', default: 0 })
   isTwoFactorEnabled: boolean;
 
-  @Column({ type: 'text', nullable: true })
+  @Column({
+    type: 'json',
+    nullable: true,
+    transformer: {
+      to: (value: string[] | null) => value,
+      from: (value: string | null) => {
+        if (value === null || value === undefined) return null;
+        try {
+          return typeof value === 'string' ? JSON.parse(value) : value;
+        } catch {
+          return null;
+        }
+      },
+    },
+  })
   @Exclude()
-  backupCodes?: string[];
+  backupCodes?: string[] | null;
 
   @Column({ type: 'tinyint', default: 1 })
   isActive: boolean;
