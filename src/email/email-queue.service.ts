@@ -318,6 +318,55 @@ export class EmailQueueService {
   }
 
   /**
+   * 큐가 완전히 비어있는지 확인
+   */
+  async isQueueEmpty(): Promise<boolean> {
+    try {
+      const stats = await this.getQueueStats();
+      const totalJobs = stats.active + stats.waiting + stats.delayed;
+
+      this.logger.debug(
+        `Queue emptiness check - Active: ${stats.active}, Waiting: ${stats.waiting}, Delayed: ${stats.delayed}, Total: ${totalJobs}`,
+      );
+
+      return totalJobs === 0;
+    } catch (error) {
+      this.logger.error(
+        'Failed to check if queue is empty',
+        error instanceof Error ? error.stack : undefined,
+      );
+      return false;
+    }
+  }
+
+  /**
+   * 큐 정리 후 검증
+   */
+  async verifyQueuePurged(): Promise<{
+    isEmpty: boolean;
+    remainingJobs: Record<string, number | string>;
+  }> {
+    try {
+      const stats = await this.getQueueStats();
+      const isEmpty = await this.isQueueEmpty();
+
+      return {
+        isEmpty,
+        remainingJobs: stats,
+      };
+    } catch (error) {
+      this.logger.error(
+        'Failed to verify queue purge',
+        error instanceof Error ? error.stack : undefined,
+      );
+      return {
+        isEmpty: false,
+        remainingJobs: { error: 'Failed to get stats' },
+      };
+    }
+  }
+
+  /**
    * 실패한 작업 재시도
    */
   async retryFailedJobs(limit = 10): Promise<number> {
@@ -437,25 +486,83 @@ export class EmailQueueService {
    */
   async purgeQueue(): Promise<void> {
     try {
-      await this.emailQueue.clean(0, 'completed');
-      await this.emailQueue.clean(0, 'failed');
-      await this.emailQueue.clean(0, 'active');
-      await this.emailQueue.clean(0, 'delayed');
+      this.logger.log('Starting queue purge operation...');
 
-      this.logger.warn('Email queue purged - all jobs removed');
-    } catch {
-      // fallback to empty() if clean() is not available
+      // 먼저 큐 상태 확인
+      const waiting = await this.emailQueue.getWaiting();
+      const active = await this.emailQueue.getActive();
+      const completed = await this.emailQueue.getCompleted();
+      const failed = await this.emailQueue.getFailed();
+      const delayed = await this.emailQueue.getDelayed();
+
+      this.logger.log(
+        `Queue status before purge - Waiting: ${waiting.length}, Active: ${active.length}, Completed: ${completed.length}, Failed: ${failed.length}, Delayed: ${delayed.length}`,
+      );
+
+      // Bull Queue의 정확한 상태값으로 정리
+      let totalRemoved = 0;
+
+      // 완료된 작업 정리
+      if (completed.length > 0) {
+        await this.emailQueue.clean(0, 'completed');
+        totalRemoved += completed.length;
+      }
+
+      // 실패한 작업 정리
+      if (failed.length > 0) {
+        await this.emailQueue.clean(0, 'failed');
+        totalRemoved += failed.length;
+      }
+
+      // 대기 중인 작업들 개별 제거
+      for (const job of waiting) {
+        await job.remove();
+        totalRemoved++;
+      }
+
+      // 지연된 작업들 개별 제거
+      for (const job of delayed) {
+        await job.remove();
+        totalRemoved++;
+      }
+
+      // 활성 작업들은 강제 제거 (주의: 진행 중인 작업이 중단됨)
+      for (const job of active) {
+        try {
+          await job.remove();
+          totalRemoved++;
+        } catch (error) {
+          this.logger.warn(
+            `Failed to remove active job ${job.id}`,
+            error instanceof Error ? error.message : undefined,
+          );
+        }
+      }
+
+      // 마지막으로 empty()로 남은 것들 정리
+      await this.emailQueue.empty();
+
+      this.logger.warn(
+        `Email queue purged successfully - ${totalRemoved} jobs removed`,
+      );
+    } catch (error) {
+      this.logger.error(
+        'Failed to purge email queue',
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      // 최후의 수단으로 obliterate 시도
       try {
-        await this.emailQueue.empty();
+        await this.emailQueue.obliterate({ force: true });
         this.logger.warn(
-          'Email queue purged using fallback method - all jobs removed',
+          'Email queue purged using obliterate method - all data removed',
         );
-      } catch (emptyError) {
+      } catch (obliterateError) {
         this.logger.error(
-          'Failed to purge email queue',
-          emptyError instanceof Error ? emptyError.stack : undefined,
+          'Failed to obliterate email queue',
+          obliterateError instanceof Error ? obliterateError.stack : undefined,
         );
-        throw emptyError;
+        throw error; // 원본 에러를 다시 던짐
       }
     }
   }

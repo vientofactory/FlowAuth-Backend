@@ -259,14 +259,70 @@ export class EmailQueueController {
   @Delete('purge')
   @ApiOperation({
     summary: '큐의 모든 작업 제거',
-    description: '주의: 이 작업은 되돌릴 수 없습니다!',
+    description:
+      '주의: 이 작업은 되돌릴 수 없습니다! 정리 후 검증 결과도 함께 반환합니다.',
   })
-  @ApiResponse({ status: 200, description: '큐 비우기 성공' })
+  @ApiResponse({
+    status: 200,
+    description: '큐 비우기 성공',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        verification: {
+          type: 'object',
+          properties: {
+            isEmpty: { type: 'boolean' },
+            remainingJobs: { type: 'object' },
+          },
+        },
+      },
+    },
+  })
   @ApiResponse({ status: 401, description: '인증이 필요합니다' })
   @ApiResponse({ status: 403, description: '관리자 권한이 필요합니다' })
   async purgeQueue() {
+    // 큐 정리 실행
     await this.emailQueueService.purgeQueue();
-    return { message: 'All jobs purged from queue' };
+
+    // 정리 후 검증
+    const verification = await this.emailQueueService.verifyQueuePurged();
+
+    return {
+      message: verification.isEmpty
+        ? 'All jobs successfully purged from queue'
+        : 'Queue purged but some jobs may remain',
+      verification,
+    };
+  }
+
+  /**
+   * 큐가 비어있는지 확인
+   */
+  @Get('empty-check')
+  @ApiOperation({
+    summary: '큐 상태 확인',
+    description: '큐가 완전히 비어있는지 확인합니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '큐 상태 확인 결과',
+    schema: {
+      type: 'object',
+      properties: {
+        isEmpty: { type: 'boolean' },
+        stats: { type: 'object' },
+      },
+    },
+  })
+  async checkQueueEmpty() {
+    const isEmpty = await this.emailQueueService.isQueueEmpty();
+    const stats = await this.emailQueueService.getQueueStats();
+
+    return {
+      isEmpty,
+      stats,
+    };
   }
 
   /**
