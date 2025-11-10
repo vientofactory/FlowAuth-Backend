@@ -14,50 +14,57 @@ export class UserinfoResponseDto {
     description: '이름 (profile 스코프 필요)',
     example: 'John Doe',
     required: false,
+    nullable: true,
   })
-  name?: string;
+  name?: string | null;
 
   @ApiProperty({
     description: '이름 (profile 스코프 필요)',
     example: 'John',
     required: false,
+    nullable: true,
   })
-  given_name?: string;
+  given_name?: string | null;
 
   @ApiProperty({
     description: '성 (profile 스코프 필요)',
     example: 'Doe',
     required: false,
+    nullable: true,
   })
-  family_name?: string;
+  family_name?: string | null;
 
   @ApiProperty({
     description: '사용자명 (profile 스코프 필요)',
     example: 'john_doe',
     required: false,
+    nullable: true,
   })
-  preferred_username?: string;
+  preferred_username?: string | null;
 
   @ApiProperty({
     description: '프로필 URL (profile 스코프 필요)',
     example: 'https://example.com/users/12345',
     required: false,
+    nullable: true,
   })
-  profile?: string;
+  profile?: string | null;
 
   @ApiProperty({
     description: '프로필 이미지 URL (profile 스코프 필요)',
     example: 'https://example.com/avatars/12345.jpg',
     required: false,
+    nullable: true,
   })
-  picture?: string;
+  picture?: string | null;
 
   @ApiProperty({
     description: '이메일 주소 (email 스코프 필요)',
     example: 'user@example.com',
     required: false,
+    nullable: true,
   })
-  email?: string;
+  email?: string | null;
 
   @ApiProperty({
     description: '이메일 검증 여부 (email 스코프 필요)',
@@ -71,29 +78,33 @@ export class UserinfoResponseDto {
     example: 'male',
     enum: ['male', 'female', 'other'],
     required: false,
+    nullable: true,
   })
-  gender?: string;
+  gender?: string | null;
 
   @ApiProperty({
     description: '생년월일 (profile 스코프 필요)',
     example: '1990-01-01',
     required: false,
+    nullable: true,
   })
-  birthdate?: string;
+  birthdate?: string | null;
 
   @ApiProperty({
     description: '시간대 (profile 스코프 필요)',
     example: 'Asia/Seoul',
     required: false,
+    nullable: true,
   })
-  zoneinfo?: string;
+  zoneinfo?: string | null;
 
   @ApiProperty({
     description: '로케일 (profile 스코프 필요)',
     example: 'ko-KR',
     required: false,
+    nullable: true,
   })
-  locale?: string;
+  locale?: string | null;
 
   @ApiProperty({
     description: '마지막 업데이트 시간 (profile 스코프 필요)',
@@ -107,8 +118,9 @@ export class UserinfoResponseDto {
     example: ['user'],
     type: [String],
     required: false,
+    nullable: true,
   })
-  roles?: string[];
+  roles?: string[] | null;
 }
 
 /**

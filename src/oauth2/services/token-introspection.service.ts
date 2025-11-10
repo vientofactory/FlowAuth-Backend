@@ -14,8 +14,8 @@ export interface TokenIntrospectionResult {
   sub?: string;
   scope?: string;
   token_type?: string;
-  username?: string;
-  email?: string;
+  username?: string | null;
+  email?: string | null;
   email_verified?: boolean;
 }
 
@@ -133,7 +133,7 @@ export class TokenIntrospectionService {
         iat: payload.iat,
         sub: payload.sub,
         token_type: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_TYPES.ID_TOKEN,
-        username: username ?? undefined,
+        username: username ?? null,
         email: payload.email,
         email_verified: emailVerified,
       };
