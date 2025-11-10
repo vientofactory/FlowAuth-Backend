@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import * as crypto from 'crypto';
 import { User } from './user.entity';
 import { PasswordResetToken } from './password-reset-token.entity';
 import { EmailVerificationToken } from './email-verification-token.entity';
@@ -324,8 +325,8 @@ export class AuthService {
         throw new UnauthorizedException('User not found');
       }
 
-      // Generate new token (same method as before)
-      const newPayload: JwtPayload = {
+      // Generate initial token payload
+      const initialPayload: JwtPayload = {
         sub: user.id.toString(),
         email: user.email,
         username: user.username,
@@ -334,11 +335,44 @@ export class AuthService {
         type: TOKEN_TYPES.LOGIN,
       };
 
-      const accessToken = this.jwtService.sign(newPayload);
+      // Generate initial access token
+      const initialAccessToken = this.jwtService.sign(initialPayload);
+
+      // Generate refresh token
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const refreshExpiresAt = new Date();
+      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
+
+      // Store token in database
+      const tokenEntity = this.tokenRepository.create({
+        accessToken: initialAccessToken,
+        refreshToken,
+        expiresAt: new Date(
+          Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
+        ),
+        refreshExpiresAt,
+        scopes: undefined,
+        user,
+        tokenType: TOKEN_TYPES.LOGIN,
+        isRefreshTokenUsed: false,
+      });
+      await this.tokenRepository.save(tokenEntity);
+
+      // Regenerate JWT with tokenId for revocation capability
+      const finalPayload: JwtPayload = {
+        ...initialPayload,
+        jti: tokenEntity.id.toString(), // Include token ID for revocation
+      };
+      const accessToken = this.jwtService.sign(finalPayload);
+
+      // Update token with final access token
+      tokenEntity.accessToken = accessToken;
+      await this.tokenRepository.save(tokenEntity);
 
       return {
         user,
         accessToken,
+        refreshToken,
         expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
       };
     } catch (error) {
