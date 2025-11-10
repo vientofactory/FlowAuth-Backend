@@ -8,20 +8,20 @@ import { ConfigService } from '@nestjs/config';
  */
 export interface OAuth2UserInfoResponse {
   sub: string;
-  name?: string;
-  given_name?: string;
-  family_name?: string;
-  preferred_username?: string;
-  profile?: string;
-  picture?: string;
-  email?: string;
+  name?: string | null;
+  given_name?: string | null;
+  family_name?: string | null;
+  preferred_username?: string | null;
+  profile?: string | null;
+  picture?: string | null;
+  email?: string | null;
   email_verified?: boolean;
-  gender?: string;
-  birthdate?: string;
-  zoneinfo?: string;
-  locale?: string;
+  gender?: string | null;
+  birthdate?: string | null;
+  zoneinfo?: string | null;
+  locale?: string | null;
   updated_at?: number;
-  roles?: string[];
+  roles?: string[] | null;
 }
 
 /**
@@ -116,36 +116,6 @@ export class OAuth2UserInfoBuilder {
   }
 
   /**
-   * 주어진 스코프 목록에 따라 UserInfo 응답을 생성합니다. (하위 호환성용)
-   *
-   * @param user 사용자 엔티티
-   * @param scopes OAuth2 스코프 배열
-   * @returns UserInfo 응답 객체
-   * @deprecated Use buildUserInfoWithConfig instead
-   */
-  static buildUserInfo(user: User, scopes: string[]): OAuth2UserInfoResponse {
-    // 기본 응답 (항상 포함되는 필드)
-    const response: OAuth2UserInfoResponse = {
-      sub: user.id.toString(), // OpenID Connect 표준에 따라 항상 포함
-    };
-
-    // 각 스코프에 따라 필드 추가
-    for (const scope of scopes) {
-      const mapping = SCOPE_FIELD_MAPPINGS.find((m) => m.scope === scope);
-      if (mapping) {
-        // 하위 호환성을 위해 process.env 사용 (권장하지 않음)
-        const fieldData = OAuth2UserInfoBuilder.getFieldDataForScopeLegacy(
-          user,
-          scope,
-        );
-        Object.assign(response, fieldData);
-      }
-    }
-
-    return response;
-  }
-
-  /**
    * 특정 스코프에 대한 필드 데이터를 생성합니다. (ConfigService 사용)
    *
    * @param user 사용자 엔티티
@@ -158,16 +128,24 @@ export class OAuth2UserInfoBuilder {
     scope: string,
     configService: ConfigService,
   ): Partial<OAuth2UserInfoResponse> {
+    const backendUrl = configService.get<string>(
+      'BACKEND_URL',
+      'http://localhost:3000',
+    );
+
     switch (scope) {
       case 'profile':
         return {
-          name: user.username,
+          name: user.username || null,
           given_name:
-            user.firstName ?? (user.username.split('_')[0] || user.username),
-          family_name: user.lastName ?? '',
-          preferred_username: user.username,
-          profile: `${configService.get<string>('BACKEND_URL', 'http://localhost:3000')}/users/${user.id}`,
-          picture: user.avatar ?? undefined,
+            user.firstName ??
+            user.username?.split('_')[0] ??
+            user.username ??
+            null,
+          family_name: user.lastName ?? null,
+          preferred_username: user.username || null,
+          profile: `${backendUrl}/users/${user.id}`,
+          picture: user.avatar ?? null,
           updated_at: Math.floor(
             (user.updatedAt?.getTime() || Date.now()) / 1000,
           ),
@@ -175,54 +153,12 @@ export class OAuth2UserInfoBuilder {
         };
       case 'email':
         return {
-          email: user.email,
+          email: user.email || null,
           email_verified: Boolean(user.isEmailVerified),
         };
       case 'identify':
         return {
-          preferred_username: user.username,
-          roles: [PermissionUtils.getRoleName(user.permissions)],
-        };
-      default:
-        return {};
-    }
-  }
-
-  /**
-   * 특정 스코프에 대한 필드 데이터를 생성합니다. (하위 호환성용)
-   *
-   * @param user 사용자 엔티티
-   * @param scope 스코프 이름
-   * @returns 필드 데이터 객체
-   * @deprecated Use getFieldDataForScopeWithConfig instead
-   */
-  private static getFieldDataForScopeLegacy(
-    user: User,
-    scope: string,
-  ): Partial<OAuth2UserInfoResponse> {
-    switch (scope) {
-      case 'profile':
-        return {
-          name: user.username,
-          given_name:
-            user.firstName ?? (user.username.split('_')[0] || user.username),
-          family_name: user.lastName ?? '',
-          preferred_username: user.username,
-          profile: `${process.env.BACKEND_URL ?? 'http://localhost:3000'}/users/${user.id}`,
-          picture: user.avatar ?? undefined,
-          updated_at: Math.floor(
-            (user.updatedAt?.getTime() ?? Date.now()) / 1000,
-          ),
-          roles: [PermissionUtils.getRoleName(user.permissions)],
-        };
-      case 'email':
-        return {
-          email: user.email,
-          email_verified: Boolean(user.isEmailVerified),
-        };
-      case 'identify':
-        return {
-          preferred_username: user.username,
+          preferred_username: user.username || null,
           roles: [PermissionUtils.getRoleName(user.permissions)],
         };
       default:
@@ -283,12 +219,18 @@ export class OAuth2UserInfoBuilder {
  *
  * @param user 사용자 엔티티
  * @param scopes OAuth2 스코프 배열
+ * @param configService ConfigService 인스턴스
  * @returns UserInfo 응답 객체
  * @deprecated Use OAuth2UserInfoBuilder service instead
  */
 export function buildOAuth2UserInfo(
   user: User,
   scopes: string[],
+  configService: ConfigService,
 ): OAuth2UserInfoResponse {
-  return OAuth2UserInfoBuilder.buildUserInfo(user, scopes);
+  return OAuth2UserInfoBuilder.buildUserInfoWithConfig(
+    user,
+    scopes,
+    configService,
+  );
 }

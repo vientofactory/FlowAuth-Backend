@@ -155,7 +155,6 @@ export class FileUploadService {
   deleteFile(logoUri: string): boolean {
     try {
       if (!logoUri || typeof logoUri !== 'string') {
-        this.logger.warn('Invalid logoUri provided for deletion');
         return false;
       }
 
@@ -164,9 +163,6 @@ export class FileUploadService {
 
       // Check if it's an upload path
       if (!relativePath.startsWith('uploads/')) {
-        this.logger.warn(
-          `File path does not start with 'uploads/': ${relativePath}`,
-        );
         return false;
       }
 
@@ -177,7 +173,6 @@ export class FileUploadService {
         // Check if file exists
         // eslint-disable-next-line security/detect-non-literal-fs-filename
         if (!existsSync(filePath)) {
-          this.logger.warn(`File does not exist: ${filePath}`);
           return false;
         }
 

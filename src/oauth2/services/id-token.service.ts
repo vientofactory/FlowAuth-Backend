@@ -17,29 +17,29 @@ export interface IdTokenPayload {
   auth_time: number;
   nonce?: string;
   // profile scope claims
-  name?: string;
-  preferred_username?: string;
-  given_name?: string;
-  family_name?: string;
-  picture?: string;
+  name?: string | null;
+  preferred_username?: string | null;
+  given_name?: string | null;
+  family_name?: string | null;
+  picture?: string | null;
   updated_at?: number;
   // email scope claims
-  email?: string;
+  email?: string | null;
   email_verified?: boolean;
   // phone scope claims
-  phone_number?: string;
+  phone_number?: string | null;
   phone_number_verified?: boolean;
   // address scope claims
   address?: AddressClaim;
 }
 
 export interface AddressClaim {
-  formatted?: string;
-  street_address?: string;
-  locality?: string;
-  region?: string;
-  postal_code?: string;
-  country?: string;
+  formatted?: string | null;
+  street_address?: string | null;
+  locality?: string | null;
+  region?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
 }
 
 @Injectable()
@@ -95,11 +95,11 @@ export class IdTokenService {
   ) {
     // profile scope: User profile information
     if (scopes.includes('profile')) {
-      payload.name = user.username || '';
-      payload.preferred_username = user.username || '';
-      payload.given_name = user.firstName ?? '';
-      payload.family_name = user.lastName ?? '';
-      payload.picture = user.avatar ?? '';
+      payload.name = user.username || null;
+      payload.preferred_username = user.username || null;
+      payload.given_name = user.firstName ?? null;
+      payload.family_name = user.lastName ?? null;
+      payload.picture = user.avatar ?? null;
       payload.updated_at = user.updatedAt
         ? Math.floor(user.updatedAt.getTime() / 1000)
         : undefined;
@@ -107,7 +107,7 @@ export class IdTokenService {
 
     // email scope: Email information
     if (scopes.includes('email')) {
-      payload.email = user.email || '';
+      payload.email = user.email || null;
       payload.email_verified = !!user.isEmailVerified;
     }
   }

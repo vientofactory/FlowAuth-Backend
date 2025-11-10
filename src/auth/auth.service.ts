@@ -192,8 +192,10 @@ export class AuthService {
       updateFields.redirectUris = updateData.redirectUris;
     if (updateData.scopes !== undefined)
       updateFields.scopes = updateData.scopes;
-    if (updateData.logoUri !== undefined)
-      updateFields.logoUri = updateData.logoUri || undefined;
+    if (updateData.logoUri !== undefined) {
+      updateFields.logoUri =
+        updateData.logoUri === '' ? undefined : updateData.logoUri;
+    }
     if (updateData.termsOfServiceUri !== undefined)
       updateFields.termsOfServiceUri =
         updateData.termsOfServiceUri || undefined;
