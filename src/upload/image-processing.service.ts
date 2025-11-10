@@ -163,13 +163,13 @@ export class ImageProcessingService {
         );
       }
 
-      // Get file URL using standard pattern
-      const imageUrl = this.getFileUrl(type, filename);
+      // Get file URL using the actual saved filename
+      const imageUrl = this.getFileUrl(type, sanitizedFilename);
 
       this.logger.log(
         `${type.charAt(0).toUpperCase() + type.slice(1)} processed${
           userId ? ` for user ${userId}` : ''
-        }: ${filename} (${processedBuffer.length} bytes)`,
+        }: ${sanitizedFilename} (${processedBuffer.length} bytes)`,
       );
       return imageUrl;
     } catch (error) {

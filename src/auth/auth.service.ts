@@ -32,6 +32,7 @@ import { TwoFactorAuthService } from './services/two-factor-auth.service';
 import { ValidationService } from './services/validation.service';
 import type { AvailabilityResult } from '../constants/validation.constants';
 import { EmailService } from '../email/email.service';
+import { FileUploadService } from '../upload/file-upload.service';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 
@@ -56,6 +57,7 @@ export class AuthService {
     private twoFactorAuthService: TwoFactorAuthService,
     private validationService: ValidationService,
     private emailService: EmailService,
+    private fileUploadService: FileUploadService,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
@@ -183,6 +185,27 @@ export class AuthService {
       throw new UnauthorizedException('Client not found or access denied');
     }
 
+    // Handle logo deletion/replacement
+    if (updateData.logoUri !== undefined && client.logoUri) {
+      // Delete existing logo if:
+      // 1. logoUri is being set to empty string (logo removal)
+      // 2. logoUri is being changed to a different value (logo replacement)
+      const shouldDeleteOldLogo =
+        updateData.logoUri === '' ||
+        (updateData.logoUri !== client.logoUri && updateData.logoUri !== '');
+
+      if (shouldDeleteOldLogo) {
+        try {
+          this.fileUploadService.deleteFile(client.logoUri);
+        } catch (error) {
+          this.logger.error(
+            `Error deleting old logo file: ${client.logoUri}`,
+            error instanceof Error ? error.stack : String(error),
+          );
+        }
+      }
+    }
+
     // Update only provided fields
     const updateFields: Partial<Client> = {};
     if (updateData.name !== undefined) updateFields.name = updateData.name;
@@ -193,8 +216,9 @@ export class AuthService {
     if (updateData.scopes !== undefined)
       updateFields.scopes = updateData.scopes;
     if (updateData.logoUri !== undefined) {
-      updateFields.logoUri =
-        updateData.logoUri === '' ? undefined : updateData.logoUri;
+      updateFields.logoUri = (
+        updateData.logoUri === '' ? null : updateData.logoUri
+      ) as string | undefined;
     }
     if (updateData.termsOfServiceUri !== undefined)
       updateFields.termsOfServiceUri =

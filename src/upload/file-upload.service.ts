@@ -154,31 +154,64 @@ export class FileUploadService {
    */
   deleteFile(logoUri: string): boolean {
     try {
+      this.logger.log(`Attempting to delete file: ${logoUri}`);
+
       if (!logoUri || typeof logoUri !== 'string') {
+        this.logger.warn(`Invalid logoUri: ${logoUri}`);
         return false;
       }
 
       // Remove leading slash and extract relative path
       const relativePath = logoUri.startsWith('/') ? logoUri.slice(1) : logoUri;
+      this.logger.log(`Relative path: ${relativePath}`);
 
       // Check if it's an upload path
       if (!relativePath.startsWith('uploads/')) {
+        this.logger.warn(
+          `Path does not start with 'uploads/': ${relativePath}`,
+        );
         return false;
       }
 
-      // Build absolute file path safely
       try {
-        const filePath = safePath(relativePath, process.cwd());
+        // Extract filename and sanitize it
+        const lastSlash = relativePath.lastIndexOf('/');
+        const directory = relativePath.substring(0, lastSlash);
+        const filename = relativePath.substring(lastSlash + 1);
+        const sanitizedFilename = sanitizeFilename(filename);
+
+        // Try both original and sanitized paths
+        const originalPath = safePath(relativePath, process.cwd());
+        const sanitizedPath = safePath(
+          `${directory}/${sanitizedFilename}`,
+          process.cwd(),
+        );
+
+        this.logger.log(`Original file path: ${originalPath}`);
+        if (originalPath !== sanitizedPath) {
+          this.logger.log(`Sanitized file path: ${sanitizedPath}`);
+        }
+
+        // Check which file actually exists
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        const filePath = existsSync(originalPath)
+          ? originalPath
+          : sanitizedPath;
+        this.logger.log(`Using file path: ${filePath}`);
 
         // Check if file exists
         // eslint-disable-next-line security/detect-non-literal-fs-filename
         if (!existsSync(filePath)) {
-          return false;
+          this.logger.warn(
+            `File does not exist: ${filePath} - treating as already deleted`,
+          );
+          return true; // File doesn't exist, so deletion is considered successful
         }
 
         // Delete the file
         // eslint-disable-next-line security/detect-non-literal-fs-filename
         unlinkSync(filePath);
+        this.logger.log(`Successfully deleted file: ${filePath}`);
         return true;
       } catch (error) {
         this.logger.error(
