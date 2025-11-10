@@ -8,20 +8,20 @@ import { ConfigService } from '@nestjs/config';
  */
 export interface OAuth2UserInfoResponse {
   sub: string;
-  name?: string;
-  given_name?: string;
-  family_name?: string;
-  preferred_username?: string;
-  profile?: string;
-  picture?: string;
-  email?: string;
+  name?: string | null;
+  given_name?: string | null;
+  family_name?: string | null;
+  preferred_username?: string | null;
+  profile?: string | null;
+  picture?: string | null;
+  email?: string | null;
   email_verified?: boolean;
-  gender?: string;
-  birthdate?: string;
-  zoneinfo?: string;
-  locale?: string;
+  gender?: string | null;
+  birthdate?: string | null;
+  zoneinfo?: string | null;
+  locale?: string | null;
   updated_at?: number;
-  roles?: string[];
+  roles?: string[] | null;
 }
 
 /**
@@ -161,13 +161,14 @@ export class OAuth2UserInfoBuilder {
     switch (scope) {
       case 'profile':
         return {
-          name: user.username,
+          name: user.username || null,
           given_name:
-            user.firstName ?? (user.username.split('_')[0] || user.username),
-          family_name: user.lastName ?? '',
-          preferred_username: user.username,
+            user.firstName ??
+            (user.username?.split('_')[0] || user.username || null),
+          family_name: user.lastName ?? null,
+          preferred_username: user.username || null,
           profile: `${configService.get<string>('BACKEND_URL', 'http://localhost:3000')}/users/${user.id}`,
-          picture: user.avatar ?? undefined,
+          picture: user.avatar ?? null,
           updated_at: Math.floor(
             (user.updatedAt?.getTime() || Date.now()) / 1000,
           ),
@@ -175,12 +176,12 @@ export class OAuth2UserInfoBuilder {
         };
       case 'email':
         return {
-          email: user.email,
+          email: user.email || null,
           email_verified: Boolean(user.isEmailVerified),
         };
       case 'identify':
         return {
-          preferred_username: user.username,
+          preferred_username: user.username || null,
           roles: [PermissionUtils.getRoleName(user.permissions)],
         };
       default:
@@ -203,13 +204,14 @@ export class OAuth2UserInfoBuilder {
     switch (scope) {
       case 'profile':
         return {
-          name: user.username,
+          name: user.username || null,
           given_name:
-            user.firstName ?? (user.username.split('_')[0] || user.username),
-          family_name: user.lastName ?? '',
-          preferred_username: user.username,
+            user.firstName ??
+            (user.username?.split('_')[0] || user.username || null),
+          family_name: user.lastName ?? null,
+          preferred_username: user.username || null,
           profile: `${process.env.BACKEND_URL ?? 'http://localhost:3000'}/users/${user.id}`,
-          picture: user.avatar ?? undefined,
+          picture: user.avatar ?? null,
           updated_at: Math.floor(
             (user.updatedAt?.getTime() ?? Date.now()) / 1000,
           ),
@@ -217,12 +219,12 @@ export class OAuth2UserInfoBuilder {
         };
       case 'email':
         return {
-          email: user.email,
+          email: user.email || null,
           email_verified: Boolean(user.isEmailVerified),
         };
       case 'identify':
         return {
-          preferred_username: user.username,
+          preferred_username: user.username || null,
           roles: [PermissionUtils.getRoleName(user.permissions)],
         };
       default:
