@@ -31,7 +31,6 @@ export class TwoFactorAuthService {
     email: string,
     token: string,
   ): Promise<LoginResponse> {
-    this.logger.log(`2FA token verification attempt for email: ${email}`);
     try {
       // Find user with 2FA fields and email verification status
       const user = await this.userRepository.findOne({

@@ -179,182 +179,173 @@ export class UserAuthService {
       throw new UnauthorizedException('reCAPTCHA verification failed');
     }
 
-    try {
-      // Find user with 2FA fields and email verification status
-      const user = await this.userRepository.findOne({
-        where: { email },
-        select: [
-          'id',
-          'userId',
-          'email',
-          'username',
-          'password',
-          'firstName',
-          'lastName',
-          'permissions',
-          'userType',
-          'isTwoFactorEnabled',
-          'twoFactorSecret',
-          'isEmailVerified',
-          'avatar',
-        ],
-      });
+    // Find user with 2FA fields and email verification status
+    const user = await this.userRepository.findOne({
+      where: { email },
+      select: [
+        'id',
+        'userId',
+        'email',
+        'username',
+        'password',
+        'firstName',
+        'lastName',
+        'permissions',
+        'userType',
+        'isTwoFactorEnabled',
+        'twoFactorSecret',
+        'isEmailVerified',
+        'avatar',
+      ],
+    });
 
-      if (!user) {
-        throw new UnauthorizedException(
-          AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
-        );
-      }
+    if (!user) {
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS);
+    }
 
-      // Generate userId if not exists (for existing users)
-      if (!user.userId) {
-        user.userId = await snowflakeGenerator.generate();
-        await this.userRepository.save(user);
-        this.logger.log(
-          `Generated Snowflake ID for existing user: ${user.username} (${user.userId})`,
-        );
-      }
+    // Generate userId if not exists (for existing users)
+    if (!user.userId) {
+      user.userId = await snowflakeGenerator.generate();
+      await this.userRepository.save(user);
+      this.logger.log(
+        `Generated Snowflake ID for existing user: ${user.username} (${user.userId})`,
+      );
+    }
 
-      // Check password
-      const isPasswordValid = await bcrypt.compare(password, user.password);
+    // Check password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
 
-      if (!isPasswordValid) {
-        // Log failed authentication due to invalid password
-        try {
-          await this.auditLogService.create(
-            AuditLog.createFailedAuthEvent(
-              email,
-              clientInfo?.ipAddress ?? 'unknown',
-              clientInfo?.userAgent ?? 'unknown',
-              'Invalid password',
-            ),
-          );
-        } catch (auditError) {
-          this.logger.warn(
-            'Failed to create audit log for failed auth:',
-            auditError,
-          );
-        }
-        throw new UnauthorizedException(
-          AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
-        );
-      }
-
-      // Check if email is verified
-      if (!user.isEmailVerified) {
-        // Log failed authentication due to unverified email
-        try {
-          await this.auditLogService.create(
-            AuditLog.createFailedAuthEvent(
-              email,
-              clientInfo?.ipAddress ?? 'unknown',
-              clientInfo?.userAgent ?? 'unknown',
-              'Email not verified',
-            ),
-          );
-        } catch (auditError) {
-          this.logger.warn(
-            'Failed to create audit log for failed auth:',
-            auditError,
-          );
-        }
-        throw new UnauthorizedException(
-          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
-        );
-      }
-
-      // Check if 2FA is enabled
-      if (user.isTwoFactorEnabled) {
-        // Return special response indicating 2FA is required
-        throw new UnauthorizedException('2FA_REQUIRED');
-      }
-
-      // Update last login time
-      await this.userRepository.update(user.id, {
-        lastLoginAt: new Date(),
-      });
-
-      // Log audit event for successful login
+    if (!isPasswordValid) {
+      // Log failed authentication due to invalid password
       try {
-        await this.auditLogService.create({
-          eventType: AuditEventType.USER_LOGIN,
-          severity: AuditSeverity.LOW,
-          description: `사용자 ${user.username}(${user.email}) 로그인`,
-          userId: user.id,
+        await this.auditLogService.create(
+          AuditLog.createFailedAuthEvent(
+            email,
+            clientInfo?.ipAddress ?? 'unknown',
+            clientInfo?.userAgent ?? 'unknown',
+            'Invalid password',
+          ),
+        );
+      } catch (auditError) {
+        this.logger.warn(
+          'Failed to create audit log for failed auth:',
+          auditError,
+        );
+      }
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS);
+    }
+
+    // Check if email is verified
+    if (!user.isEmailVerified) {
+      // Log failed authentication due to unverified email
+      try {
+        await this.auditLogService.create(
+          AuditLog.createFailedAuthEvent(
+            email,
+            clientInfo?.ipAddress ?? 'unknown',
+            clientInfo?.userAgent ?? 'unknown',
+            'Email not verified',
+          ),
+        );
+      } catch (auditError) {
+        this.logger.warn(
+          'Failed to create audit log for failed auth:',
+          auditError,
+        );
+      }
+      throw new UnauthorizedException(
+        '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
+      );
+    }
+
+    // Check if 2FA is enabled
+    if (user.isTwoFactorEnabled) {
+      // Return special response indicating 2FA is required
+      throw new UnauthorizedException('2FA_REQUIRED');
+    }
+
+    // Update last login time
+    await this.userRepository.update(user.id, {
+      lastLoginAt: new Date(),
+    });
+
+    // Log audit event for successful login
+    try {
+      await this.auditLogService.create({
+        eventType: AuditEventType.USER_LOGIN,
+        severity: AuditSeverity.LOW,
+        description: `사용자 ${user.username}(${user.email}) 로그인`,
+        userId: user.id,
+        userAgent: clientInfo?.userAgent ?? 'unknown',
+        ipAddress: clientInfo?.ipAddress ?? 'unknown',
+        metadata: {
+          loginMethod: 'password',
           userAgent: clientInfo?.userAgent ?? 'unknown',
           ipAddress: clientInfo?.ipAddress ?? 'unknown',
-          metadata: {
-            loginMethod: 'password',
-            userAgent: clientInfo?.userAgent ?? 'unknown',
-            ipAddress: clientInfo?.ipAddress ?? 'unknown',
-          },
-        });
-      } catch (auditError) {
-        // Audit log creation failure should not affect login success
-        this.logger.warn('Failed to create audit log for login:', auditError);
-      }
-
-      // Invalidate dashboard cache on successful login (statistics update due to lastLoginAt change)
-      await this.cacheManagerService.delCacheKey(`stats:${user.id}`);
-      await this.cacheManagerService.delCacheKey(`activities:${user.id}:10`); // default limit 10
-
-      // Generate JWT token with enhanced payload
-      const payload: JwtPayload = {
-        sub: user.id.toString(),
-        email: user.email,
-        username: user.username,
-        roles: [PermissionUtils.getRoleName(user.permissions)],
-        permissions: user.permissions,
-        type: TOKEN_TYPES.LOGIN,
-        avatar: user.avatar ?? undefined,
-      };
-      // Generate JWT token (24 hours for login tokens)
-      const accessToken = this.jwtService.sign(payload, {
-        expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
+        },
       });
-
-      // Generate refresh token for general login
-      const refreshToken = crypto.randomBytes(32).toString('hex');
-      const refreshExpiresAt = new Date();
-      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
-
-      // Store refresh token in database first
-      const tokenEntity = this.tokenRepository.create({
-        accessToken,
-        refreshToken,
-        expiresAt: new Date(
-          Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
-        ),
-        refreshExpiresAt,
-        scopes: undefined, // Login tokens use JWT payload permissions instead of scopes
-        user,
-        tokenType: TOKEN_TYPES.LOGIN,
-        isRefreshTokenUsed: false,
-      });
-      await this.tokenRepository.save(tokenEntity);
-
-      // Regenerate JWT with tokenId for immediate revocation capability
-      const finalPayload: JwtPayload = {
-        ...payload,
-        jti: tokenEntity.id.toString(), // Include token ID for revocation
-      };
-      const finalAccessToken = this.jwtService.sign(finalPayload, {
-        expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
-      });
-
-      // Update token with final access token
-      tokenEntity.accessToken = finalAccessToken;
-      await this.tokenRepository.save(tokenEntity);
-
-      return {
-        user,
-        accessToken: finalAccessToken,
-        refreshToken,
-        expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
-      };
-    } catch (error) {
-      this.logger.error(`Login failed for email: ${email}`, error.stack);
-      throw error;
+    } catch (auditError) {
+      // Audit log creation failure should not affect login success
+      this.logger.warn('Failed to create audit log for login:', auditError);
     }
+
+    // Invalidate dashboard cache on successful login (statistics update due to lastLoginAt change)
+    await this.cacheManagerService.delCacheKey(`stats:${user.id}`);
+    await this.cacheManagerService.delCacheKey(`activities:${user.id}:10`); // default limit 10
+
+    // Generate JWT token with enhanced payload
+    const payload: JwtPayload = {
+      sub: user.id.toString(),
+      email: user.email,
+      username: user.username,
+      roles: [PermissionUtils.getRoleName(user.permissions)],
+      permissions: user.permissions,
+      type: TOKEN_TYPES.LOGIN,
+      avatar: user.avatar ?? undefined,
+    };
+    // Generate JWT token (24 hours for login tokens)
+    const accessToken = this.jwtService.sign(payload, {
+      expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
+    });
+
+    // Generate refresh token for general login
+    const refreshToken = crypto.randomBytes(32).toString('hex');
+    const refreshExpiresAt = new Date();
+    refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
+
+    // Store refresh token in database first
+    const tokenEntity = this.tokenRepository.create({
+      accessToken,
+      refreshToken,
+      expiresAt: new Date(
+        Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
+      ),
+      refreshExpiresAt,
+      scopes: undefined, // Login tokens use JWT payload permissions instead of scopes
+      user,
+      tokenType: TOKEN_TYPES.LOGIN,
+      isRefreshTokenUsed: false,
+    });
+    await this.tokenRepository.save(tokenEntity);
+
+    // Regenerate JWT with tokenId for immediate revocation capability
+    const finalPayload: JwtPayload = {
+      ...payload,
+      jti: tokenEntity.id.toString(), // Include token ID for revocation
+    };
+    const finalAccessToken = this.jwtService.sign(finalPayload, {
+      expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
+    });
+
+    // Update token with final access token
+    tokenEntity.accessToken = finalAccessToken;
+    await this.tokenRepository.save(tokenEntity);
+
+    return {
+      user,
+      accessToken: finalAccessToken,
+      refreshToken,
+      expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
+    };
   }
 }
