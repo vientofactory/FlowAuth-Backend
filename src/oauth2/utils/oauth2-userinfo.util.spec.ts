@@ -5,11 +5,16 @@ import {
 } from './oauth2-userinfo.util';
 import { User } from '../../auth/user.entity';
 import { USER_TYPES, PERMISSIONS } from '../../constants/auth.constants';
+import { ConfigService } from '@nestjs/config';
 
 describe('OAuth2UserInfoBuilder', () => {
   let mockUser: User;
+  let mockConfigService: ConfigService;
 
   beforeEach(() => {
+    mockConfigService = {
+      get: jest.fn().mockReturnValue('http://localhost:3000'),
+    } as any;
     const now = new Date();
     mockUser = {
       id: 1,
@@ -35,9 +40,13 @@ describe('OAuth2UserInfoBuilder', () => {
     };
   });
 
-  describe('buildUserInfo', () => {
+  describe('buildUserInfoWithConfig', () => {
     it('should return only sub when no scopes provided', () => {
-      const result = OAuth2UserInfoBuilder.buildUserInfo(mockUser, []);
+      const result = OAuth2UserInfoBuilder.buildUserInfoWithConfig(
+        mockUser,
+        [],
+        mockConfigService,
+      );
 
       expect(result).toEqual({
         sub: '1',
@@ -45,7 +54,11 @@ describe('OAuth2UserInfoBuilder', () => {
     });
 
     it('should include email when email scope is provided', () => {
-      const result = OAuth2UserInfoBuilder.buildUserInfo(mockUser, ['email']);
+      const result = OAuth2UserInfoBuilder.buildUserInfoWithConfig(
+        mockUser,
+        ['email'],
+        mockConfigService,
+      );
 
       expect(result).toEqual({
         sub: '1',
@@ -55,9 +68,11 @@ describe('OAuth2UserInfoBuilder', () => {
     });
 
     it('should include username and roles when identify scope is provided', () => {
-      const result = OAuth2UserInfoBuilder.buildUserInfo(mockUser, [
-        'identify',
-      ]);
+      const result = OAuth2UserInfoBuilder.buildUserInfoWithConfig(
+        mockUser,
+        ['identify'],
+        mockConfigService,
+      );
 
       expect(result).toEqual({
         sub: '1',
@@ -67,10 +82,11 @@ describe('OAuth2UserInfoBuilder', () => {
     });
 
     it('should include all fields when both scopes are provided', () => {
-      const result = OAuth2UserInfoBuilder.buildUserInfo(mockUser, [
-        'email',
-        'identify',
-      ]);
+      const result = OAuth2UserInfoBuilder.buildUserInfoWithConfig(
+        mockUser,
+        ['email', 'identify'],
+        mockConfigService,
+      );
 
       expect(result).toEqual({
         sub: '1',
@@ -82,10 +98,11 @@ describe('OAuth2UserInfoBuilder', () => {
     });
 
     it('should handle unsupported scopes gracefully', () => {
-      const result = OAuth2UserInfoBuilder.buildUserInfo(mockUser, [
-        'email',
-        'unsupported',
-      ]);
+      const result = OAuth2UserInfoBuilder.buildUserInfoWithConfig(
+        mockUser,
+        ['email', 'unsupported'],
+        mockConfigService,
+      );
 
       expect(result).toEqual({
         sub: '1',
@@ -174,7 +191,7 @@ describe('OAuth2UserInfoBuilder', () => {
 });
 
 describe('buildOAuth2UserInfo', () => {
-  it('should delegate to OAuth2UserInfoBuilder.buildUserInfo', () => {
+  it('should delegate to OAuth2UserInfoBuilder.buildUserInfoWithConfig', () => {
     const now = new Date();
     const mockUser: User = {
       id: 1,
@@ -199,8 +216,11 @@ describe('buildOAuth2UserInfo', () => {
       updatedAt: now,
     };
     const scopes = ['email'];
+    const mockConfigService = {
+      get: jest.fn().mockReturnValue('http://localhost:3000'),
+    } as any;
 
-    const result = buildOAuth2UserInfo(mockUser, scopes);
+    const result = buildOAuth2UserInfo(mockUser, scopes, mockConfigService);
 
     expect(result).toEqual({
       sub: '1',

@@ -275,9 +275,7 @@ export class ClientAuthService {
     client.logoUri = undefined;
     client.updatedAt = new Date();
 
-    const savedClient = await this.clientRepository.save(client);
-
-    return savedClient;
+    return await this.clientRepository.save(client);
   }
 
   async deleteClient(id: number, requestUserId: number): Promise<void> {
