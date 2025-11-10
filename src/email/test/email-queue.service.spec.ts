@@ -200,8 +200,16 @@ describe('EmailQueueService', () => {
       await service.cleanQueue();
 
       expect(mockQueue.clean).toHaveBeenCalledTimes(2);
-      expect(mockQueue.clean).toHaveBeenCalledWith(0, 'completed', 1000);
-      expect(mockQueue.clean).toHaveBeenCalledWith(0, 'failed', 1000);
+      expect(mockQueue.clean).toHaveBeenCalledWith(86400000, 'completed', 1000);
+      expect(mockQueue.clean).toHaveBeenCalledWith(86400000, 'failed', 1000);
+    });
+
+    it('should clean the queue with custom parameters', async () => {
+      await service.cleanQueue(0, 500);
+
+      expect(mockQueue.clean).toHaveBeenCalledTimes(2);
+      expect(mockQueue.clean).toHaveBeenCalledWith(0, 'completed', 500);
+      expect(mockQueue.clean).toHaveBeenCalledWith(0, 'failed', 500);
     });
   });
 
