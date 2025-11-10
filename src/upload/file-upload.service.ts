@@ -154,41 +154,31 @@ export class FileUploadService {
    */
   deleteFile(logoUri: string): boolean {
     try {
-      this.logger.log(`Attempting to delete file: ${logoUri}`);
-
       if (!logoUri || typeof logoUri !== 'string') {
-        this.logger.warn('Invalid logoUri provided for deletion');
         return false;
       }
 
       // Remove leading slash and extract relative path
       const relativePath = logoUri.startsWith('/') ? logoUri.slice(1) : logoUri;
-      this.logger.log(`Relative path extracted: ${relativePath}`);
 
       // Check if it's an upload path
       if (!relativePath.startsWith('uploads/')) {
-        this.logger.warn(
-          `File path does not start with 'uploads/': ${relativePath}`,
-        );
         return false;
       }
 
       // Build absolute file path safely
       try {
         const filePath = safePath(relativePath, process.cwd());
-        this.logger.log(`Absolute file path resolved: ${filePath}`);
 
         // Check if file exists
         // eslint-disable-next-line security/detect-non-literal-fs-filename
         if (!existsSync(filePath)) {
-          this.logger.warn(`File does not exist: ${filePath}`);
           return false;
         }
 
         // Delete the file
         // eslint-disable-next-line security/detect-non-literal-fs-filename
         unlinkSync(filePath);
-        this.logger.log(`File successfully deleted: ${filePath}`);
         return true;
       } catch (error) {
         this.logger.error(
