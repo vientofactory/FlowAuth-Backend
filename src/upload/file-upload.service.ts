@@ -202,9 +202,6 @@ export class FileUploadService {
         // Check if file exists
         // eslint-disable-next-line security/detect-non-literal-fs-filename
         if (!existsSync(filePath)) {
-          this.logger.warn(
-            `File does not exist: ${filePath} - treating as already deleted`,
-          );
           return true; // File doesn't exist, so deletion is considered successful
         }
 
