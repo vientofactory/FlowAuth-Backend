@@ -235,29 +235,6 @@ export class UserAuthService {
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
 
-    // Check if email is verified
-    if (!user.isEmailVerified) {
-      // Log failed authentication due to unverified email
-      try {
-        await this.auditLogService.create(
-          AuditLog.createFailedAuthEvent(
-            email,
-            clientInfo?.ipAddress ?? 'unknown',
-            clientInfo?.userAgent ?? 'unknown',
-            'Email not verified',
-          ),
-        );
-      } catch (auditError) {
-        this.logger.warn(
-          'Failed to create audit log for failed auth:',
-          auditError,
-        );
-      }
-      throw new UnauthorizedException(
-        '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
-      );
-    }
-
     // Check if 2FA is enabled
     if (user.isTwoFactorEnabled) {
       // Return special response indicating 2FA is required

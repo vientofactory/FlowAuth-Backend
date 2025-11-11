@@ -57,12 +57,8 @@ export class TwoFactorAuthService {
         );
       }
 
-      // Check if email is verified
-      if (!user.isEmailVerified) {
-        throw new UnauthorizedException(
-          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
-        );
-      }
+      // Note: Email verification check removed to allow unverified users to login
+      // They will be prompted to verify their email in the dashboard
 
       if (!user.isTwoFactorEnabled || !user.twoFactorSecret) {
         throw new UnauthorizedException(
@@ -174,13 +170,6 @@ export class TwoFactorAuthService {
       if (!user) {
         throw new UnauthorizedException(
           AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS,
-        );
-      }
-
-      // Check if email is verified
-      if (!user.isEmailVerified) {
-        throw new UnauthorizedException(
-          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
         );
       }
 

@@ -134,15 +134,15 @@ describe('UserAuthService', () => {
       });
     });
 
-    it('should throw UnauthorizedException if email is not verified', async () => {
+    it('should successfully login even if email is not verified', async () => {
       const unverifiedUser = { ...mockUser, isEmailVerified: false };
       userRepository.findOne.mockResolvedValue(unverifiedUser);
 
-      await expect(service.login(mockLoginDto)).rejects.toThrow(
-        new UnauthorizedException(
-          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
-        ),
-      );
+      const result = await service.login(mockLoginDto);
+
+      expect(result).toBeDefined();
+      expect(result.accessToken).toBeDefined();
+      expect(result.user.isEmailVerified).toBe(false);
     });
 
     it('should throw UnauthorizedException for invalid credentials', async () => {

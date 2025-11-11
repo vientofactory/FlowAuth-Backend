@@ -109,19 +109,6 @@ describe('TwoFactorAuthService', () => {
       expect(twoFactorService.verifyToken).toHaveBeenCalledWith(1, '123456');
     });
 
-    it('should throw UnauthorizedException if email is not verified', async () => {
-      const unverifiedUser = { ...mockUser, isEmailVerified: false };
-      userRepository.findOne.mockResolvedValue(unverifiedUser);
-
-      await expect(
-        service.verifyTwoFactorToken('test@example.com', '123456'),
-      ).rejects.toThrow(
-        new UnauthorizedException(
-          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
-        ),
-      );
-    });
-
     it('should throw UnauthorizedException if user not found', async () => {
       userRepository.findOne.mockResolvedValue(null);
 
@@ -204,19 +191,6 @@ describe('TwoFactorAuthService', () => {
       expect(twoFactorService.verifyBackupCode).toHaveBeenCalledWith(
         1,
         'backup-code-123',
-      );
-    });
-
-    it('should throw UnauthorizedException if email is not verified', async () => {
-      const unverifiedUser = { ...mockUser, isEmailVerified: false };
-      userRepository.findOne.mockResolvedValue(unverifiedUser);
-
-      await expect(
-        service.verifyBackupCode('test@example.com', 'backup-code-123'),
-      ).rejects.toThrow(
-        new UnauthorizedException(
-          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
-        ),
       );
     });
 
