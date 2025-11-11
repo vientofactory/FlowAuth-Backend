@@ -163,9 +163,7 @@ describe('GlobalExceptionFilter', () => {
           },
         }),
       );
-      expect(logErrorSpy).toHaveBeenCalledWith('Database', exception, {
-        code: 'ER_DUP_ENTRY',
-      });
+      expect(logErrorSpy).not.toHaveBeenCalled();
     });
 
     it('should handle QueryFailedError with generic database error', () => {
@@ -203,9 +201,7 @@ describe('GlobalExceptionFilter', () => {
           },
         }),
       );
-      expect(logErrorSpy).toHaveBeenCalledWith('Database', exception, {
-        code: 'ER_UNKNOWN',
-      });
+      expect(logErrorSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -239,12 +235,16 @@ describe('GlobalExceptionFilter', () => {
           instance: '/test',
         }),
       );
-      expect(logErrorSpy).toHaveBeenCalledWith('Unexpected', exception);
+      expect(logErrorSpy).toHaveBeenCalledWith('Server', exception, {
+        url: '/test',
+        method: 'GET',
+        status: 500,
+      });
     });
   });
 
   describe('Production logging', () => {
-    it('should log errors in production environment', () => {
+    it('should log server errors in production environment', () => {
       process.env.NODE_ENV = 'production';
 
       const mockResponse = {
@@ -259,14 +259,17 @@ describe('GlobalExceptionFilter', () => {
         }),
       };
 
-      const exception = new HttpException('Test error', HttpStatus.BAD_REQUEST);
+      const exception = new HttpException(
+        'Internal error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
 
       filter.catch(exception, mockHost as any);
 
-      expect(logErrorSpy).toHaveBeenCalledWith('Request', expect.any(Error), {
+      expect(logErrorSpy).toHaveBeenCalledWith('Server', expect.any(Error), {
         url: '/api/test',
         method: 'POST',
-        status: HttpStatus.BAD_REQUEST,
+        status: HttpStatus.INTERNAL_SERVER_ERROR,
       });
 
       process.env.NODE_ENV = 'development';

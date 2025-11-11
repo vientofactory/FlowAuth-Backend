@@ -48,7 +48,13 @@ describe('TwoFactorAuthService', () => {
           },
         },
       ],
-    }).compile();
+    })
+      .overrideProvider(TwoFactorService)
+      .useValue({
+        verifyToken: jest.fn(),
+        verifyBackupCode: jest.fn(),
+      })
+      .compile();
 
     service = module.get<TwoFactorAuthService>(TwoFactorAuthService);
     userRepository = module.get(getRepositoryToken(User));
@@ -78,8 +84,9 @@ describe('TwoFactorAuthService', () => {
 
     beforeEach(() => {
       jwtService.sign.mockReturnValue('jwt-token');
-      tokenRepository.create.mockReturnValue({} as Token);
-      tokenRepository.save.mockResolvedValue({} as Token);
+      const mockToken = { id: 123 } as Token;
+      tokenRepository.create.mockReturnValue(mockToken);
+      tokenRepository.save.mockResolvedValue(mockToken);
     });
 
     it('should successfully verify 2FA token with verified email', async () => {
@@ -98,6 +105,8 @@ describe('TwoFactorAuthService', () => {
         where: { email: 'test@example.com' },
         select: expect.arrayContaining(['isEmailVerified']),
       });
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(twoFactorService.verifyToken).toHaveBeenCalledWith(1, '123456');
     });
 
     it('should throw UnauthorizedException if email is not verified', async () => {
@@ -170,8 +179,9 @@ describe('TwoFactorAuthService', () => {
 
     beforeEach(() => {
       jwtService.sign.mockReturnValue('jwt-token');
-      tokenRepository.create.mockReturnValue({} as Token);
-      tokenRepository.save.mockResolvedValue({} as Token);
+      const mockToken = { id: 123 } as Token;
+      tokenRepository.create.mockReturnValue(mockToken);
+      tokenRepository.save.mockResolvedValue(mockToken);
     });
 
     it('should successfully verify backup code with verified email', async () => {
@@ -190,6 +200,11 @@ describe('TwoFactorAuthService', () => {
         where: { email: 'test@example.com' },
         select: expect.arrayContaining(['isEmailVerified']),
       });
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(twoFactorService.verifyBackupCode).toHaveBeenCalledWith(
+        1,
+        'backup-code-123',
+      );
     });
 
     it('should throw UnauthorizedException if email is not verified', async () => {

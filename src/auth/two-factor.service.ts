@@ -144,7 +144,7 @@ export class TwoFactorService {
   }
 
   /**
-   * 백업 코드 검증
+   * 백업 코드 검증 (타이밍 공격 방지 포함)
    */
   async verifyBackupCode(userId: number, code: string): Promise<boolean> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -165,32 +165,106 @@ export class TwoFactorService {
       throw new BadRequestException('사용 가능한 백업 코드가 없습니다.');
     }
 
-    // 입력된 코드를 대문자로 변환하고 하이픈 제거
-    const normalizedInputCode = code.replace(/-/g, '').toUpperCase();
+    // 입력 검증 및 정규화
+    const normalizedInputCode = this.normalizeBackupCode(code);
+    if (!normalizedInputCode) {
+      this.logger.warn(`Invalid backup code format for user ${userId}`);
+      return false;
+    }
 
-    // 백업 코드 검증
-    for (let i = 0; i < user.backupCodes.length; i++) {
+    // 타이밍 공격 방지를 위한 상수 시간 검증
+    return this.verifyBackupCodeConstantTime(
+      user.backupCodes,
+      normalizedInputCode,
+      userId,
+    );
+  }
+
+  /**
+   * 백업 코드 정규화 및 검증
+   */
+  private normalizeBackupCode(code: string): string | null {
+    if (!code || typeof code !== 'string') {
+      return null;
+    }
+
+    // 공백 제거 및 대문자 변환
+    const cleaned = code.trim().toUpperCase();
+
+    // 하이픈 제거
+    const normalized = cleaned.replace(/-/g, '');
+
+    // 길이 검증 (Base32 12자리 예상)
+    if (normalized.length < 8 || normalized.length > 16) {
+      return null;
+    }
+
+    // Base32 문자 검증 (문자 제외: 0, 1, 8, 9, I, O)
+    if (!/^[A-HJ-KM-NP-TV-Z2-7]+$/.test(normalized)) {
+      return null;
+    }
+
+    return normalized;
+  }
+
+  /**
+   * 상수 시간 백업 코드 검증 (타이밍 공격 방지)
+   */
+  private async verifyBackupCodeConstantTime(
+    backupCodes: string[],
+    inputCode: string,
+    userId: number,
+  ): Promise<boolean> {
+    let foundValidCode = false;
+    let validCodeIndex = -1;
+
+    // 모든 백업 코드를 검사하여 타이밍 공격 방지
+    const verificationPromises = backupCodes.map(async (hashedCode, index) => {
+      if (!hashedCode) return { valid: false, index };
+
       try {
-        // 해시된 백업 코드와 입력된 코드를 직접 비교
-        // Safe array access to prevent object injection
-        const backupCode = user.backupCodes.at(i);
-        if (!backupCode) continue;
+        const isValid = await bcrypt.compare(inputCode, hashedCode);
+        return { valid: isValid, index };
+      } catch (error) {
+        this.logger.warn(
+          `Backup code verification error for user ${userId} at index ${index}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+        return { valid: false, index };
+      }
+    });
 
-        const isValid = await bcrypt.compare(normalizedInputCode, backupCode);
-        if (isValid) {
-          // 사용된 백업 코드는 제거
-          const updatedBackupCodes = [...user.backupCodes];
-          updatedBackupCodes.splice(i, 1);
+    // 모든 검증을 병렬로 실행하여 일정한 시간 소요
+    const results = await Promise.all(verificationPromises);
 
-          await this.userRepository.update(userId, {
-            backupCodes: updatedBackupCodes,
-          });
+    // 유효한 코드 찾기
+    for (const result of results) {
+      if (result.valid && !foundValidCode) {
+        foundValidCode = true;
+        validCodeIndex = result.index;
+        // 첫 번째 유효한 코드만 사용하고 계속 검사
+      }
+    }
 
-          return true;
-        }
-      } catch {
-        // bcrypt 비교 실패 시 다음 코드로 진행
-        continue;
+    // 유효한 코드가 발견된 경우에만 제거
+    if (foundValidCode && validCodeIndex >= 0) {
+      try {
+        const updatedBackupCodes = [...backupCodes];
+        updatedBackupCodes.splice(validCodeIndex, 1);
+
+        await this.userRepository.update(userId, {
+          backupCodes: updatedBackupCodes,
+        });
+
+        this.logger.log(
+          `Backup code used successfully for user ${userId}. Remaining codes: ${updatedBackupCodes.length}`,
+        );
+
+        return true;
+      } catch (error) {
+        this.logger.error(
+          `Failed to update backup codes for user ${userId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+        return false;
       }
     }
 
@@ -231,19 +305,82 @@ export class TwoFactorService {
   }
 
   /**
-   * 백업 코드 생성
+   * 암호학적으로 안전한 백업 코드 생성
    */
   private generateBackupCodes(): string[] {
-    const codes: string[] = [];
-    for (let i = 0; i < TWO_FACTOR_CONSTANTS.BACKUP_CODE_COUNT; i++) {
-      // 8자리 16진수 코드 생성 (XXXX-XXXX 형식) - 암호학적으로 안전한 난수 사용
-      const randomHex = randomBytes(4).toString('hex').toUpperCase();
-      const part1 = randomHex.substring(0, 4);
-      const part2 = randomHex.substring(4, 8);
-      const code = `${part1}-${part2}`;
-      codes.push(code);
+    const codes = new Set<string>();
+    const maxAttempts = 30; // 최대 생성 시도 횟수
+    let attempts = 0;
+
+    while (
+      codes.size < TWO_FACTOR_CONSTANTS.BACKUP_CODE_COUNT &&
+      attempts < maxAttempts
+    ) {
+      attempts++;
+
+      // 암호학적으로 안전한 엔트로피 생성 (128비트 = 16바이트)
+      const entropy = randomBytes(16);
+
+      // Base32 인코딩
+      const base32Code = entropy
+        .toString('base64')
+        .replace(/[^A-HJ-KM-NP-TV-Z2-7]/gi, '') // 0,1,8,9,I,O 제외
+        .toUpperCase()
+        .substring(0, 12); // 12자리로 제한
+
+      // 가독성을 위한 그룹화: XXXX-XXXX-XXXX 형태
+      if (base32Code.length >= 12) {
+        const formattedCode = `${base32Code.substring(0, 4)}-${base32Code.substring(4, 8)}-${base32Code.substring(8, 12)}`;
+        codes.add(formattedCode);
+      }
     }
-    return codes;
+
+    if (codes.size < TWO_FACTOR_CONSTANTS.BACKUP_CODE_COUNT) {
+      this.logger.error(
+        `Failed to generate sufficient backup codes. Generated: ${codes.size}, Required: ${TWO_FACTOR_CONSTANTS.BACKUP_CODE_COUNT}`,
+      );
+      throw new Error('백업 코드 생성에 실패했습니다.');
+    }
+
+    const codesArray = Array.from(codes);
+
+    // 생성된 코드의 엔트로피 검증
+    this.validateBackupCodeEntropy(codesArray);
+
+    return codesArray;
+  }
+
+  /**
+   * 백업 코드 엔트로피 검증
+   * 생성된 코드들이 충분한 무작위성을 가지는지 검사
+   */
+  private validateBackupCodeEntropy(codes: string[]): void {
+    // 최소 엔트로피 요구사항 검사
+    const minUniqueChars = 8; // 최소 8개의 서로 다른 문자 필요
+    const allChars = codes.join('').replace(/-/g, '');
+    const uniqueChars = new Set(allChars).size;
+
+    if (uniqueChars < minUniqueChars) {
+      this.logger.warn(
+        `Low entropy detected in backup codes. Unique chars: ${uniqueChars}, Required: ${minUniqueChars}`,
+      );
+      throw new Error('백업 코드의 무작위성이 부족합니다.');
+    }
+
+    // 코드 중복 검사 (정규화된 형태로)
+    const normalizedCodes = codes.map((code) =>
+      code.replace(/-/g, '').toUpperCase(),
+    );
+    const uniqueNormalizedCodes = new Set(normalizedCodes);
+
+    if (uniqueNormalizedCodes.size !== codes.length) {
+      this.logger.error('Duplicate backup codes detected');
+      throw new Error('중복된 백업 코드가 감지되었습니다.');
+    }
+
+    this.logger.log(
+      `Backup code entropy validation passed. Codes: ${codes.length}, Unique chars: ${uniqueChars}`,
+    );
   }
 
   /**
