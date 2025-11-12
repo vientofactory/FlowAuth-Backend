@@ -24,7 +24,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthorizeRequestDto } from '../dto/oauth2.dto';
 import { AuthorizeConsentDto } from '../dto/request.dto';
 import { RedirectUrlResponseDto } from '../../common/dto/response.dto';
-import { TOKEN_TYPES } from '@flowauth/shared';
+import { COOKIE_KEYS, TOKEN_TYPES } from '@flowauth/shared';
 import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
 import { TokenUtils } from '../../utils/permission.util';
 import type { User } from '../../auth/user.entity';
@@ -45,7 +45,8 @@ export class ConsentController {
     req: ExpressRequest,
   ): Promise<User | null> {
     const cookies = req.cookies as Record<string, unknown> | undefined;
-    const cookieToken = cookies?.token;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const cookieToken = cookies?.[COOKIE_KEYS.TOKEN];
 
     if (cookieToken && typeof cookieToken === 'string') {
       const payload = await TokenUtils.extractAndValidatePayload(
