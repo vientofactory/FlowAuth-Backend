@@ -7,7 +7,7 @@ import {
   Index,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
-import { USER_TYPES } from '../constants/auth.constants';
+import { USER_TYPES } from '@flowauth/shared';
 
 @Entity()
 @Index(['username'], { unique: true })

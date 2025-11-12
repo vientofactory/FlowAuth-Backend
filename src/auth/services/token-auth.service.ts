@@ -16,7 +16,7 @@ import {
   JWT_TOKEN_EXPIRY,
   PERMISSIONS,
   type TokenType,
-} from '../../constants/auth.constants';
+} from '@flowauth/shared';
 import { JwtPayload, LoginResponse } from '../../types/auth.types';
 import { PermissionUtils } from '../../utils/permission.util';
 import { CacheManagerService } from '../../cache/cache-manager.service';

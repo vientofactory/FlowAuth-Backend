@@ -16,7 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { TwoFactorService } from './two-factor.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import { TWO_FACTOR_CONSTANTS } from '../constants/auth.constants';
+import { TWO_FACTOR_CONSTANTS } from '@flowauth/shared';
 import {
   VerifyTwoFactorDto,
   DisableTwoFactorDto,

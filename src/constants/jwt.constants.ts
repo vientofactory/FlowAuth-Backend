@@ -31,14 +31,8 @@ export const JWT_CONSTANTS = {
   TOKEN_TYPE: 'Bearer',
 } as const;
 
-// 캐시 관련 상수들
-export const CACHE_CONSTANTS = {
-  // 토큰 검증 캐시 시간 (5분)
-  TOKEN_VALIDATION_TTL: 300000, // 5 minutes in milliseconds
-
-  // JWKS 캐시 시간 (1시간)
-  JWKS_TTL: 3600000, // 1 hour in milliseconds
-
+// Additional cache constants for backend-specific use
+export const BACKEND_CACHE_CONSTANTS = {
   // 캐시 키 접두사
   KEY_PREFIXES: {
     TOKEN: 'token:',

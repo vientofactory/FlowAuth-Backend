@@ -1,5 +1,5 @@
 import { User } from '../auth/user.entity';
-import { TokenType } from '../constants/auth.constants';
+import { TokenType } from '@flowauth/shared';
 
 // 인증 관련 타입 정의들
 export interface JwtPayload {

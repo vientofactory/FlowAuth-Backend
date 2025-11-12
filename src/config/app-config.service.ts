@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JWT_TOKEN_EXPIRY } from '../constants/auth.constants';
+import { JWT_TOKEN_EXPIRY } from '@flowauth/shared';
 
 @Injectable()
 export class AppConfigService {

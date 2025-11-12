@@ -5,7 +5,7 @@ import { Token } from '../oauth2/token.entity';
 import { Client } from '../oauth2/client.entity';
 import { User } from '../auth/user.entity';
 import { AuditLog, AuditEventType } from '../common/audit-log.entity';
-import { TOKEN_TYPES } from '../constants/auth.constants';
+import { TOKEN_TYPES } from '@flowauth/shared';
 
 interface HourlyPattern {
   hour: number;

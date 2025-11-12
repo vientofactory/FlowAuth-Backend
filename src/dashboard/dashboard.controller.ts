@@ -27,7 +27,7 @@ import {
   PermissionsGuard,
   RequirePermissions,
 } from '../auth/permissions.guard';
-import { PERMISSIONS } from '../constants/auth.constants';
+import { PERMISSIONS } from '@flowauth/shared';
 import type { AuthenticatedRequest } from '../types/auth.types';
 
 @Controller('dashboard')

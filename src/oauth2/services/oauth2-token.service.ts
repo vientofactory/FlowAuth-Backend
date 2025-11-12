@@ -8,7 +8,7 @@ import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
 import { Token } from '../token.entity';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
-import { TOKEN_TYPES } from '../../constants/auth.constants';
+import { TOKEN_TYPES } from '@flowauth/shared';
 import { IdTokenService } from './id-token.service';
 import { safeTokenCompare } from '../../utils/timing-security.util';
 import { AuditLogService } from '../../common/audit-log.service';

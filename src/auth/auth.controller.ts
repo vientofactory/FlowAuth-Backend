@@ -40,11 +40,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard, RequirePermissions } from './permissions.guard';
 import { User } from './user.entity';
 import type { AuthenticatedRequest } from '../types/auth.types';
-import {
-  PERMISSIONS,
-  TOKEN_TYPES,
-  type TokenType,
-} from '../constants/auth.constants';
+import { PERMISSIONS, TOKEN_TYPES, type TokenType } from '@flowauth/shared';
 import { ConfigService } from '@nestjs/config';
 import { ValidationService } from './services/validation.service';
 import { validateOAuth2RedirectUri } from '../utils/url-security.util';

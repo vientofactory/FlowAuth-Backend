@@ -23,8 +23,9 @@ import {
 import {
   AUTH_CONSTANTS,
   TOKEN_TYPES,
+  TOKEN_EXPIRY_DAYS,
   type TokenType,
-} from '../constants/auth.constants';
+} from '@flowauth/shared';
 import { JwtPayload, LoginResponse } from '../types/auth.types';
 import { PermissionUtils } from '../utils/permission.util';
 import { UserAuthService } from './services/user-auth.service';
@@ -341,7 +342,9 @@ export class AuthService {
       // Generate refresh token
       const refreshToken = crypto.randomBytes(32).toString('hex');
       const refreshExpiresAt = new Date();
-      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
+      refreshExpiresAt.setDate(
+        refreshExpiresAt.getDate() + TOKEN_EXPIRY_DAYS.REFRESH_TOKEN,
+      );
 
       // Store token in database
       const tokenEntity = this.tokenRepository.create({

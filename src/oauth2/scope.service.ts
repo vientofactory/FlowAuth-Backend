@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Redis from 'ioredis';
 import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
+import { CACHE_CONSTANTS } from '@flowauth/shared';
 import { Scope } from './scope.entity';
 
 @Injectable()
@@ -54,7 +55,7 @@ export class ScopeService implements OnApplicationBootstrap {
       for (const scope of scopes) {
         await this.redisClient.setex(
           `scopes:name:${scope.name}`,
-          3600000,
+          CACHE_CONSTANTS.SCOPE_CACHE_TTL,
           JSON.stringify(scope),
         );
       }
@@ -285,7 +286,7 @@ export class ScopeService implements OnApplicationBootstrap {
     if (scope) {
       await this.redisClient.setex(
         `scopes:name:${name}`,
-        3600000,
+        CACHE_CONSTANTS.SCOPE_CACHE_TTL,
         JSON.stringify(scope),
       );
     }

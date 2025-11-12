@@ -10,10 +10,7 @@ import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
 import { User } from './user.entity';
 import { TwoFactorResponseDto } from './dto/2fa/two-factor.dto';
-import {
-  AUTH_ERROR_MESSAGES,
-  TWO_FACTOR_CONSTANTS,
-} from '../constants/auth.constants';
+import { AUTH_ERROR_MESSAGES, TWO_FACTOR_CONSTANTS } from '@flowauth/shared';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { EmailService } from '../email/email.service';

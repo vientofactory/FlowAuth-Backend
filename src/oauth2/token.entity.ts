@@ -11,7 +11,7 @@ import {
 import { User } from '../auth/user.entity';
 import { Client } from './client.entity';
 import { Exclude } from 'class-transformer';
-import { TOKEN_TYPES, type TokenType } from '../constants/auth.constants';
+import { TOKEN_TYPES, type TokenType } from '@flowauth/shared';
 
 @Entity()
 @Index(['accessToken'], { unique: true })

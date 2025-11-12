@@ -11,7 +11,7 @@ import { User } from '../user.entity';
 import { Client } from '../../oauth2/client.entity';
 import { Token } from '../../oauth2/token.entity';
 import { MoreThan } from 'typeorm';
-import { AUTH_CONSTANTS } from '../../constants/auth.constants';
+import { AUTH_CONSTANTS } from '@flowauth/shared';
 import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { TwoFactorService } from '../two-factor.service';
 import { FileUploadService } from '../../upload/file-upload.service';

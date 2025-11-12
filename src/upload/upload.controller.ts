@@ -29,9 +29,9 @@ import {
   PermissionsGuard,
   RequirePermissions,
 } from '../auth/permissions.guard';
-import { PERMISSIONS } from '../constants/auth.constants';
 import { FileUploadResponseDto } from './dto/response.dto';
 import { isValidFilename, validateFileEnhanced } from './validators';
+import { PERMISSIONS } from '@flowauth/shared';
 
 /**
  * 로고 업로드 설정 정보를 가져오는 헬퍼 함수
