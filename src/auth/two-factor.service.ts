@@ -306,29 +306,32 @@ export class TwoFactorService {
    */
   private generateBackupCodes(): string[] {
     const codes = new Set<string>();
-    const maxAttempts = 30; // 최대 생성 시도 횟수
-    let attempts = 0;
+    const maxAttempts = 50; // 최대 생성 시도 횟수 증가
 
     while (
       codes.size < TWO_FACTOR_CONSTANTS.BACKUP_CODE_COUNT &&
-      attempts < maxAttempts
+      codes.size < maxAttempts
     ) {
-      attempts++;
+      try {
+        // 암호학적으로 안전한 엔트로피 생성 (80비트 = 10바이트로 조정)
+        // 10바이트 = 80비트 엔트로피로 Base32 인코딩 시 16자 생성
+        const entropy = randomBytes(10);
 
-      // 암호학적으로 안전한 엔트로피 생성 (128비트 = 16바이트)
-      const entropy = randomBytes(16);
+        // 올바른 Base32 인코딩 구현
+        const base32Code = this.encodeBase32(entropy);
 
-      // Base32 인코딩
-      const base32Code = entropy
-        .toString('base64')
-        .replace(/[^A-HJ-KM-NP-TV-Z2-7]/gi, '') // 0,1,8,9,I,O 제외
-        .toUpperCase()
-        .substring(0, 12); // 12자리로 제한
-
-      // 가독성을 위한 그룹화: XXXX-XXXX-XXXX 형태
-      if (base32Code.length >= 12) {
-        const formattedCode = `${base32Code.substring(0, 4)}-${base32Code.substring(4, 8)}-${base32Code.substring(8, 12)}`;
-        codes.add(formattedCode);
+        // 정확히 16자가 생성되는지 확인
+        if (base32Code.length === 16) {
+          // 가독성을 위한 그룹화: XXXX-XXXX-XXXX-XXXX 형태
+          const formattedCode = `${base32Code.substring(0, 4)}-${base32Code.substring(4, 8)}-${base32Code.substring(8, 12)}-${base32Code.substring(12, 16)}`;
+          codes.add(formattedCode);
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Backup code generation attempt failed: ${
+            error instanceof Error ? error.message : 'Unknown error'
+          }`,
+        );
       }
     }
 
@@ -345,6 +348,39 @@ export class TwoFactorService {
     this.validateBackupCodeEntropy(codesArray);
 
     return codesArray;
+  }
+
+  /**
+   * Base32 인코딩 구현 (RFC 4648)
+   */
+  private encodeBase32(buffer: Buffer): string {
+    // 입력 검증
+    if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+      throw new Error('Invalid buffer input for Base32 encoding');
+    }
+
+    // Crockford Base32 알파벳 사용
+    const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+    let result = '';
+    let bits = 0;
+    let value = 0;
+
+    for (let i = 0; i < buffer.length; i++) {
+      const byte = buffer.readUInt8(i);
+      value = (value << 8) | byte;
+      bits += 8;
+
+      while (bits >= 5) {
+        result += alphabet[(value >>> (bits - 5)) & 31];
+        bits -= 5;
+      }
+    }
+
+    if (bits > 0) {
+      result += alphabet[(value << (5 - bits)) & 31];
+    }
+
+    return result;
   }
 
   /**

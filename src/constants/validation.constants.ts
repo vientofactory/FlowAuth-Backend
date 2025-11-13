@@ -57,9 +57,9 @@ export const VALIDATION_CONSTANTS = {
     },
   },
   BACKUP_CODE: {
-    REGEX: /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/,
+    REGEX: /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/,
     ERROR_MESSAGES: {
-      INVALID_FORMAT: '백업 코드는 XXXX-XXXX-XXXX 형식이어야 합니다.',
+      INVALID_FORMAT: '백업 코드는 XXXX-XXXX-XXXX-XXXX 형식이어야 합니다.',
       REQUIRED: '백업 코드가 필요합니다.',
     },
   },
