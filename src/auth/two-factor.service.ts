@@ -191,13 +191,13 @@ export class TwoFactorService {
     // 하이픈 제거
     const normalized = cleaned.replace(/-/g, '');
 
-    // 길이 검증 (Base32 12자리 예상)
-    if (normalized.length < 8 || normalized.length > 16) {
+    // 길이 검증 (Crockford Base32 16자리)
+    if (normalized.length !== 16) {
       return null;
     }
 
-    // Base32 문자 검증 (문자 제외: 0, 1, 8, 9, I, O)
-    if (!/^[A-HJ-KM-NP-TV-Z2-7]+$/.test(normalized)) {
+    // Crockford Base32 문자 검증 (0-9, A-H, J-K, M-N, P-T, V-Z)
+    if (!/^[0-9A-HJ-KM-NP-TV-Z]+$/.test(normalized)) {
       return null;
     }
 

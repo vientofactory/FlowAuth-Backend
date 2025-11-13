@@ -8,7 +8,7 @@ import { TwoFactorAuthService } from './two-factor-auth.service';
 import { User } from '../user.entity';
 import { Token } from '../../oauth2/token.entity';
 import { TwoFactorService } from '../two-factor.service';
-import { AUTH_ERROR_MESSAGES } from '../../constants/auth.constants';
+import { AUTH_ERROR_MESSAGES } from '@flowauth/shared';
 
 describe('TwoFactorAuthService', () => {
   let service: TwoFactorAuthService;

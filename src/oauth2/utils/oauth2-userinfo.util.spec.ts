@@ -4,7 +4,7 @@ import {
   ScopeFieldMapping,
 } from './oauth2-userinfo.util';
 import { User } from '../../auth/user.entity';
-import { USER_TYPES, PERMISSIONS } from '../../constants/auth.constants';
+import { USER_TYPES, PERMISSIONS } from '@flowauth/shared';
 import { ConfigService } from '@nestjs/config';
 
 describe('OAuth2UserInfoBuilder', () => {

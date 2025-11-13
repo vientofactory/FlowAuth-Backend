@@ -46,9 +46,11 @@ describe('TwoFactorService - Backup Code Security', () => {
       // 생성된 코드 개수 확인
       expect(codes).toHaveLength(10);
 
-      // 각 코드의 형식 확인 (XXXX-XXXX-XXXX)
+      // 각 코드의 형식 확인 (XXXX-XXXX-XXXX-XXXX)
       codes.forEach((code: string) => {
-        expect(code).toMatch(/^[A-Z2-7]{4}-[A-Z2-7]{4}-[A-Z2-7]{4}$/);
+        expect(code).toMatch(
+          /^[0-9A-HJ-KM-NP-TV-Z]{4}-[0-9A-HJ-KM-NP-TV-Z]{4}-[0-9A-HJ-KM-NP-TV-Z]{4}-[0-9A-HJ-KM-NP-TV-Z]{4}$/,
+        );
       });
 
       // 코드 중복 없음 확인
@@ -90,11 +92,17 @@ describe('TwoFactorService - Backup Code Security', () => {
         service,
       );
 
-      // 유효한 형식들
-      expect(normalizeBackupCode('ABCD-EFGH-2345')).toBe('ABCDEFGH2345');
-      expect(normalizeBackupCode('abcd-efgh-2345')).toBe('ABCDEFGH2345');
-      expect(normalizeBackupCode('  ABCD-EFGH-2345  ')).toBe('ABCDEFGH2345');
-      expect(normalizeBackupCode('ABCDEFGH2345')).toBe('ABCDEFGH2345');
+      // 유효한 형식들 (16자리)
+      expect(normalizeBackupCode('ABCD-EFGH-2345-6789')).toBe(
+        'ABCDEFGH23456789',
+      );
+      expect(normalizeBackupCode('abcd-efgh-2345-6789')).toBe(
+        'ABCDEFGH23456789',
+      );
+      expect(normalizeBackupCode('  ABCD-EFGH-2345-6789  ')).toBe(
+        'ABCDEFGH23456789',
+      );
+      expect(normalizeBackupCode('ABCDEFGH23456789')).toBe('ABCDEFGH23456789');
 
       // 유효하지 않은 형식들
       expect(normalizeBackupCode('')).toBeNull();
