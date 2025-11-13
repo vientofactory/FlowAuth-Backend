@@ -320,15 +320,4 @@ export class DiscoveryService {
       return false;
     }
   }
-
-  /**
-   * 캐시된 Discovery Document 무효화 (변경사항이 있을 때 호출)
-   */
-  invalidateCache(): void {
-    // 스코프나 설정이 변경되었을 때 캐시를 무효화하는 로직
-    // 현재는 로그만 남기고 실제 캐시 무효화는 향후 구현 가능
-    this.logger.log(
-      'Discovery document cache invalidated due to configuration changes',
-    );
-  }
 }
