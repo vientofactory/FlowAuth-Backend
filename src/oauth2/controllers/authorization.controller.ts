@@ -41,7 +41,6 @@ export class AuthorizationController {
     req: ExpressRequest,
   ): Promise<User | null> {
     const cookies = req.cookies as Record<string, unknown> | undefined;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     const cookieToken = cookies?.[COOKIE_KEYS.TOKEN];
 
     if (cookieToken && typeof cookieToken === 'string') {

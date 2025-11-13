@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
@@ -20,9 +20,9 @@ const mockedBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
 describe('UserAuthService', () => {
   let service: UserAuthService;
   let userRepository: jest.Mocked<Repository<User>>;
-  let tokenRepository: jest.Mocked<Repository<Token>>;
   let jwtService: jest.Mocked<JwtService>;
   let recaptchaService: jest.Mocked<RecaptchaService>;
+  let dataSource: jest.Mocked<DataSource>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -75,14 +75,20 @@ describe('UserAuthService', () => {
             create: jest.fn(),
           },
         },
+        {
+          provide: DataSource,
+          useValue: {
+            transaction: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<UserAuthService>(UserAuthService);
     userRepository = module.get(getRepositoryToken(User));
-    tokenRepository = module.get(getRepositoryToken(Token));
     jwtService = module.get(JwtService);
     recaptchaService = module.get(RecaptchaService);
+    dataSource = module.get(DataSource);
   });
 
   describe('login', () => {
@@ -115,9 +121,17 @@ describe('UserAuthService', () => {
       recaptchaService.verifyToken.mockResolvedValue(true);
       mockedBcrypt.compare.mockResolvedValue(true as never);
       jwtService.sign.mockReturnValue('jwt-token');
+
       const mockToken = { id: 1 } as Token;
-      tokenRepository.create.mockReturnValue(mockToken);
-      tokenRepository.save.mockResolvedValue(mockToken);
+      const mockEntityManager = {
+        create: jest.fn().mockReturnValue(mockToken),
+        save: jest.fn().mockResolvedValue(mockToken),
+      };
+
+      // Mock transaction to execute the callback with the mocked entity manager
+      dataSource.transaction.mockImplementation(async (callback: any) => {
+        return await callback(mockEntityManager);
+      });
     });
 
     it('should successfully login with verified email', async () => {

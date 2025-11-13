@@ -5,8 +5,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../user.entity';
 import { Token } from '../../oauth2/token.entity';
@@ -45,6 +45,8 @@ export class UserAuthService {
     private userRepository: Repository<User>,
     @InjectRepository(Token)
     private tokenRepository: Repository<Token>,
+    @InjectDataSource()
+    private dataSource: DataSource,
     private jwtService: JwtService,
     private configService: ConfigService,
     private recaptchaService: RecaptchaService,
@@ -271,21 +273,6 @@ export class UserAuthService {
     await this.cacheManagerService.delCacheKey(`stats:${user.id}`);
     await this.cacheManagerService.delCacheKey(`activities:${user.id}:10`); // default limit 10
 
-    // Generate JWT token with enhanced payload
-    const payload: JwtPayload = {
-      sub: user.id.toString(),
-      email: user.email,
-      username: user.username,
-      roles: [PermissionUtils.getRoleName(user.permissions)],
-      permissions: user.permissions,
-      type: TOKEN_TYPES.LOGIN,
-      avatar: user.avatar ?? undefined,
-    };
-    // Generate JWT token (24 hours for login tokens)
-    const accessToken = this.jwtService.sign(payload, {
-      expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
-    });
-
     // Generate refresh token for general login
     const refreshToken = crypto.randomBytes(32).toString('hex');
     const refreshExpiresAt = new Date();
@@ -293,39 +280,59 @@ export class UserAuthService {
       refreshExpiresAt.getDate() + TOKEN_EXPIRY_DAYS.REFRESH_TOKEN,
     );
 
-    // Store refresh token in database first
-    const tokenEntity = this.tokenRepository.create({
-      accessToken,
-      refreshToken,
-      expiresAt: new Date(
-        Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
-      ),
-      refreshExpiresAt,
-      scopes: undefined, // Login tokens use JWT payload permissions instead of scopes
-      user,
-      tokenType: TOKEN_TYPES.LOGIN,
-      isRefreshTokenUsed: false,
+    // Use transaction to ensure atomic token creation
+    const result = await this.dataSource.transaction(async (manager) => {
+      try {
+        // Create token entity without access token first
+        const tokenEntity = manager.create(Token, {
+          accessToken: '', // Placeholder - will be updated with actual JWT
+          refreshToken,
+          expiresAt: new Date(
+            Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
+          ),
+          refreshExpiresAt,
+          scopes: undefined, // Login tokens use JWT payload permissions instead of scopes
+          user,
+          tokenType: TOKEN_TYPES.LOGIN,
+          isRefreshTokenUsed: false,
+        });
+
+        // Save to get the token ID
+        const savedToken = await manager.save(tokenEntity);
+
+        // Generate JWT payload with token ID
+        const payload: JwtPayload = {
+          sub: user.id.toString(),
+          email: user.email,
+          username: user.username,
+          roles: [PermissionUtils.getRoleName(user.permissions)],
+          permissions: user.permissions,
+          type: TOKEN_TYPES.LOGIN,
+          avatar: user.avatar ?? undefined,
+          jti: savedToken.id.toString(), // Include token ID for revocation
+        };
+
+        // Generate final JWT token with jti
+        const finalAccessToken = this.jwtService.sign(payload, {
+          expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
+        });
+
+        // Update token with final access token in the same transaction
+        savedToken.accessToken = finalAccessToken;
+        await manager.save(savedToken);
+
+        return {
+          user,
+          accessToken: finalAccessToken,
+          refreshToken,
+          expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
+        };
+      } catch (error) {
+        this.logger.error('Failed to create token in transaction:', error);
+        throw error;
+      }
     });
-    await this.tokenRepository.save(tokenEntity);
 
-    // Regenerate JWT with tokenId for immediate revocation capability
-    const finalPayload: JwtPayload = {
-      ...payload,
-      jti: tokenEntity.id.toString(), // Include token ID for revocation
-    };
-    const finalAccessToken = this.jwtService.sign(finalPayload, {
-      expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
-    });
-
-    // Update token with final access token
-    tokenEntity.accessToken = finalAccessToken;
-    await this.tokenRepository.save(tokenEntity);
-
-    return {
-      user,
-      accessToken: finalAccessToken,
-      refreshToken,
-      expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
-    };
+    return result;
   }
 }
