@@ -3,7 +3,6 @@ import {
   Get,
   InternalServerErrorException,
   Logger,
-  UsePipes,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import {
@@ -19,7 +18,6 @@ export class DiscoveryController {
   constructor(private readonly discoveryService: DiscoveryService) {}
 
   @Get('openid-configuration')
-  @UsePipes() // Disable global validation pipe
   @ApiOperation({
     summary: 'OpenID Connect Discovery',
     description: 'OpenID Provider 메타데이터를 제공합니다.',
@@ -58,7 +56,7 @@ export class DiscoveryController {
         scopes_supported: {
           type: 'array',
           items: { type: 'string' },
-          description: '지원하는 스코프 목록 (데이터베이스에서 동적으로 조회)',
+          description: '지원하는 스코프 목록',
           example: ['openid', 'profile', 'email'],
         },
         response_types_supported: {
@@ -86,8 +84,7 @@ export class DiscoveryController {
         claims_supported: {
           type: 'array',
           items: { type: 'string' },
-          description:
-            '지원하는 클레임 목록 (실제 UserInfo 구현 기반으로 동적 생성)',
+          description: '지원하는 클레임 목록',
           example: [
             'sub',
             'name',
@@ -111,21 +108,16 @@ export class DiscoveryController {
   })
   async getOpenIdConfiguration(): Promise<OIDCDiscoveryDocument> {
     try {
-      const discoveryDocument =
-        await this.discoveryService.generateDiscoveryDocument();
-
-      // 생성된 문서의 유효성 검사
-      const isValid =
-        this.discoveryService.validateDiscoveryDocument(discoveryDocument);
-      if (!isValid) {
-        throw new InternalServerErrorException(
-          'Invalid discovery document generated',
-        );
-      }
-
-      return discoveryDocument;
+      return await this.discoveryService.generateDiscoveryDocument();
     } catch (error) {
       this.logger.error('Error generating OpenID Configuration:', error);
+
+      // 서비스에서 이미 적절한 예외를 던지므로 그대로 재던짐
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+
+      // 예상치 못한 오류인 경우
       throw new InternalServerErrorException(
         'Failed to generate OpenID Configuration',
       );

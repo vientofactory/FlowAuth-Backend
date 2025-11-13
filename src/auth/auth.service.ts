@@ -7,7 +7,6 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
-import * as crypto from 'crypto';
 import { User } from './user.entity';
 import { PasswordResetToken } from './password-reset-token.entity';
 import { EmailVerificationToken } from './email-verification-token.entity';
@@ -340,7 +339,7 @@ export class AuthService {
       const initialAccessToken = this.jwtService.sign(initialPayload);
 
       // Generate refresh token
-      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const refreshToken = randomBytes(32).toString('hex');
       const refreshExpiresAt = new Date();
       refreshExpiresAt.setDate(
         refreshExpiresAt.getDate() + TOKEN_EXPIRY_DAYS.REFRESH_TOKEN,

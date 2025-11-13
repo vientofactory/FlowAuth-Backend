@@ -1,4 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ScopeService } from '../scope.service';
 import { OAuth2UserInfoBuilder } from '../utils/oauth2-userinfo.util';
@@ -66,6 +70,7 @@ export class DiscoveryService {
   /**
    * OpenID Connect Discovery Document 생성
    * 실제 시스템 설정과 지원 기능을 반영하여 동적으로 생성합니다.
+   * 생성된 문서는 내부적으로 검증되어 유효한 문서만 반환됩니다.
    */
   async generateDiscoveryDocument(): Promise<OIDCDiscoveryDocument> {
     try {
@@ -111,10 +116,25 @@ export class DiscoveryService {
         introspection_endpoint: `${baseUrl}/oauth2/introspect`,
       };
 
+      // 생성된 문서의 유효성 검사를 내부적으로 수행
+      const isValid = this.validateDiscoveryDocument(discoveryDocument);
+      if (!isValid) {
+        throw new InternalServerErrorException(
+          'Generated discovery document failed validation',
+        );
+      }
+
       return discoveryDocument;
     } catch (error) {
+      if (error instanceof InternalServerErrorException) {
+        // 유효성 검사 실패인 경우 그대로 재던짐
+        throw error;
+      }
+
       this.logger.error('Failed to generate OIDC Discovery Document', error);
-      throw new Error('Failed to generate discovery document');
+      throw new InternalServerErrorException(
+        'Failed to generate discovery document',
+      );
     }
   }
 
@@ -223,6 +243,30 @@ export class DiscoveryService {
         if (!(field in document)) {
           this.logger.error(
             `Missing required field in discovery document: ${field}`,
+          );
+          return false;
+        }
+      }
+
+      // Issuer URL이 유효한지 확인
+      if (!document.issuer || typeof document.issuer !== 'string') {
+        this.logger.error('Invalid issuer URL in discovery document');
+        return false;
+      }
+
+      // 엔드포인트 URL들이 유효한지 확인
+      const urlFields = [
+        'authorization_endpoint',
+        'token_endpoint',
+        'userinfo_endpoint',
+        'jwks_uri',
+      ];
+
+      for (const field of urlFields) {
+        const value = document[field as keyof OIDCDiscoveryDocument];
+        if (!value || typeof value !== 'string') {
+          this.logger.error(
+            `Invalid URL field in discovery document: ${field}`,
           );
           return false;
         }
