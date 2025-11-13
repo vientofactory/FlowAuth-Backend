@@ -8,7 +8,7 @@ import { TwoFactorAuthService } from './two-factor-auth.service';
 import { User } from '../user.entity';
 import { Token } from '../../oauth2/token.entity';
 import { TwoFactorService } from '../two-factor.service';
-import { AUTH_ERROR_MESSAGES } from '../../constants/auth.constants';
+import { AUTH_ERROR_MESSAGES } from '@flowauth/shared';
 
 describe('TwoFactorAuthService', () => {
   let service: TwoFactorAuthService;
@@ -48,7 +48,13 @@ describe('TwoFactorAuthService', () => {
           },
         },
       ],
-    }).compile();
+    })
+      .overrideProvider(TwoFactorService)
+      .useValue({
+        verifyToken: jest.fn(),
+        verifyBackupCode: jest.fn(),
+      })
+      .compile();
 
     service = module.get<TwoFactorAuthService>(TwoFactorAuthService);
     userRepository = module.get(getRepositoryToken(User));
@@ -78,8 +84,9 @@ describe('TwoFactorAuthService', () => {
 
     beforeEach(() => {
       jwtService.sign.mockReturnValue('jwt-token');
-      tokenRepository.create.mockReturnValue({} as Token);
-      tokenRepository.save.mockResolvedValue({} as Token);
+      const mockToken = { id: 123 } as Token;
+      tokenRepository.create.mockReturnValue(mockToken);
+      tokenRepository.save.mockResolvedValue(mockToken);
     });
 
     it('should successfully verify 2FA token with verified email', async () => {
@@ -98,19 +105,8 @@ describe('TwoFactorAuthService', () => {
         where: { email: 'test@example.com' },
         select: expect.arrayContaining(['isEmailVerified']),
       });
-    });
-
-    it('should throw UnauthorizedException if email is not verified', async () => {
-      const unverifiedUser = { ...mockUser, isEmailVerified: false };
-      userRepository.findOne.mockResolvedValue(unverifiedUser);
-
-      await expect(
-        service.verifyTwoFactorToken('test@example.com', '123456'),
-      ).rejects.toThrow(
-        new UnauthorizedException(
-          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
-        ),
-      );
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(twoFactorService.verifyToken).toHaveBeenCalledWith(1, '123456');
     });
 
     it('should throw UnauthorizedException if user not found', async () => {
@@ -170,8 +166,9 @@ describe('TwoFactorAuthService', () => {
 
     beforeEach(() => {
       jwtService.sign.mockReturnValue('jwt-token');
-      tokenRepository.create.mockReturnValue({} as Token);
-      tokenRepository.save.mockResolvedValue({} as Token);
+      const mockToken = { id: 123 } as Token;
+      tokenRepository.create.mockReturnValue(mockToken);
+      tokenRepository.save.mockResolvedValue(mockToken);
     });
 
     it('should successfully verify backup code with verified email', async () => {
@@ -190,18 +187,10 @@ describe('TwoFactorAuthService', () => {
         where: { email: 'test@example.com' },
         select: expect.arrayContaining(['isEmailVerified']),
       });
-    });
-
-    it('should throw UnauthorizedException if email is not verified', async () => {
-      const unverifiedUser = { ...mockUser, isEmailVerified: false };
-      userRepository.findOne.mockResolvedValue(unverifiedUser);
-
-      await expect(
-        service.verifyBackupCode('test@example.com', 'backup-code-123'),
-      ).rejects.toThrow(
-        new UnauthorizedException(
-          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
-        ),
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(twoFactorService.verifyBackupCode).toHaveBeenCalledWith(
+        1,
+        'backup-code-123',
       );
     });
 

@@ -7,7 +7,7 @@ import { User } from '../auth/user.entity';
 import { Client } from './client.entity';
 import { OAuth2JwtPayload } from '../types/oauth2.types';
 import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
-import { TOKEN_TYPES } from '../constants/auth.constants';
+import { TOKEN_TYPES } from '@flowauth/shared';
 import { OAuth2TokenService } from './services/oauth2-token.service';
 import { TokenRevocationService } from './services/token-revocation.service';
 import { IdTokenService, IdTokenPayload } from './services/id-token.service';

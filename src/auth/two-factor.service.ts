@@ -10,10 +10,7 @@ import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
 import { User } from './user.entity';
 import { TwoFactorResponseDto } from './dto/2fa/two-factor.dto';
-import {
-  AUTH_ERROR_MESSAGES,
-  TWO_FACTOR_CONSTANTS,
-} from '../constants/auth.constants';
+import { AUTH_ERROR_MESSAGES, TWO_FACTOR_CONSTANTS } from '@flowauth/shared';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { EmailService } from '../email/email.service';
@@ -71,52 +68,60 @@ export class TwoFactorService {
     secret: string,
     backupCodes: string[],
   ): Promise<void> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    // Use transaction to prevent race conditions during 2FA setup
+    const dataSource = this.userRepository.manager.connection;
 
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
+    await dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    if (user.isTwoFactorEnabled) {
-      throw new BadRequestException('2FA가 이미 활성화되어 있습니다.');
-    }
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
 
-    // 토큰 검증
-    const isValid = speakeasy.totp.verify({
-      secret: secret,
-      encoding: 'base32',
-      token: token,
-      window: 2, // 2단계 윈도우 (시간 오차 허용)
-    });
+      if (user.isTwoFactorEnabled) {
+        throw new BadRequestException('2FA가 이미 활성화되어 있습니다.');
+      }
 
-    if (!isValid) {
-      throw new BadRequestException('잘못된 2FA 토큰입니다.');
-    }
+      // 토큰 검증
+      const isValid = speakeasy.totp.verify({
+        secret: secret,
+        encoding: 'base32',
+        token: token,
+        window: 2, // 2단계 윈도우 (시간 오차 허용)
+      });
 
-    // 해시된 백업 코드 저장 (하이픈 제거 후 해시)
-    const hashedBackupCodes = await Promise.all(
-      backupCodes.map((code) => {
-        const normalizedCode = code.replace(/-/g, '').toUpperCase();
-        return bcrypt.hash(normalizedCode, 10);
-      }),
-    );
+      if (!isValid) {
+        throw new BadRequestException('잘못된 2FA 토큰입니다.');
+      }
 
-    // 사용자 정보 업데이트
-    await this.userRepository.update(userId, {
-      twoFactorSecret: secret,
-      isTwoFactorEnabled: true,
-      backupCodes: hashedBackupCodes,
-    });
-
-    // 2FA 활성화 알림 이메일 전송 (큐 기반 비동기)
-    try {
-      await this.emailService.queue2FAEnabled(user.email, user.username);
-      this.logger.log(`2FA enabled notification queued for ${user.email}`);
-    } catch (emailError) {
-      this.logger.warn(
-        `Failed to queue 2FA enabled notification for ${user.email}: ${emailError instanceof Error ? emailError.message : 'Unknown error'}`,
+      // 해시된 백업 코드 저장 (하이픈 제거 후 해시)
+      const hashedBackupCodes = await Promise.all(
+        backupCodes.map((code) => {
+          const normalizedCode = code.replace(/-/g, '').toUpperCase();
+          return bcrypt.hash(normalizedCode, 10);
+        }),
       );
-    }
+
+      // 사용자 정보 업데이트
+      await manager.getRepository(User).update(userId, {
+        twoFactorSecret: secret,
+        isTwoFactorEnabled: true,
+        backupCodes: hashedBackupCodes,
+      });
+
+      // 2FA 활성화 알림 이메일 전송 (큐 기반 비동기)
+      try {
+        await this.emailService.queue2FAEnabled(user.email, user.username);
+        this.logger.log(`2FA enabled notification queued for ${user.email}`);
+      } catch (emailError) {
+        this.logger.warn(
+          `Failed to queue 2FA enabled notification for ${user.email}: ${emailError instanceof Error ? emailError.message : 'Unknown error'}`,
+        );
+      }
+    });
   }
 
   /**
@@ -144,7 +149,7 @@ export class TwoFactorService {
   }
 
   /**
-   * 백업 코드 검증
+   * 백업 코드 검증 (타이밍 공격 방지 포함)
    */
   async verifyBackupCode(userId: number, code: string): Promise<boolean> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -165,32 +170,154 @@ export class TwoFactorService {
       throw new BadRequestException('사용 가능한 백업 코드가 없습니다.');
     }
 
-    // 입력된 코드를 대문자로 변환하고 하이픈 제거
-    const normalizedInputCode = code.replace(/-/g, '').toUpperCase();
+    // 입력 검증 및 정규화
+    const normalizedInputCode = this.normalizeBackupCode(code);
+    if (!normalizedInputCode) {
+      this.logger.warn(`Invalid backup code format for user ${userId}`);
+      return false;
+    }
 
-    // 백업 코드 검증
-    for (let i = 0; i < user.backupCodes.length; i++) {
+    // 타이밍 공격 방지를 위한 상수 시간 검증
+    return this.verifyBackupCodeConstantTime(
+      user.backupCodes,
+      normalizedInputCode,
+      userId,
+    );
+  }
+
+  /**
+   * 백업 코드 정규화 및 검증
+   */
+  private normalizeBackupCode(code: string): string | null {
+    if (!code || typeof code !== 'string') {
+      return null;
+    }
+
+    // 공백 제거 및 대문자 변환
+    const cleaned = code.trim().toUpperCase();
+
+    // 하이픈 제거
+    const normalized = cleaned.replace(/-/g, '');
+
+    // 길이 검증 (Crockford Base32 16자리)
+    if (normalized.length !== 16) {
+      return null;
+    }
+
+    // Crockford Base32 문자 검증 (0-9, A-H, J-K, M-N, P-T, V-Z)
+    if (!/^[0-9A-HJ-KM-NP-TV-Z]+$/.test(normalized)) {
+      return null;
+    }
+
+    return normalized;
+  }
+
+  /**
+   * 상수 시간 백업 코드 검증 (타이밍 공격 방지)
+   */
+  private async verifyBackupCodeConstantTime(
+    backupCodes: string[],
+    inputCode: string,
+    userId: number,
+  ): Promise<boolean> {
+    let foundValidCode = false;
+    let validCodeIndex = -1;
+
+    // 모든 백업 코드를 검사하여 타이밍 공격 방지
+    const verificationPromises = backupCodes.map(async (hashedCode, index) => {
+      if (!hashedCode) return { valid: false, index };
+
       try {
-        // 해시된 백업 코드와 입력된 코드를 직접 비교
-        // Safe array access to prevent object injection
-        const backupCode = user.backupCodes.at(i);
-        if (!backupCode) continue;
+        const isValid = await bcrypt.compare(inputCode, hashedCode);
+        return { valid: isValid, index };
+      } catch (error) {
+        this.logger.warn(
+          `Backup code verification error for user ${userId} at index ${index}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+        return { valid: false, index };
+      }
+    });
 
-        const isValid = await bcrypt.compare(normalizedInputCode, backupCode);
-        if (isValid) {
-          // 사용된 백업 코드는 제거
-          const updatedBackupCodes = [...user.backupCodes];
-          updatedBackupCodes.splice(i, 1);
+    // 모든 검증을 병렬로 실행하여 일정한 시간 소요
+    const results = await Promise.all(verificationPromises);
 
-          await this.userRepository.update(userId, {
+    // 유효한 코드 찾기
+    for (const result of results) {
+      if (result.valid && !foundValidCode) {
+        foundValidCode = true;
+        validCodeIndex = result.index;
+        // 첫 번째 유효한 코드만 사용하고 계속 검사
+      }
+    }
+
+    // 유효한 코드가 발견된 경우에만 트랜잭션으로 제거 (경쟁 상태 방지)
+    if (foundValidCode && validCodeIndex >= 0) {
+      try {
+        // Use DataSource for transaction to prevent race conditions
+        const dataSource = this.userRepository.manager.connection;
+
+        return await dataSource.transaction(async (manager) => {
+          // Re-fetch user with pessimistic lock to prevent concurrent modifications
+          const userWithLock = await manager.findOne(User, {
+            where: { id: userId },
+            lock: { mode: 'pessimistic_write' },
+            select: ['id', 'backupCodes'],
+          });
+
+          if (!userWithLock?.backupCodes) {
+            this.logger.warn(
+              `No backup codes found for user ${userId} during transaction`,
+            );
+            return false;
+          }
+
+          // Re-verify the backup code within transaction to prevent TOCTOU attacks
+          if (validCodeIndex >= userWithLock.backupCodes.length) {
+            this.logger.warn(
+              `Invalid backup code index ${validCodeIndex} for user ${userId}`,
+            );
+            return false;
+          }
+
+          const hashedCodeInTransaction =
+            userWithLock.backupCodes.at(validCodeIndex);
+          if (!hashedCodeInTransaction) {
+            this.logger.warn(
+              `Backup code at index ${validCodeIndex} not found for user ${userId}`,
+            );
+            return false;
+          }
+          const isStillValid = await bcrypt.compare(
+            inputCode,
+            hashedCodeInTransaction,
+          );
+
+          if (!isStillValid) {
+            this.logger.warn(
+              `Backup code no longer valid for user ${userId} during transaction`,
+            );
+            return false;
+          }
+
+          // Remove the used backup code
+          const updatedBackupCodes = [...userWithLock.backupCodes];
+          updatedBackupCodes.splice(validCodeIndex, 1);
+
+          await manager.getRepository(User).update(userId, {
             backupCodes: updatedBackupCodes,
           });
 
+          this.logger.log(
+            `Backup code used successfully for user ${userId}. Remaining codes: ${updatedBackupCodes.length}`,
+          );
+
           return true;
-        }
-      } catch {
-        // bcrypt 비교 실패 시 다음 코드로 진행
-        continue;
+        });
+      } catch (error) {
+        this.logger.error(
+          `Failed to update backup codes for user ${userId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+        return false;
       }
     }
 
@@ -204,46 +331,153 @@ export class TwoFactorService {
     userId: number,
     currentPassword: string,
   ): Promise<void> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const dataSource = this.userRepository.manager.connection;
 
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
+    await dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    if (!user.isTwoFactorEnabled) {
-      throw new BadRequestException('2FA가 활성화되어 있지 않습니다.');
-    }
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
 
-    // 현재 비밀번호 검증
-    const isPasswordValid = await bcrypt.compare(
-      currentPassword,
-      user.password,
-    );
-    if (!isPasswordValid) {
-      throw new BadRequestException('현재 비밀번호가 일치하지 않습니다.');
-    }
+      if (!user.isTwoFactorEnabled) {
+        throw new BadRequestException('2FA가 활성화되어 있지 않습니다.');
+      }
 
-    // 2FA 비활성화
-    user.twoFactorSecret = null;
-    user.isTwoFactorEnabled = false;
-    user.backupCodes = null;
-    await this.userRepository.save(user);
+      // 현재 비밀번호 검증
+      const isPasswordValid = await bcrypt.compare(
+        currentPassword,
+        user.password,
+      );
+      if (!isPasswordValid) {
+        throw new BadRequestException('현재 비밀번호가 일치하지 않습니다.');
+      }
+
+      // 2FA 비활성화
+      await manager.getRepository(User).update(userId, {
+        twoFactorSecret: null,
+        isTwoFactorEnabled: false,
+        backupCodes: null,
+      });
+    });
   }
 
   /**
-   * 백업 코드 생성
+   * 암호학적으로 안전한 백업 코드 생성
    */
   private generateBackupCodes(): string[] {
-    const codes: string[] = [];
-    for (let i = 0; i < TWO_FACTOR_CONSTANTS.BACKUP_CODE_COUNT; i++) {
-      // 8자리 16진수 코드 생성 (XXXX-XXXX 형식) - 암호학적으로 안전한 난수 사용
-      const randomHex = randomBytes(4).toString('hex').toUpperCase();
-      const part1 = randomHex.substring(0, 4);
-      const part2 = randomHex.substring(4, 8);
-      const code = `${part1}-${part2}`;
-      codes.push(code);
+    const codes = new Set<string>();
+    const maxAttempts = 50; // 최대 생성 시도 횟수 증가
+
+    while (
+      codes.size < TWO_FACTOR_CONSTANTS.BACKUP_CODE_COUNT &&
+      codes.size < maxAttempts
+    ) {
+      try {
+        // 암호학적으로 안전한 엔트로피 생성 (80비트 = 10바이트로 조정)
+        // 10바이트 = 80비트 엔트로피로 Base32 인코딩 시 16자 생성
+        const entropy = randomBytes(10);
+
+        // 올바른 Base32 인코딩 구현
+        const base32Code = this.encodeBase32(entropy);
+
+        // 정확히 16자가 생성되는지 확인
+        if (base32Code.length === 16) {
+          // 가독성을 위한 그룹화: XXXX-XXXX-XXXX-XXXX 형태
+          const formattedCode = `${base32Code.substring(0, 4)}-${base32Code.substring(4, 8)}-${base32Code.substring(8, 12)}-${base32Code.substring(12, 16)}`;
+          codes.add(formattedCode);
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Backup code generation attempt failed: ${
+            error instanceof Error ? error.message : 'Unknown error'
+          }`,
+        );
+      }
     }
-    return codes;
+
+    if (codes.size < TWO_FACTOR_CONSTANTS.BACKUP_CODE_COUNT) {
+      this.logger.error(
+        `Failed to generate sufficient backup codes. Generated: ${codes.size}, Required: ${TWO_FACTOR_CONSTANTS.BACKUP_CODE_COUNT}`,
+      );
+      throw new Error('백업 코드 생성에 실패했습니다.');
+    }
+
+    const codesArray = Array.from(codes);
+
+    // 생성된 코드의 엔트로피 검증
+    this.validateBackupCodeEntropy(codesArray);
+
+    return codesArray;
+  }
+
+  /**
+   * Base32 인코딩 구현 (RFC 4648)
+   */
+  private encodeBase32(buffer: Buffer): string {
+    // 입력 검증
+    if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+      throw new Error('Invalid buffer input for Base32 encoding');
+    }
+
+    // Crockford Base32 알파벳 사용
+    const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+    let result = '';
+    let bits = 0;
+    let value = 0;
+
+    for (let i = 0; i < buffer.length; i++) {
+      const byte = buffer.readUInt8(i);
+      value = (value << 8) | byte;
+      bits += 8;
+
+      while (bits >= 5) {
+        result += alphabet[(value >>> (bits - 5)) & 31];
+        bits -= 5;
+      }
+    }
+
+    if (bits > 0) {
+      result += alphabet[(value << (5 - bits)) & 31];
+    }
+
+    return result;
+  }
+
+  /**
+   * 백업 코드 엔트로피 검증
+   * 생성된 코드들이 충분한 무작위성을 가지는지 검사
+   */
+  private validateBackupCodeEntropy(codes: string[]): void {
+    // 최소 엔트로피 요구사항 검사
+    const minUniqueChars = 8; // 최소 8개의 서로 다른 문자 필요
+    const allChars = codes.join('').replace(/-/g, '');
+    const uniqueChars = new Set(allChars).size;
+
+    if (uniqueChars < minUniqueChars) {
+      this.logger.warn(
+        `Low entropy detected in backup codes. Unique chars: ${uniqueChars}, Required: ${minUniqueChars}`,
+      );
+      throw new Error('백업 코드의 무작위성이 부족합니다.');
+    }
+
+    // 코드 중복 검사 (정규화된 형태로)
+    const normalizedCodes = codes.map((code) =>
+      code.replace(/-/g, '').toUpperCase(),
+    );
+    const uniqueNormalizedCodes = new Set(normalizedCodes);
+
+    if (uniqueNormalizedCodes.size !== codes.length) {
+      this.logger.error('Duplicate backup codes detected');
+      throw new Error('중복된 백업 코드가 감지되었습니다.');
+    }
+
+    this.logger.log(
+      `Backup code entropy validation passed. Codes: ${codes.length}, Unique chars: ${uniqueChars}`,
+    );
   }
 
   /**

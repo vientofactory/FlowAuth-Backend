@@ -6,7 +6,7 @@ import { Repository } from 'typeorm';
 import { Strategy, ExtractJwt, StrategyOptions } from 'passport-jwt';
 import { User } from './user.entity';
 import { Token } from '../oauth2/token.entity';
-import { AUTH_ERROR_MESSAGES, TOKEN_TYPES } from '../constants/auth.constants';
+import { AUTH_ERROR_MESSAGES, TOKEN_TYPES } from '@flowauth/shared';
 import { JwtPayload } from '../types/auth.types';
 
 @Injectable()

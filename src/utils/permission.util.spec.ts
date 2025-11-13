@@ -1,5 +1,5 @@
 import { PermissionUtils } from '../utils/permission.util';
-import { PERMISSIONS } from '../constants/auth.constants';
+import { PERMISSIONS } from '@flowauth/shared';
 
 describe('PermissionUtils', () => {
   describe('hasPermission', () => {

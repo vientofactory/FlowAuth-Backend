@@ -11,7 +11,7 @@ import { User } from '../auth/user.entity';
 import { UserManagementService } from '../auth/services/user-management.service';
 import { CacheManagerService } from '../cache/cache-manager.service';
 import { CACHE_CONFIG, CACHE_KEYS } from '../constants/cache.constants';
-import { AUTH_CONSTANTS } from '../constants/auth.constants';
+import { AUTH_CONSTANTS } from '@flowauth/shared';
 import { VALIDATION_CONSTANTS } from '../constants/validation.constants';
 
 export type SensitiveUserFields =

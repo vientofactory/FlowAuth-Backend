@@ -4,7 +4,6 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
-  Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { QueryFailedError } from 'typeorm';
@@ -14,7 +13,9 @@ import { ProblemDetailsDto } from '../dto/response.dto';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(GlobalExceptionFilter.name);
+  private shouldLog(status: number): boolean {
+    return status < 400 || status >= 500;
+  }
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
@@ -44,30 +45,20 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         request.url,
         { code: dbError.code },
       );
-
-      LoggingService.logError('Database', exception, {
-        code: dbError.code,
-      });
     } else {
-      // Unexpected errors
       const error =
         exception instanceof Error ? exception : new Error(String(exception));
       problemDetails = ProblemDetailsUtil.fromError(error, status, request.url);
-
-      LoggingService.logError('Unexpected', exception);
     }
 
-    // Enhanced logging for production
-    if (process.env.NODE_ENV !== 'development') {
-      LoggingService.logError(
-        'Request',
-        new Error(problemDetails.detail ?? problemDetails.title),
-        {
-          url: request.url,
-          method: request.method,
-          status,
-        },
-      );
+    if (this.shouldLog(status)) {
+      const logContext =
+        exception instanceof QueryFailedError ? 'Database' : 'Server';
+      LoggingService.logError(logContext, exception, {
+        url: request.url,
+        method: request.method,
+        status,
+      });
     }
 
     response.status(status).json(problemDetails);

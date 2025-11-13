@@ -21,6 +21,7 @@ import {
   PermissionsGuard,
   RequireAdminPermission,
 } from '../auth/permissions.guard';
+import { CACHE_CONSTANTS } from '@flowauth/shared';
 
 @ApiTags('Email Queue Management')
 @ApiBearerAuth()
@@ -241,7 +242,7 @@ export class EmailQueueController {
   @ApiOperation({ summary: '큐 정리 (완료/실패한 작업 제거)' })
   @ApiResponse({ status: 200, description: '큐 정리 성공' })
   async cleanQueue(
-    @Query('grace') grace = 86400000, // 24시간 후 정리 (디버깅을 위한 기록 보존)
+    @Query('grace') grace = CACHE_CONSTANTS.EMAIL_QUEUE_RETENTION, // 24시간 후 정리 (디버깅을 위한 기록 보존)
     @Query('limit') limit = 1000,
   ) {
     const result = await this.emailQueueService.cleanQueue(grace, limit);

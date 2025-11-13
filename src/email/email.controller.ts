@@ -25,6 +25,7 @@ import {
   PermissionsGuard,
   RequireAdminPermission,
 } from 'src/auth/permissions.guard';
+import { CACHE_CONSTANTS } from '@flowauth/shared';
 
 @Controller('email')
 @ApiBearerAuth()
@@ -257,7 +258,7 @@ export class EmailController {
     @Query('limit') limit?: number,
   ) {
     const result = await this.emailQueueService.cleanQueue(
-      grace ?? 86400000, // 24시간 보존 (디버깅을 위한 작업 기록 유지)
+      grace ?? CACHE_CONSTANTS.EMAIL_QUEUE_RETENTION,
       limit ?? 1000,
     );
     return {

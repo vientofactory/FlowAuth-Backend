@@ -8,7 +8,7 @@ import {
 } from 'class-validator';
 import { Trim, Escape } from 'class-sanitizer';
 import { ApiProperty } from '@nestjs/swagger';
-import { USER_TYPES } from '../../constants/auth.constants';
+import { USER_TYPES } from '@flowauth/shared';
 
 export class CreateUserDto {
   @ApiProperty({

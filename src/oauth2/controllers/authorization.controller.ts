@@ -15,7 +15,7 @@ import { AuthorizationService } from '../services/authorization.service';
 import { JwtService } from '@nestjs/jwt';
 import { AuthorizeRequestDto } from '../dto/oauth2.dto';
 import { AuthorizeInfoResponseDto, ClientInfoDto } from '../dto/response.dto';
-import { TOKEN_TYPES } from '../../constants/auth.constants';
+import { COOKIE_KEYS, TOKEN_TYPES } from '@flowauth/shared';
 import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
 import { TokenUtils } from '../../utils/permission.util';
 import type { User } from '../../auth/user.entity';
@@ -41,7 +41,7 @@ export class AuthorizationController {
     req: ExpressRequest,
   ): Promise<User | null> {
     const cookies = req.cookies as Record<string, unknown> | undefined;
-    const cookieToken = cookies?.token;
+    const cookieToken = cookies?.[COOKIE_KEYS.TOKEN];
 
     if (cookieToken && typeof cookieToken === 'string') {
       const payload = await TokenUtils.extractAndValidatePayload(

@@ -1,5 +1,5 @@
 import * as bcrypt from 'bcrypt';
-import { AUTH_CONSTANTS } from '../../constants/auth.constants';
+import { AUTH_CONSTANTS } from '@flowauth/shared';
 import { PASSWORD_VALIDATION } from '../../constants/validation.constants';
 
 export class PasswordUtils {

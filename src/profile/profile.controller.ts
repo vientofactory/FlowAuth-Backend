@@ -30,7 +30,7 @@ import type { AuthenticatedRequest } from '../types/auth.types';
 import { User } from '../auth/user.entity';
 import { validateFileEnhanced } from '../upload/validators';
 import { UPLOAD_ERRORS } from '../upload/types';
-import { PERMISSIONS } from '../constants/auth.constants';
+import { PERMISSIONS } from '@flowauth/shared';
 
 @Controller('profile')
 @ApiTags('Profile')

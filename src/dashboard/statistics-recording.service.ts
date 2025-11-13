@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, EntityManager } from 'typeorm';
 import { Client } from '../oauth2/client.entity';
 import { Token } from '../oauth2/token.entity';
 import {
@@ -37,50 +37,94 @@ export class StatisticsRecordingService {
     scopes: string[],
     eventDate: Date = new Date(),
   ): Promise<void> {
+    const dataSource = this.tokenStatisticsRepository.manager.connection;
+
     try {
       const eventDateOnly = new Date(eventDate.toISOString().split('T')[0]);
 
-      // 토큰 발급 이벤트 기록
-      const tokenStatData: Partial<TokenStatistics> = {
-        userId,
-        eventType: TokenEventType.ISSUED,
-        eventDate: eventDateOnly,
-        count: 1,
-      };
-
-      if (clientId !== null) {
-        tokenStatData.clientId = clientId;
-      }
-
-      await this.tokenStatisticsRepository.upsert(tokenStatData, {
-        conflictPaths: ['userId', 'clientId', 'eventType', 'eventDate'],
-        skipUpdateIfNoValuesChanged: false,
-      });
-
-      // 스코프별 이벤트 기록
-      for (const scope of scopes) {
-        await this.scopeStatisticsRepository.upsert(
-          {
+      await dataSource.transaction(async (manager) => {
+        // 토큰 발급 이벤트 기록 with conflict resolution
+        const existingTokenStat = await manager.findOne(TokenStatistics, {
+          where: {
             userId,
-            scope,
-            eventType: ScopeEventType.GRANTED,
+            clientId: clientId ?? undefined,
+            eventType: TokenEventType.ISSUED,
+            eventDate: eventDateOnly,
+          },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (existingTokenStat) {
+          await manager.getRepository(TokenStatistics).increment(
+            {
+              userId,
+              clientId: clientId ?? undefined,
+              eventType: TokenEventType.ISSUED,
+              eventDate: eventDateOnly,
+            },
+            'count',
+            1,
+          );
+        } else {
+          const tokenStatData = manager.create(TokenStatistics, {
+            userId,
+            clientId: clientId ?? undefined,
+            eventType: TokenEventType.ISSUED,
             eventDate: eventDateOnly,
             count: 1,
-          },
-          {
-            conflictPaths: ['userId', 'scope', 'eventType', 'eventDate'],
-            skipUpdateIfNoValuesChanged: false,
-          },
-        );
-      }
+          });
+          await manager.save(tokenStatData);
+        }
 
-      // 클라이언트 통계 업데이트
-      if (clientId) {
-        await this.updateClientStatistics(userId, clientId, eventDateOnly, {
-          tokensIssued: 1,
-          tokensActive: 1,
-        });
-      }
+        // 스코프별 이벤트 기록 with conflict resolution
+        for (const scope of scopes) {
+          const existingScopeStat = await manager.findOne(ScopeStatistics, {
+            where: {
+              userId,
+              scope,
+              eventType: ScopeEventType.GRANTED,
+              eventDate: eventDateOnly,
+            },
+            lock: { mode: 'pessimistic_write' },
+          });
+
+          if (existingScopeStat) {
+            await manager.getRepository(ScopeStatistics).increment(
+              {
+                userId,
+                scope,
+                eventType: ScopeEventType.GRANTED,
+                eventDate: eventDateOnly,
+              },
+              'count',
+              1,
+            );
+          } else {
+            const scopeStatData = manager.create(ScopeStatistics, {
+              userId,
+              scope,
+              eventType: ScopeEventType.GRANTED,
+              eventDate: eventDateOnly,
+              count: 1,
+            });
+            await manager.save(scopeStatData);
+          }
+        }
+
+        // 클라이언트 통계 업데이트
+        if (clientId) {
+          await this.updateClientStatisticsInTransaction(
+            manager,
+            userId,
+            clientId,
+            eventDateOnly,
+            {
+              tokensIssued: 1,
+              tokensActive: 1,
+            },
+          );
+        }
+      });
     } catch (error) {
       this.logger.error('Failed to record token issued event:', error);
       // 통계 기록 실패는 메인 로직에 영향을 주지 않도록 함
@@ -97,54 +141,95 @@ export class StatisticsRecordingService {
     revokedReason: string | null = null,
     eventDate: Date = new Date(),
   ): Promise<void> {
+    const dataSource = this.tokenStatisticsRepository.manager.connection;
+
     try {
       const eventDateOnly = new Date(eventDate.toISOString().split('T')[0]);
 
-      // 토큰 취소 이벤트 기록
-      const revokeStatData: Partial<TokenStatistics> = {
-        userId,
-        eventType: TokenEventType.REVOKED,
-        eventDate: eventDateOnly,
-        count: 1,
-      };
-
-      if (clientId !== null) {
-        revokeStatData.clientId = clientId;
-      }
-
-      if (revokedReason !== null) {
-        revokeStatData.revokedReason = revokedReason;
-      }
-
-      await this.tokenStatisticsRepository.upsert(revokeStatData, {
-        conflictPaths: ['userId', 'clientId', 'eventType', 'eventDate'],
-        skipUpdateIfNoValuesChanged: false,
-      });
-
-      // 스코프 취소 이벤트 기록
-      for (const scope of scopes) {
-        await this.scopeStatisticsRepository.upsert(
-          {
+      await dataSource.transaction(async (manager) => {
+        // 토큰 취소 이벤트 기록 with conflict resolution
+        const existingTokenStat = await manager.findOne(TokenStatistics, {
+          where: {
             userId,
-            scope,
-            eventType: ScopeEventType.REVOKED,
+            clientId: clientId ?? undefined,
+            eventType: TokenEventType.REVOKED,
+            eventDate: eventDateOnly,
+          },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (existingTokenStat) {
+          await manager.getRepository(TokenStatistics).increment(
+            {
+              userId,
+              clientId: clientId ?? undefined,
+              eventType: TokenEventType.REVOKED,
+              eventDate: eventDateOnly,
+            },
+            'count',
+            1,
+          );
+        } else {
+          const revokeStatData = manager.create(TokenStatistics, {
+            userId,
+            clientId: clientId ?? undefined,
+            eventType: TokenEventType.REVOKED,
             eventDate: eventDateOnly,
             count: 1,
-          },
-          {
-            conflictPaths: ['userId', 'scope', 'eventType', 'eventDate'],
-            skipUpdateIfNoValuesChanged: false,
-          },
-        );
-      }
+            revokedReason: revokedReason ?? undefined,
+          });
+          await manager.save(revokeStatData);
+        }
 
-      // 클라이언트 통계 업데이트
-      if (clientId) {
-        await this.updateClientStatistics(userId, clientId, eventDateOnly, {
-          tokensRevoked: 1,
-          tokensActive: -1, // 활성 토큰 감소
-        });
-      }
+        // 스코프 취소 이벤트 기록
+        for (const scope of scopes) {
+          const existingScopeStat = await manager.findOne(ScopeStatistics, {
+            where: {
+              userId,
+              scope,
+              eventType: ScopeEventType.REVOKED,
+              eventDate: eventDateOnly,
+            },
+            lock: { mode: 'pessimistic_write' },
+          });
+
+          if (existingScopeStat) {
+            await manager.getRepository(ScopeStatistics).increment(
+              {
+                userId,
+                scope,
+                eventType: ScopeEventType.REVOKED,
+                eventDate: eventDateOnly,
+              },
+              'count',
+              1,
+            );
+          } else {
+            const scopeStatData = manager.create(ScopeStatistics, {
+              userId,
+              scope,
+              eventType: ScopeEventType.REVOKED,
+              eventDate: eventDateOnly,
+              count: 1,
+            });
+            await manager.save(scopeStatData);
+          }
+        }
+
+        // 클라이언트 통계 업데이트
+        if (clientId) {
+          await this.updateClientStatisticsInTransaction(
+            manager,
+            userId,
+            clientId,
+            eventDateOnly,
+            {
+              tokensRevoked: 1,
+              tokensActive: -1, // 활성 토큰 감소
+            },
+          );
+        }
+      });
     } catch (error) {
       this.logger.error('Failed to record token revoked event:', error);
     }
@@ -252,6 +337,68 @@ export class StatisticsRecordingService {
     } catch (error) {
       this.logger.error('Failed to update client statistics:', error);
     }
+  }
+
+  /**
+   * 트랜잭션 내에서 클라이언트 통계 업데이트 (경쟁 상태 방지)
+   */
+  private async updateClientStatisticsInTransaction(
+    manager: EntityManager,
+    userId: number,
+    clientId: number,
+    eventDate: Date,
+    updates: {
+      tokensIssued?: number;
+      tokensActive?: number;
+      tokensExpired?: number;
+      tokensRevoked?: number;
+    },
+  ): Promise<void> {
+    // 기존 통계 조회 (pessimistic lock)
+    let clientStat = await manager.findOne(ClientStatistics, {
+      where: {
+        userId,
+        clientId,
+        eventDate,
+      },
+      lock: { mode: 'pessimistic_write' },
+    });
+
+    if (!clientStat) {
+      // 실제 Client 엔티티에서 클라이언트 이름 조회
+      const client = await manager.findOne(Client, {
+        where: { id: clientId },
+        select: ['name'],
+      });
+      const clientName = client?.name ?? `Client ${clientId}`;
+
+      clientStat = manager.create(ClientStatistics, {
+        userId,
+        clientId,
+        clientName,
+        eventDate,
+        tokensIssued: updates.tokensIssued ?? 0,
+        tokensActive: updates.tokensActive ?? 0,
+        tokensExpired: updates.tokensExpired ?? 0,
+        tokensRevoked: updates.tokensRevoked ?? 0,
+      });
+    } else {
+      // 값 업데이트
+      if (updates.tokensIssued !== undefined) {
+        clientStat.tokensIssued += updates.tokensIssued;
+      }
+      if (updates.tokensActive !== undefined) {
+        clientStat.tokensActive += updates.tokensActive;
+      }
+      if (updates.tokensExpired !== undefined) {
+        clientStat.tokensExpired += updates.tokensExpired;
+      }
+      if (updates.tokensRevoked !== undefined) {
+        clientStat.tokensRevoked += updates.tokensRevoked;
+      }
+    }
+
+    await manager.save(clientStat);
   }
 
   /**

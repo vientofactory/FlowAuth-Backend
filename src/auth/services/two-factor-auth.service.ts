@@ -9,7 +9,8 @@ import {
   AUTH_CONSTANTS,
   AUTH_ERROR_MESSAGES,
   TOKEN_TYPES,
-} from '../../constants/auth.constants';
+  TOKEN_EXPIRY_DAYS,
+} from '@flowauth/shared';
 import { JwtPayload, LoginResponse } from '../../types/auth.types';
 import { PermissionUtils } from '../../utils/permission.util';
 import { TwoFactorService } from '../two-factor.service';
@@ -31,7 +32,6 @@ export class TwoFactorAuthService {
     email: string,
     token: string,
   ): Promise<LoginResponse> {
-    this.logger.log(`2FA token verification attempt for email: ${email}`);
     try {
       // Find user with 2FA fields and email verification status
       const user = await this.userRepository.findOne({
@@ -58,12 +58,8 @@ export class TwoFactorAuthService {
         );
       }
 
-      // Check if email is verified
-      if (!user.isEmailVerified) {
-        throw new UnauthorizedException(
-          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
-        );
-      }
+      // Note: Email verification check removed to allow unverified users to login
+      // They will be prompted to verify their email in the dashboard
 
       if (!user.isTwoFactorEnabled || !user.twoFactorSecret) {
         throw new UnauthorizedException(
@@ -81,7 +77,7 @@ export class TwoFactorAuthService {
       }
 
       // Generate JWT tokens
-      const payload: JwtPayload = {
+      const initialPayload: JwtPayload = {
         sub: user.id.toString(),
         email: user.email,
         username: user.username,
@@ -90,25 +86,39 @@ export class TwoFactorAuthService {
         type: TOKEN_TYPES.LOGIN,
       };
 
-      const accessToken = this.jwtService.sign(payload);
+      // Generate initial access token
+      const initialAccessToken = this.jwtService.sign(initialPayload);
       const refreshToken = crypto.randomBytes(32).toString('hex');
 
       const refreshExpiresAt = new Date();
-      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
+      refreshExpiresAt.setDate(
+        refreshExpiresAt.getDate() + TOKEN_EXPIRY_DAYS.REFRESH_TOKEN,
+      );
 
-      // Store refresh token in database
+      // Store token in database
       const tokenEntity = this.tokenRepository.create({
-        accessToken,
+        accessToken: initialAccessToken,
         refreshToken,
         expiresAt: new Date(
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: undefined, // 로그인 토큰은 스코프 대신 JWT payload의 permissions 사용
+        scopes: undefined,
         user,
         tokenType: TOKEN_TYPES.LOGIN,
         isRefreshTokenUsed: false,
       });
+      await this.tokenRepository.save(tokenEntity);
+
+      // Regenerate JWT with tokenId for revocation capability
+      const finalPayload: JwtPayload = {
+        ...initialPayload,
+        jti: tokenEntity.id.toString(), // Include token ID for revocation
+      };
+      const accessToken = this.jwtService.sign(finalPayload);
+
+      // Update token with final access token
+      tokenEntity.accessToken = accessToken;
       await this.tokenRepository.save(tokenEntity);
 
       return {
@@ -166,13 +176,6 @@ export class TwoFactorAuthService {
         );
       }
 
-      // Check if email is verified
-      if (!user.isEmailVerified) {
-        throw new UnauthorizedException(
-          '이메일 인증이 완료되지 않았습니다. 이메일을 확인하여 계정을 인증해주세요.',
-        );
-      }
-
       if (!user.isTwoFactorEnabled) {
         throw new UnauthorizedException(
           AUTH_ERROR_MESSAGES.TWO_FACTOR_NOT_ENABLED,
@@ -192,7 +195,7 @@ export class TwoFactorAuthService {
       }
 
       // Generate JWT tokens
-      const payload: JwtPayload = {
+      const initialPayload: JwtPayload = {
         sub: user.id.toString(),
         email: user.email,
         username: user.username,
@@ -201,25 +204,39 @@ export class TwoFactorAuthService {
         type: TOKEN_TYPES.LOGIN,
       };
 
-      const accessToken = this.jwtService.sign(payload);
+      // Generate initial access token
+      const initialAccessToken = this.jwtService.sign(initialPayload);
       const refreshToken = crypto.randomBytes(32).toString('hex');
 
       const refreshExpiresAt = new Date();
-      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
+      refreshExpiresAt.setDate(
+        refreshExpiresAt.getDate() + TOKEN_EXPIRY_DAYS.REFRESH_TOKEN,
+      );
 
-      // Store refresh token in database
+      // Store token in database
       const tokenEntity = this.tokenRepository.create({
-        accessToken,
+        accessToken: initialAccessToken,
         refreshToken,
         expiresAt: new Date(
           Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
         ),
         refreshExpiresAt,
-        scopes: undefined, // 로그인 토큰은 스코프 대신 JWT payload의 permissions 사용
+        scopes: undefined,
         user,
         tokenType: TOKEN_TYPES.LOGIN,
         isRefreshTokenUsed: false,
       });
+      await this.tokenRepository.save(tokenEntity);
+
+      // Regenerate JWT with tokenId for revocation capability
+      const finalPayload: JwtPayload = {
+        ...initialPayload,
+        jti: tokenEntity.id.toString(), // Include token ID for revocation
+      };
+      const accessToken = this.jwtService.sign(finalPayload);
+
+      // Update token with final access token
+      tokenEntity.accessToken = accessToken;
       await this.tokenRepository.save(tokenEntity);
 
       return {

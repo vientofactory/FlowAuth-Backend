@@ -13,7 +13,7 @@ import {
   PermissionsGuard,
   RequirePermissions,
 } from '../../auth/permissions.guard';
-import { PERMISSIONS, TOKEN_TYPES } from '../../constants/auth.constants';
+import { PERMISSIONS, TOKEN_TYPES } from '@flowauth/shared';
 import { OAuth2Service } from '../oauth2.service';
 import { ScopeService } from '../scope.service';
 import { TokenService } from '../token.service';

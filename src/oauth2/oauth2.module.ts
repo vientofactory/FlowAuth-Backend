@@ -17,6 +17,7 @@ import { JwtTokenService } from './services/jwt-token.service';
 import { OAuth2TokenService } from './services/oauth2-token.service';
 import { TokenRevocationService } from './services/token-revocation.service';
 import { IdTokenService } from './services/id-token.service';
+import { DiscoveryService } from './services/discovery.service';
 import { TokenService } from './token.service';
 import { ScopeService } from './scope.service';
 import { CleanupSchedulerService } from './cleanup-scheduler.service';
@@ -57,6 +58,7 @@ import { AUTH_ENTITIES, OAUTH2_ENTITIES } from '../database/database.module';
     OAuth2TokenService,
     TokenRevocationService,
     IdTokenService,
+    DiscoveryService,
     ScopeService,
     CleanupSchedulerService,
     OAuth2BearerGuard,
