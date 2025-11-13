@@ -78,34 +78,52 @@ export class UserManagementService {
     userId: number,
     updateData: Partial<User>,
   ): Promise<User> {
-    const user = await this.findById(userId);
-    // Safe field assignment to prevent object injection
-    if (updateData.firstName !== undefined)
-      user.firstName = updateData.firstName;
-    if (updateData.lastName !== undefined) user.lastName = updateData.lastName;
-    if (updateData.username !== undefined) user.username = updateData.username;
-    if (updateData.email !== undefined) user.email = updateData.email;
-    if (updateData.userType !== undefined) user.userType = updateData.userType;
-    if (updateData.avatar !== undefined) user.avatar = updateData.avatar;
-    if (updateData.bio !== undefined) user.bio = updateData.bio;
-    if (updateData.website !== undefined) user.website = updateData.website;
-    if (updateData.location !== undefined) user.location = updateData.location;
+    // Use transaction with optimistic locking to prevent race conditions
+    const dataSource = this.userRepository.manager.connection;
 
-    // Handle password update separately
-    if (updateData.password) {
-      user.password = await bcrypt.hash(
-        updateData.password,
-        AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
-      );
-    }
+    return await dataSource.transaction(async (manager) => {
+      // Fetch user with pessimistic lock to prevent concurrent updates
+      const user = await manager.findOne(User, {
+        where: { id: userId, isActive: true },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    const savedUser = await this.userRepository.save(user);
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
 
-    // Clear cache
-    await this.cacheManagerService.delCacheKey(`user:${userId}`);
+      // Safe field assignment to prevent object injection
+      if (updateData.firstName !== undefined)
+        user.firstName = updateData.firstName;
+      if (updateData.lastName !== undefined)
+        user.lastName = updateData.lastName;
+      if (updateData.username !== undefined)
+        user.username = updateData.username;
+      if (updateData.email !== undefined) user.email = updateData.email;
+      if (updateData.userType !== undefined)
+        user.userType = updateData.userType;
+      if (updateData.avatar !== undefined) user.avatar = updateData.avatar;
+      if (updateData.bio !== undefined) user.bio = updateData.bio;
+      if (updateData.website !== undefined) user.website = updateData.website;
+      if (updateData.location !== undefined)
+        user.location = updateData.location;
 
-    this.logger.log(`User profile updated: ${user.username}`);
-    return savedUser;
+      // Handle password update separately
+      if (updateData.password) {
+        user.password = await bcrypt.hash(
+          updateData.password,
+          AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
+        );
+      }
+
+      const savedUser = await manager.save(user);
+
+      // Clear cache after successful transaction
+      await this.cacheManagerService.delCacheKey(`user:${userId}`);
+
+      this.logger.log(`User profile updated: ${user.username}`);
+      return savedUser;
+    });
   }
 
   async updateLastLogin(userId: number): Promise<void> {
@@ -120,98 +138,145 @@ export class UserManagementService {
   async enableTwoFactor(
     userId: number,
   ): Promise<{ secret: string; qrCodeUrl: string }> {
-    const user = await this.findById(userId);
+    const dataSource = this.userRepository.manager.connection;
 
-    if (user.isTwoFactorEnabled) {
-      throw new BadRequestException('2FA is already enabled');
-    }
+    return await dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId, isActive: true },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    const { secret, qrCodeUrl } =
-      await this.twoFactorService.generateSecret(userId);
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
 
-    // Update user (don't enable yet, wait for verification)
-    await this.userRepository.update(userId, {
-      twoFactorSecret: secret,
+      if (user.isTwoFactorEnabled) {
+        throw new BadRequestException('2FA is already enabled');
+      }
+
+      const { secret, qrCodeUrl } =
+        await this.twoFactorService.generateSecret(userId);
+
+      // Update user (don't enable yet, wait for verification) within transaction
+      await manager.update(User, userId, {
+        twoFactorSecret: secret,
+      });
+
+      // Clear cache after successful transaction
+      await this.cacheManagerService.delCacheKey(`user:${userId}`);
+
+      return { secret, qrCodeUrl };
     });
-
-    // Clear cache
-    await this.cacheManagerService.delCacheKey(`user:${userId}`);
-
-    return { secret, qrCodeUrl };
   }
 
   async verifyAndEnableTwoFactor(userId: number, token: string): Promise<void> {
-    const user = await this.findById(userId);
+    const dataSource = this.userRepository.manager.connection;
 
-    if (!user.twoFactorSecret) {
-      throw new BadRequestException('2FA setup not initiated');
-    }
+    await dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId, isActive: true },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    const isValid = await this.twoFactorService.verifyToken(userId, token);
-    if (!isValid) {
-      throw new BadRequestException('Invalid 2FA token');
-    }
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
 
-    // Enable 2FA
-    await this.userRepository.update(userId, {
-      isTwoFactorEnabled: true,
+      if (!user.twoFactorSecret) {
+        throw new BadRequestException('2FA setup not initiated');
+      }
+
+      const isValid = await this.twoFactorService.verifyToken(userId, token);
+      if (!isValid) {
+        throw new BadRequestException('Invalid 2FA token');
+      }
+
+      // Enable 2FA within transaction
+      await manager.update(User, userId, {
+        isTwoFactorEnabled: true,
+      });
+
+      // Clear cache after successful transaction
+      await this.cacheManagerService.delCacheKey(`user:${userId}`);
+
+      this.logger.log(`2FA enabled for user: ${user.username}`);
     });
-
-    // Clear cache
-    await this.cacheManagerService.delCacheKey(`user:${userId}`);
-
-    this.logger.log(`2FA enabled for user: ${user.username}`);
   }
 
   async disableTwoFactor(userId: number): Promise<void> {
-    const user = await this.findById(userId);
+    const dataSource = this.userRepository.manager.connection;
 
-    await this.userRepository.update(userId, {
-      isTwoFactorEnabled: false,
-      twoFactorSecret: undefined,
+    await dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId, isActive: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      await manager.getRepository(User).update(userId, {
+        isTwoFactorEnabled: false,
+        twoFactorSecret: null,
+        backupCodes: null,
+      });
+
+      // Clear cache after successful transaction
+      await this.cacheManagerService.delCacheKey(`user:${userId}`);
+
+      this.logger.log(`2FA disabled for user: ${user.username}`);
     });
-
-    // Clear cache
-    await this.cacheManagerService.delCacheKey(`user:${userId}`);
-
-    this.logger.log(`2FA disabled for user: ${user.username}`);
   }
 
   async uploadAvatar(
     userId: number,
     file: Express.Multer.File,
   ): Promise<string> {
-    const user = await this.findById(userId);
+    const dataSource = this.userRepository.manager.connection;
 
-    // Delete existing avatar if exists
-    if (user.avatar) {
-      try {
-        const deleted = this.fileUploadService.deleteFile(user.avatar);
-        if (deleted) {
-          this.logger.log(`Deleted existing avatar for user ${userId}`);
-        }
-      } catch (error) {
-        // Log but don't fail the upload if old file deletion fails
-        this.logger.warn(
-          `Failed to delete existing avatar for user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
-        );
+    return await dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId, isActive: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('User not found');
       }
-    }
 
-    // Process avatar image with Sharp for optimization
-    const avatarUrl = await this.fileUploadService.processAvatarImage(
-      userId,
-      file,
-    );
+      const oldAvatarUrl = user.avatar;
 
-    // Update user with new avatar URL
-    await this.userRepository.update(userId, { avatar: avatarUrl });
+      // Process avatar image with Sharp for optimization first
+      const avatarUrl = await this.fileUploadService.processAvatarImage(
+        userId,
+        file,
+      );
 
-    // Clear cache
-    await this.cacheManagerService.delCacheKey(`user:${userId}`);
+      // Update user with new avatar URL within transaction
+      await manager.update(User, userId, { avatar: avatarUrl });
 
-    this.logger.log(`Avatar uploaded for user: ${user.username}`);
-    return avatarUrl;
+      // Delete existing avatar after successful database update
+      if (oldAvatarUrl) {
+        try {
+          const deleted = this.fileUploadService.deleteFile(oldAvatarUrl);
+          if (deleted) {
+            this.logger.log(`Deleted existing avatar for user ${userId}`);
+          }
+        } catch (error) {
+          // Log but don't fail the upload if old file deletion fails
+          this.logger.warn(
+            `Failed to delete existing avatar for user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+
+      // Clear cache after successful transaction
+      await this.cacheManagerService.delCacheKey(`user:${userId}`);
+
+      this.logger.log(`Avatar uploaded for user: ${user.username}`);
+      return avatarUrl;
+    });
   }
 
   async removeAvatar(userId: number): Promise<void> {

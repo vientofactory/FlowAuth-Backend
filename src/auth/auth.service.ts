@@ -325,58 +325,64 @@ export class AuthService {
         throw new UnauthorizedException('User not found');
       }
 
-      // Generate initial token payload
-      const initialPayload: JwtPayload = {
-        sub: user.id.toString(),
-        email: user.email,
-        username: user.username,
-        roles: [PermissionUtils.getRoleName(user.permissions)],
-        permissions: user.permissions,
-        type: TOKEN_TYPES.LOGIN,
-      };
+      // Use transaction to ensure atomic token creation
+      const dataSource = this.userRepository.manager.connection;
 
-      // Generate initial access token
-      const initialAccessToken = this.jwtService.sign(initialPayload);
+      const result = await dataSource.transaction(async (manager) => {
+        // Generate initial token payload
+        const initialPayload: JwtPayload = {
+          sub: user.id.toString(),
+          email: user.email,
+          username: user.username,
+          roles: [PermissionUtils.getRoleName(user.permissions)],
+          permissions: user.permissions,
+          type: TOKEN_TYPES.LOGIN,
+        };
 
-      // Generate refresh token
-      const refreshToken = randomBytes(32).toString('hex');
-      const refreshExpiresAt = new Date();
-      refreshExpiresAt.setDate(
-        refreshExpiresAt.getDate() + TOKEN_EXPIRY_DAYS.REFRESH_TOKEN,
-      );
+        // Generate refresh token
+        const refreshToken = randomBytes(32).toString('hex');
+        const refreshExpiresAt = new Date();
+        refreshExpiresAt.setDate(
+          refreshExpiresAt.getDate() + TOKEN_EXPIRY_DAYS.REFRESH_TOKEN,
+        );
 
-      // Store token in database
-      const tokenEntity = this.tokenRepository.create({
-        accessToken: initialAccessToken,
-        refreshToken,
-        expiresAt: new Date(
-          Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
-        ),
-        refreshExpiresAt,
-        scopes: undefined,
-        user,
-        tokenType: TOKEN_TYPES.LOGIN,
-        isRefreshTokenUsed: false,
+        // Create token entity without access token first
+        const tokenEntity = manager.create(Token, {
+          accessToken: '', // Placeholder - will be updated with actual JWT
+          refreshToken,
+          expiresAt: new Date(
+            Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
+          ),
+          refreshExpiresAt,
+          scopes: undefined,
+          user,
+          tokenType: TOKEN_TYPES.LOGIN,
+          isRefreshTokenUsed: false,
+        });
+
+        // Save to get the token ID
+        const savedToken = await manager.save(tokenEntity);
+
+        // Generate final JWT with token ID for revocation capability
+        const finalPayload: JwtPayload = {
+          ...initialPayload,
+          jti: savedToken.id.toString(), // Include token ID for revocation
+        };
+        const finalAccessToken = this.jwtService.sign(finalPayload);
+
+        // Update token with final access token in the same transaction
+        savedToken.accessToken = finalAccessToken;
+        await manager.save(savedToken);
+
+        return {
+          user,
+          accessToken: finalAccessToken,
+          refreshToken,
+          expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
+        };
       });
-      await this.tokenRepository.save(tokenEntity);
 
-      // Regenerate JWT with tokenId for revocation capability
-      const finalPayload: JwtPayload = {
-        ...initialPayload,
-        jti: tokenEntity.id.toString(), // Include token ID for revocation
-      };
-      const accessToken = this.jwtService.sign(finalPayload);
-
-      // Update token with final access token
-      tokenEntity.accessToken = accessToken;
-      await this.tokenRepository.save(tokenEntity);
-
-      return {
-        user,
-        accessToken,
-        refreshToken,
-        expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
-      };
+      return result;
     } catch (error) {
       this.logger.error('Token refresh error:', error);
       throw new UnauthorizedException('Invalid or expired token');
@@ -415,25 +421,30 @@ export class AuthService {
     }
 
     try {
-      // 기존 토큰들을 만료시킴
-      await this.passwordResetTokenRepository.update(
-        { userId: user.id, used: false },
-        { used: true },
-      );
+      const dataSource = this.userRepository.manager.connection;
 
-      // 새 토큰 생성 (1시간 유효)
-      const token = randomBytes(32).toString('hex');
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 1);
+      const token = await dataSource.transaction(async (manager) => {
+        // 기존 토큰들을 만료시킴
+        await manager
+          .getRepository(PasswordResetToken)
+          .update({ userId: user.id, used: false }, { used: true });
 
-      // 토큰을 데이터베이스에 저장
-      const resetToken = this.passwordResetTokenRepository.create({
-        token,
-        userId: user.id,
-        email: user.email,
-        expiresAt,
+        // 새 토큰 생성 (1시간 유효)
+        const resetTokenValue = randomBytes(32).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 1);
+
+        // 토큰을 데이터베이스에 저장
+        const resetToken = manager.create(PasswordResetToken, {
+          token: resetTokenValue,
+          userId: user.id,
+          email: user.email,
+          expiresAt,
+        });
+        await manager.save(resetToken);
+
+        return resetTokenValue;
       });
-      await this.passwordResetTokenRepository.save(resetToken);
 
       // 비밀번호 재설정 이메일 비동기 전송 (즉시 응답)
       try {
@@ -482,21 +493,23 @@ export class AuthService {
     }
 
     try {
-      // 비밀번호 해시화
-      const saltRounds = 12;
-      const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+      const dataSource = this.userRepository.manager.connection;
 
-      // 사용자 비밀번호 업데이트
-      await this.userRepository.update(
-        { id: resetToken.userId },
-        { password: hashedPassword },
-      );
+      await dataSource.transaction(async (manager) => {
+        // 토큰을 사용됨으로 먼저 표시 (재사용 방지)
+        await manager
+          .getRepository(PasswordResetToken)
+          .update({ id: resetToken.id }, { used: true });
 
-      // 토큰을 사용됨으로 표시
-      await this.passwordResetTokenRepository.update(
-        { id: resetToken.id },
-        { used: true },
-      );
+        // 비밀번호 해시화
+        const saltRounds = 12;
+        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+        // 사용자 비밀번호 업데이트
+        await manager
+          .getRepository(User)
+          .update({ id: resetToken.userId }, { password: hashedPassword });
+      });
 
       // 보안 알림 이메일 전송 (큐 기반 비동기)
       try {
@@ -633,17 +646,19 @@ export class AuthService {
     }
 
     try {
-      // 사용자 이메일 인증 완료 처리
-      await this.userRepository.update(
-        { id: verificationToken.userId },
-        { isEmailVerified: true },
-      );
+      const dataSource = this.userRepository.manager.connection;
 
-      // 토큰을 사용됨으로 표시
-      await this.emailVerificationTokenRepository.update(
-        { id: verificationToken.id },
-        { used: true },
-      );
+      await dataSource.transaction(async (manager) => {
+        // 토큰을 사용됨으로 먼저 표시 (재사용 방지)
+        await manager
+          .getRepository(EmailVerificationToken)
+          .update({ id: verificationToken.id }, { used: true });
+
+        // 사용자 이메일 인증 완료 처리
+        await manager
+          .getRepository(User)
+          .update({ id: verificationToken.userId }, { isEmailVerified: true });
+      });
 
       this.logger.log(
         `Email verification completed for user: ${verificationToken.user.email}`,

@@ -74,74 +74,77 @@ export class UserAuthService {
       throw new UnauthorizedException('reCAPTCHA verification failed');
     }
 
-    // Check if user already exists
-    const existingUser = await this.userRepository.findOne({
-      where: [{ username }, { email }],
-    });
+    // Use transaction to prevent race conditions during user registration
+    return this.dataSource.transaction(async (manager) => {
+      // Check if user already exists within transaction
+      const existingUser = await manager.findOne(User, {
+        where: [{ username }, { email }],
+      });
 
-    if (existingUser) {
-      throw new ConflictException(AUTH_ERROR_MESSAGES.USER_ALREADY_EXISTS);
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(
-      password,
-      AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
-    );
-
-    // Check if this is the first user (should get admin permissions)
-    const userCount = await this.userRepository.count();
-    const isFirstUser = userCount === 0;
-
-    // Determine user type and permissions
-    const finalUserType = userType ?? USER_TYPES.REGULAR;
-    let permissions: number;
-
-    if (isFirstUser) {
-      // First user of entire system gets admin access
-      permissions = PERMISSIONS.ADMIN_ACCESS;
-    } else {
-      // Set permissions based on user type
-      if (
-        Object.prototype.hasOwnProperty.call(
-          USER_TYPE_PERMISSIONS,
-          finalUserType,
-        )
-      ) {
-        permissions =
-          USER_TYPE_PERMISSIONS[
-            finalUserType as keyof typeof USER_TYPE_PERMISSIONS
-          ];
-      } else {
-        throw new Error(`Invalid user type: ${finalUserType}`);
+      if (existingUser) {
+        throw new ConflictException(AUTH_ERROR_MESSAGES.USER_ALREADY_EXISTS);
       }
-    }
 
-    // Validate permissions
-    if (
-      permissions <= 0 ||
-      (permissions !== PERMISSIONS.ADMIN_ACCESS &&
-        (permissions & ~PERMISSION_UTILS.getAllPermissionsMask()) !== 0)
-    ) {
-      throw new Error(`Invalid permissions value: ${permissions}`);
-    }
+      // Hash password
+      const hashedPassword = await bcrypt.hash(
+        password,
+        AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
+      );
 
-    // Generate userId using Snowflake ID
-    const userId = await snowflakeGenerator.generate();
+      // Check if this is the first user (should get admin permissions) within transaction
+      const userCount = await manager.count(User);
+      const isFirstUser = userCount === 0;
 
-    // Create user
-    const user = this.userRepository.create({
-      username,
-      email,
-      password: hashedPassword,
-      firstName,
-      lastName,
-      userType: finalUserType,
-      permissions,
-      userId,
+      // Determine user type and permissions
+      const finalUserType = userType ?? USER_TYPES.REGULAR;
+      let permissions: number;
+
+      if (isFirstUser) {
+        // First user of entire system gets admin access
+        permissions = PERMISSIONS.ADMIN_ACCESS;
+      } else {
+        // Set permissions based on user type
+        if (
+          Object.prototype.hasOwnProperty.call(
+            USER_TYPE_PERMISSIONS,
+            finalUserType,
+          )
+        ) {
+          permissions =
+            USER_TYPE_PERMISSIONS[
+              finalUserType as keyof typeof USER_TYPE_PERMISSIONS
+            ];
+        } else {
+          throw new Error(`Invalid user type: ${finalUserType}`);
+        }
+      }
+
+      // Validate permissions
+      if (
+        permissions <= 0 ||
+        (permissions !== PERMISSIONS.ADMIN_ACCESS &&
+          (permissions & ~PERMISSION_UTILS.getAllPermissionsMask()) !== 0)
+      ) {
+        throw new Error(`Invalid permissions value: ${permissions}`);
+      }
+
+      // Generate userId using Snowflake ID
+      const userId = await snowflakeGenerator.generate();
+
+      // Create user within transaction
+      const user = manager.create(User, {
+        username,
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        userType: finalUserType,
+        permissions,
+        userId,
+      });
+
+      return manager.save(user);
     });
-
-    return this.userRepository.save(user);
   }
 
   async login(
@@ -206,13 +209,27 @@ export class UserAuthService {
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
 
-    // Generate userId if not exists (for existing users)
+    // Generate userId if not exists (for existing users) - use transaction for atomicity
     if (!user.userId) {
-      user.userId = await snowflakeGenerator.generate();
-      await this.userRepository.save(user);
-      this.logger.log(
-        `Generated Snowflake ID for existing user: ${user.username} (${user.userId})`,
-      );
+      await this.dataSource.transaction(async (manager) => {
+        // Re-fetch user within transaction to prevent race conditions
+        const userInTransaction = await manager.findOne(User, {
+          where: { id: user.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (userInTransaction && !userInTransaction.userId) {
+          userInTransaction.userId = await snowflakeGenerator.generate();
+          await manager.save(userInTransaction);
+          user.userId = userInTransaction.userId;
+          this.logger.log(
+            `Generated Snowflake ID for existing user: ${user.username} (${user.userId})`,
+          );
+        } else if (userInTransaction?.userId) {
+          // Another concurrent request already generated the userId
+          user.userId = userInTransaction.userId;
+        }
+      });
     }
 
     // Check password

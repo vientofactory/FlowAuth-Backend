@@ -68,52 +68,60 @@ export class TwoFactorService {
     secret: string,
     backupCodes: string[],
   ): Promise<void> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    // Use transaction to prevent race conditions during 2FA setup
+    const dataSource = this.userRepository.manager.connection;
 
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
+    await dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    if (user.isTwoFactorEnabled) {
-      throw new BadRequestException('2FA가 이미 활성화되어 있습니다.');
-    }
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
 
-    // 토큰 검증
-    const isValid = speakeasy.totp.verify({
-      secret: secret,
-      encoding: 'base32',
-      token: token,
-      window: 2, // 2단계 윈도우 (시간 오차 허용)
-    });
+      if (user.isTwoFactorEnabled) {
+        throw new BadRequestException('2FA가 이미 활성화되어 있습니다.');
+      }
 
-    if (!isValid) {
-      throw new BadRequestException('잘못된 2FA 토큰입니다.');
-    }
+      // 토큰 검증
+      const isValid = speakeasy.totp.verify({
+        secret: secret,
+        encoding: 'base32',
+        token: token,
+        window: 2, // 2단계 윈도우 (시간 오차 허용)
+      });
 
-    // 해시된 백업 코드 저장 (하이픈 제거 후 해시)
-    const hashedBackupCodes = await Promise.all(
-      backupCodes.map((code) => {
-        const normalizedCode = code.replace(/-/g, '').toUpperCase();
-        return bcrypt.hash(normalizedCode, 10);
-      }),
-    );
+      if (!isValid) {
+        throw new BadRequestException('잘못된 2FA 토큰입니다.');
+      }
 
-    // 사용자 정보 업데이트
-    await this.userRepository.update(userId, {
-      twoFactorSecret: secret,
-      isTwoFactorEnabled: true,
-      backupCodes: hashedBackupCodes,
-    });
-
-    // 2FA 활성화 알림 이메일 전송 (큐 기반 비동기)
-    try {
-      await this.emailService.queue2FAEnabled(user.email, user.username);
-      this.logger.log(`2FA enabled notification queued for ${user.email}`);
-    } catch (emailError) {
-      this.logger.warn(
-        `Failed to queue 2FA enabled notification for ${user.email}: ${emailError instanceof Error ? emailError.message : 'Unknown error'}`,
+      // 해시된 백업 코드 저장 (하이픈 제거 후 해시)
+      const hashedBackupCodes = await Promise.all(
+        backupCodes.map((code) => {
+          const normalizedCode = code.replace(/-/g, '').toUpperCase();
+          return bcrypt.hash(normalizedCode, 10);
+        }),
       );
-    }
+
+      // 사용자 정보 업데이트
+      await manager.getRepository(User).update(userId, {
+        twoFactorSecret: secret,
+        isTwoFactorEnabled: true,
+        backupCodes: hashedBackupCodes,
+      });
+
+      // 2FA 활성화 알림 이메일 전송 (큐 기반 비동기)
+      try {
+        await this.emailService.queue2FAEnabled(user.email, user.username);
+        this.logger.log(`2FA enabled notification queued for ${user.email}`);
+      } catch (emailError) {
+        this.logger.warn(
+          `Failed to queue 2FA enabled notification for ${user.email}: ${emailError instanceof Error ? emailError.message : 'Unknown error'}`,
+        );
+      }
+    });
   }
 
   /**
@@ -242,21 +250,69 @@ export class TwoFactorService {
       }
     }
 
-    // 유효한 코드가 발견된 경우에만 제거
+    // 유효한 코드가 발견된 경우에만 트랜잭션으로 제거 (경쟁 상태 방지)
     if (foundValidCode && validCodeIndex >= 0) {
       try {
-        const updatedBackupCodes = [...backupCodes];
-        updatedBackupCodes.splice(validCodeIndex, 1);
+        // Use DataSource for transaction to prevent race conditions
+        const dataSource = this.userRepository.manager.connection;
 
-        await this.userRepository.update(userId, {
-          backupCodes: updatedBackupCodes,
+        return await dataSource.transaction(async (manager) => {
+          // Re-fetch user with pessimistic lock to prevent concurrent modifications
+          const userWithLock = await manager.findOne(User, {
+            where: { id: userId },
+            lock: { mode: 'pessimistic_write' },
+            select: ['id', 'backupCodes'],
+          });
+
+          if (!userWithLock?.backupCodes) {
+            this.logger.warn(
+              `No backup codes found for user ${userId} during transaction`,
+            );
+            return false;
+          }
+
+          // Re-verify the backup code within transaction to prevent TOCTOU attacks
+          if (validCodeIndex >= userWithLock.backupCodes.length) {
+            this.logger.warn(
+              `Invalid backup code index ${validCodeIndex} for user ${userId}`,
+            );
+            return false;
+          }
+
+          const hashedCodeInTransaction =
+            userWithLock.backupCodes.at(validCodeIndex);
+          if (!hashedCodeInTransaction) {
+            this.logger.warn(
+              `Backup code at index ${validCodeIndex} not found for user ${userId}`,
+            );
+            return false;
+          }
+          const isStillValid = await bcrypt.compare(
+            inputCode,
+            hashedCodeInTransaction,
+          );
+
+          if (!isStillValid) {
+            this.logger.warn(
+              `Backup code no longer valid for user ${userId} during transaction`,
+            );
+            return false;
+          }
+
+          // Remove the used backup code
+          const updatedBackupCodes = [...userWithLock.backupCodes];
+          updatedBackupCodes.splice(validCodeIndex, 1);
+
+          await manager.getRepository(User).update(userId, {
+            backupCodes: updatedBackupCodes,
+          });
+
+          this.logger.log(
+            `Backup code used successfully for user ${userId}. Remaining codes: ${updatedBackupCodes.length}`,
+          );
+
+          return true;
         });
-
-        this.logger.log(
-          `Backup code used successfully for user ${userId}. Remaining codes: ${updatedBackupCodes.length}`,
-        );
-
-        return true;
       } catch (error) {
         this.logger.error(
           `Failed to update backup codes for user ${userId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -275,30 +331,38 @@ export class TwoFactorService {
     userId: number,
     currentPassword: string,
   ): Promise<void> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const dataSource = this.userRepository.manager.connection;
 
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
+    await dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    if (!user.isTwoFactorEnabled) {
-      throw new BadRequestException('2FA가 활성화되어 있지 않습니다.');
-    }
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
 
-    // 현재 비밀번호 검증
-    const isPasswordValid = await bcrypt.compare(
-      currentPassword,
-      user.password,
-    );
-    if (!isPasswordValid) {
-      throw new BadRequestException('현재 비밀번호가 일치하지 않습니다.');
-    }
+      if (!user.isTwoFactorEnabled) {
+        throw new BadRequestException('2FA가 활성화되어 있지 않습니다.');
+      }
 
-    // 2FA 비활성화
-    user.twoFactorSecret = null;
-    user.isTwoFactorEnabled = false;
-    user.backupCodes = null;
-    await this.userRepository.save(user);
+      // 현재 비밀번호 검증
+      const isPasswordValid = await bcrypt.compare(
+        currentPassword,
+        user.password,
+      );
+      if (!isPasswordValid) {
+        throw new BadRequestException('현재 비밀번호가 일치하지 않습니다.');
+      }
+
+      // 2FA 비활성화
+      await manager.getRepository(User).update(userId, {
+        twoFactorSecret: null,
+        isTwoFactorEnabled: false,
+        backupCodes: null,
+      });
+    });
   }
 
   /**
