@@ -1,5 +1,6 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { DevelopmentLogger } from '../../common/utils/development-logger.util';
 import { Repository } from 'typeorm';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
@@ -16,6 +17,7 @@ import { validateOAuth2RedirectUri } from '../../utils/url-security.util';
 @Injectable()
 export class AuthorizationService {
   private readonly logger = new Logger(AuthorizationService.name);
+  private readonly devLogger = new DevelopmentLogger(AuthorizationService.name);
 
   constructor(
     @InjectRepository(Client)
@@ -235,7 +237,7 @@ export class AuthorizationService {
       nonce,
       responseType,
     );
-    this.logger.log(`Authorization code created: ${authCode.code}`);
+    this.devLogger.devLog(`Authorization code created: ${authCode.code}`);
 
     return {
       code: authCode.code,
