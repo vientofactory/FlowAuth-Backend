@@ -66,13 +66,6 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
     @Body(DefaultFieldSizeLimitPipe) tokenDto: TokenRequestDto,
     @Headers('authorization') authHeader?: string,
   ): Promise<TokenResponseDto> {
-    if (tokenDto.grant_type !== 'authorization_code') {
-      throw new BadRequestException({
-        error: 'unsupported_grant_type',
-        error_description: 'Grant type must be "authorization_code"',
-      });
-    }
-
     // Parse Basic Authentication header if present
     let clientId = tokenDto.client_id;
     let clientSecret = tokenDto.client_secret;
