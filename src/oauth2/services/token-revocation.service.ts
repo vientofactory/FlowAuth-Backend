@@ -136,7 +136,7 @@ export class TokenRevocationService {
   async cleanupExpiredTokens(): Promise<number> {
     const now = new Date();
     const result = await this.tokenRepository.delete({
-      expiresAt: LessThan(now),
+      refreshExpiresAt: LessThan(now),
     });
     return result.affected ?? 0;
   }
