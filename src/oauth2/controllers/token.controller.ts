@@ -101,6 +101,14 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
       }
     }
 
+    // Validate required client_id
+    if (!clientId) {
+      throw new BadRequestException({
+        error: 'invalid_request',
+        error_description: 'client_id is required',
+      });
+    }
+
     // Create a new request object with extracted credentials
     const enhancedTokenDto = {
       ...tokenDto,
