@@ -227,7 +227,7 @@ export class TokenGrantService {
       throw new BadRequestException('Missing refresh_token parameter');
     }
 
-    // Validate client if provided
+    // If client_id is provided, validate it
     if (client_id) {
       await this.validateClient(client_id, client_secret);
     }

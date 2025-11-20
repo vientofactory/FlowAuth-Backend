@@ -247,7 +247,7 @@ export class OAuth2TokenService {
       }
 
       // Verify client matches using timing-safe comparison
-      if (!safeTokenCompare(token.client.clientId, clientId)) {
+      if (clientId && !safeTokenCompare(token.client.clientId, clientId)) {
         return null;
       }
 
