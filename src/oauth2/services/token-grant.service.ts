@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Client } from '../client.entity';
@@ -12,10 +12,11 @@ import {
   OAuth2GrantType,
 } from '../../constants/oauth2.constants';
 import { safeCredentialCompare } from '../../utils/timing-security.util';
+import { DevelopmentLogger } from 'src/common/utils/development-logger.util';
 
 @Injectable()
 export class TokenGrantService {
-  private readonly logger = new Logger(TokenGrantService.name);
+  private readonly devLogger = new DevelopmentLogger(TokenGrantService.name);
 
   // Rate limiting configuration
   private rateLimitStore = new Map<
@@ -196,7 +197,7 @@ export class TokenGrantService {
       response.id_token = idToken;
     }
 
-    this.logger.log(
+    this.devLogger.devDebug(
       `Tokens issued for user ${authCode.user.id} with scopes: ${(authCode.scopes ?? []).join(', ')}`,
     );
 
@@ -227,7 +228,7 @@ export class TokenGrantService {
       throw new BadRequestException('Missing refresh_token parameter');
     }
 
-    // Validate client if provided
+    // If client_id is provided, validate it
     if (client_id) {
       await this.validateClient(client_id, client_secret);
     }
@@ -242,7 +243,7 @@ export class TokenGrantService {
       throw new BadRequestException('Invalid refresh token');
     }
 
-    this.logger.log(
+    this.devLogger.devDebug(
       `Tokens refreshed for user with scopes: ${tokenResult.scopes.join(', ')}`,
     );
 
@@ -291,7 +292,7 @@ export class TokenGrantService {
       requestedScopes,
     );
 
-    this.logger.log(
+    this.devLogger.devDebug(
       `Client credentials token issued for client ${client.id} with scopes: ${requestedScopes.join(', ')}`,
     );
 

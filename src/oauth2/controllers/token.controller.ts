@@ -7,9 +7,7 @@ import {
   Headers,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
-import { OAuth2Service } from '../oauth2.service';
 import { TokenGrantService } from '../services/token-grant.service';
-import { TokenService } from '../token.service';
 import { TokenIntrospectionService } from '../services/token-introspection.service';
 import { TokenRequestDto, TokenResponseDto } from '../dto/oauth2.dto';
 import { ProblemDetailsDto } from '../../common/dto/response.dto';
@@ -28,9 +26,7 @@ export class TokenController {
   private readonly logger = new Logger(TokenController.name);
 
   constructor(
-    private readonly oauth2Service: OAuth2Service,
     private readonly tokenGrantService: TokenGrantService,
-    private readonly tokenService: TokenService,
     private readonly tokenIntrospectionService: TokenIntrospectionService,
   ) {}
 
@@ -70,13 +66,6 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
     @Body(DefaultFieldSizeLimitPipe) tokenDto: TokenRequestDto,
     @Headers('authorization') authHeader?: string,
   ): Promise<TokenResponseDto> {
-    if (tokenDto.grant_type !== 'authorization_code') {
-      throw new BadRequestException({
-        error: 'unsupported_grant_type',
-        error_description: 'Grant type must be "authorization_code"',
-      });
-    }
-
     // Parse Basic Authentication header if present
     let clientId = tokenDto.client_id;
     let clientSecret = tokenDto.client_secret;
@@ -99,6 +88,14 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
           error_description: 'Invalid Authorization header format',
         });
       }
+    }
+
+    // Validate required client_id (optional for refresh_token grant per RFC 6749)
+    if (!clientId && tokenDto.grant_type !== 'refresh_token') {
+      throw new BadRequestException({
+        error: 'invalid_request',
+        error_description: 'client_id is required',
+      });
     }
 
     // Create a new request object with extracted credentials

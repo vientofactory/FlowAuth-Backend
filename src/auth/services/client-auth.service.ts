@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { DevelopmentLogger } from '../../common/utils/development-logger.util';
 import { User } from '../user.entity';
 import { Client } from '../../oauth2/client.entity';
 import { Token } from '../../oauth2/token.entity';
@@ -33,6 +34,7 @@ import { EmailService } from '../../email/email.service';
 @Injectable()
 export class ClientAuthService {
   private readonly logger = new Logger(ClientAuthService.name);
+  private readonly devLogger = new DevelopmentLogger(ClientAuthService.name);
 
   constructor(
     @InjectRepository(User)
@@ -176,7 +178,7 @@ export class ClientAuthService {
         savedClient.name,
         savedClient.clientId,
       );
-      this.logger.log(
+      this.devLogger.devLog(
         `Client created notification queued for ${user.email} (client: ${savedClient.name})`,
       );
     } catch (emailError) {
@@ -194,13 +196,15 @@ export class ClientAuthService {
       relations: ['user'],
     });
 
-    // Log client logo URIs for debugging
-    clients.forEach((client) => {
-      if (client.logoUri) {
-        this.logger.log(
-          `Client ${client.name} (ID: ${client.id}) has logoUri: ${client.logoUri}`,
-        );
-      }
+    // Log client logo URIs for debugging (development only)
+    this.devLogger.devOnly(() => {
+      clients.forEach((client) => {
+        if (client.logoUri) {
+          this.devLogger.devLog(
+            `Client ${client.name} (ID: ${client.id}) has logoUri: ${client.logoUri}`,
+          );
+        }
+      });
     });
 
     return clients;
@@ -358,14 +362,14 @@ export class ClientAuthService {
         where: { client: { id } },
       });
 
-      this.logger.log(
+      this.devLogger.devLog(
         `Deleting client ${auditData.clientName} (ID: ${id}) with ${deletedTokensCount} tokens and ${deletedAuthCodesCount} authorization codes`,
       );
 
       // Delete the client (cascade will handle tokens and auth codes)
       await manager.remove(Client, client);
 
-      this.logger.log(
+      this.devLogger.devLog(
         `Successfully deleted client ${auditData.clientName} (ID: ${id}) and ${deletedTokensCount} related tokens and ${deletedAuthCodesCount} authorization codes`,
       );
     });

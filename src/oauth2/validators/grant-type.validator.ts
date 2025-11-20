@@ -25,15 +25,15 @@ export class GrantTypeRequiredFieldsConstraint
 
     switch (grant_type) {
       case 'authorization_code':
-        // authorization_code grant requires: client_id, code, redirect_uri
-        return Boolean(object.client_id && object.code && object.redirect_uri);
+        // authorization_code grant requires: code (client_id can be from header)
+        return Boolean(object.code);
 
       case 'refresh_token':
-        // refresh_token grant requires: client_id, refresh_token
-        return Boolean(object.client_id && object.refresh_token);
+        // refresh_token grant requires: refresh_token (client_id can be from header)
+        return Boolean(object.refresh_token);
 
       case 'client_credentials':
-        // client_credentials grant requires: client_id
+        // client_credentials grant requires: client_id (can be from header)
         return Boolean(object.client_id);
 
       default:
@@ -47,9 +47,9 @@ export class GrantTypeRequiredFieldsConstraint
 
     switch (grant_type) {
       case 'authorization_code':
-        return 'For authorization_code grant, client_id, code, and redirect_uri are required';
+        return 'For authorization_code grant, code is required';
       case 'refresh_token':
-        return 'For refresh_token grant, client_id and refresh_token are required';
+        return 'For refresh_token grant, refresh_token is required';
       case 'client_credentials':
         return 'For client_credentials grant, client_id is required';
       default:

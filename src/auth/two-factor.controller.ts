@@ -23,6 +23,8 @@ import {
   TwoFactorResponseDto,
   BackupCodeDto,
 } from './dto/2fa/two-factor.dto';
+import { RateLimit } from '../common/guards/advanced-rate-limit.guard';
+import { RATE_LIMIT_CONFIGS } from '../constants/security.constants';
 
 interface RequestWithUser {
   user: {
@@ -84,9 +86,11 @@ export class TwoFactorController {
   }
 
   @Post('verify')
+  @RateLimit(RATE_LIMIT_CONFIGS.AUTH_2FA_VERIFY)
   @ApiOperation({ summary: '2FA 토큰 검증' })
   @ApiResponse({ status: 200, description: '토큰 검증 성공' })
   @ApiResponse({ status: 400, description: '잘못된 토큰' })
+  @ApiResponse({ status: 429, description: '요청 제한 초과' })
   async verifyTwoFactor(
     @Request() req: RequestWithUser,
     @Body() verifyDto: VerifyTwoFactorDto,
@@ -104,9 +108,11 @@ export class TwoFactorController {
   }
 
   @Post('verify-backup')
+  @RateLimit(RATE_LIMIT_CONFIGS.AUTH_BACKUP_CODE)
   @ApiOperation({ summary: '백업 코드 검증' })
   @ApiResponse({ status: 200, description: '백업 코드 검증 성공' })
   @ApiResponse({ status: 400, description: '잘못된 백업 코드' })
+  @ApiResponse({ status: 429, description: '요청 제한 초과' })
   async verifyBackupCode(
     @Request() req: RequestWithUser,
     @Body() backupCodeDto: BackupCodeDto,

@@ -28,11 +28,13 @@ import { COOKIE_KEYS, TOKEN_TYPES } from '@flowauth/shared';
 import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
 import { TokenUtils } from '../../utils/permission.util';
 import type { User } from '../../auth/user.entity';
+import { DevelopmentLogger } from 'src/common/utils/development-logger.util';
 
 @Controller('oauth2')
 @ApiTags('OAuth2 Flow')
 export class ConsentController {
   private readonly logger = new Logger(ConsentController.name);
+  private readonly devLogger = new DevelopmentLogger(ConsentController.name);
 
   constructor(
     private readonly oauth2Service: OAuth2Service,
@@ -258,7 +260,7 @@ export class ConsentController {
     @Body() consentDto: AuthorizeConsentDto,
     @Request() req: ExpressRequest,
   ): Promise<RedirectUrlResponseDto> {
-    this.logger.log(
+    this.devLogger.devDebug(
       `Consent request received: client_id=${consentDto.client_id}, approved=${consentDto.approved}, scope=${consentDto.scope}`,
     );
 

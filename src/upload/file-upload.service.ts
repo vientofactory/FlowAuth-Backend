@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { DevelopmentLogger } from '../common/utils/development-logger.util';
 import { existsSync, unlinkSync } from 'fs';
 import { memoryStorage } from 'multer';
 import {
@@ -20,6 +21,7 @@ import { ImageProcessingService } from './image-processing.service';
 @Injectable()
 export class FileUploadService {
   private readonly logger = new Logger(FileUploadService.name);
+  private readonly devLogger = new DevelopmentLogger(FileUploadService.name);
 
   constructor(
     private readonly imageProcessingService: ImageProcessingService,
@@ -154,7 +156,7 @@ export class FileUploadService {
    */
   deleteFile(logoUri: string): boolean {
     try {
-      this.logger.log(`Attempting to delete file: ${logoUri}`);
+      this.devLogger.devLog(`Attempting to delete file: ${logoUri}`);
 
       if (!logoUri || typeof logoUri !== 'string') {
         this.logger.warn(`Invalid logoUri: ${logoUri}`);
@@ -163,7 +165,7 @@ export class FileUploadService {
 
       // Remove leading slash and extract relative path
       const relativePath = logoUri.startsWith('/') ? logoUri.slice(1) : logoUri;
-      this.logger.log(`Relative path: ${relativePath}`);
+      this.devLogger.devLog(`Relative path: ${relativePath}`);
 
       // Check if it's an upload path
       if (!relativePath.startsWith('uploads/')) {
@@ -187,9 +189,9 @@ export class FileUploadService {
           process.cwd(),
         );
 
-        this.logger.log(`Original file path: ${originalPath}`);
+        this.devLogger.devLog(`Original file path: ${originalPath}`);
         if (originalPath !== sanitizedPath) {
-          this.logger.log(`Sanitized file path: ${sanitizedPath}`);
+          this.devLogger.devLog(`Sanitized file path: ${sanitizedPath}`);
         }
 
         // Check which file actually exists
@@ -197,7 +199,7 @@ export class FileUploadService {
         const filePath = existsSync(originalPath)
           ? originalPath
           : sanitizedPath;
-        this.logger.log(`Using file path: ${filePath}`);
+        this.devLogger.devLog(`Using file path: ${filePath}`);
 
         // Check if file exists
         // eslint-disable-next-line security/detect-non-literal-fs-filename
@@ -208,7 +210,7 @@ export class FileUploadService {
         // Delete the file
         // eslint-disable-next-line security/detect-non-literal-fs-filename
         unlinkSync(filePath);
-        this.logger.log(`Successfully deleted file: ${filePath}`);
+        this.devLogger.devLog(`Successfully deleted file: ${filePath}`);
         return true;
       } catch (error) {
         this.logger.error(
