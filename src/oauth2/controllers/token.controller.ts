@@ -7,9 +7,7 @@ import {
   Headers,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
-import { OAuth2Service } from '../oauth2.service';
 import { TokenGrantService } from '../services/token-grant.service';
-import { TokenService } from '../token.service';
 import { TokenIntrospectionService } from '../services/token-introspection.service';
 import { TokenRequestDto, TokenResponseDto } from '../dto/oauth2.dto';
 import { ProblemDetailsDto } from '../../common/dto/response.dto';
@@ -28,9 +26,7 @@ export class TokenController {
   private readonly logger = new Logger(TokenController.name);
 
   constructor(
-    private readonly oauth2Service: OAuth2Service,
     private readonly tokenGrantService: TokenGrantService,
-    private readonly tokenService: TokenService,
     private readonly tokenIntrospectionService: TokenIntrospectionService,
   ) {}
 

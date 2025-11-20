@@ -1,6 +1,5 @@
 import { Controller, Get, Logger, UsePipes } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { ConfigService } from '@nestjs/config';
 import { JwtTokenService } from '../services/jwt-token.service';
 
 // RFC 7517 JWK (JSON Web Key) Interface
@@ -35,10 +34,7 @@ export class JwksController {
   private readonly logger = new Logger(JwksController.name);
   private jwk: JWK;
 
-  constructor(
-    private readonly configService: ConfigService,
-    private readonly jwtTokenService: JwtTokenService,
-  ) {
+  constructor(private readonly jwtTokenService: JwtTokenService) {
     // 애플리케이션 시작 시 JWK 생성 또는 환경 변수에서 로드
     this.initializeJWK();
   }
