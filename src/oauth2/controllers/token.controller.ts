@@ -90,8 +90,8 @@ Authorization Code를 사용하여 Access Token을 발급받습니다.
       }
     }
 
-    // Validate required client_id
-    if (!clientId) {
+    // Validate required client_id (optional for refresh_token grant per RFC 6749)
+    if (!clientId && tokenDto.grant_type !== 'refresh_token') {
       throw new BadRequestException({
         error: 'invalid_request',
         error_description: 'client_id is required',
