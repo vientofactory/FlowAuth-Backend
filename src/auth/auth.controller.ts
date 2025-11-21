@@ -254,8 +254,6 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'JWT 토큰 리프래시' })
   @ApiResponse({
     status: 200,
@@ -266,9 +264,17 @@ export class AuthController {
     status: 401,
     description: '유효하지 않은 토큰',
   })
-  refresh(@Request() req: ExpressRequest) {
-    const token = ValidationService.extractBearerToken(req);
-    return this.authService.refreshToken(token);
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        refreshToken: { type: 'string', description: '리프래시 토큰' },
+      },
+      required: ['refreshToken'],
+    },
+  })
+  refresh(@Body() body: { refreshToken: string }) {
+    return this.authService.refreshToken(body.refreshToken);
   }
 
   @Post('verify-backup-code')
