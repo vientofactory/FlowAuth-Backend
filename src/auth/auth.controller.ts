@@ -42,6 +42,7 @@ import { User } from './user.entity';
 import type { AuthenticatedRequest } from '../types/auth.types';
 import { PERMISSIONS, TOKEN_TYPES, type TokenType } from '@flowauth/shared';
 import { ConfigService } from '@nestjs/config';
+import { TokenAuthService } from './services/token-auth.service';
 import { ValidationService } from './services/validation.service';
 import { validateOAuth2RedirectUri } from '../utils/url-security.util';
 import { RequestInfoUtils } from '../utils/request-info.util';
@@ -66,6 +67,7 @@ export class AuthController {
   constructor(
     private readonly configService: ConfigService,
     private readonly authService: AuthService,
+    private readonly tokenAuthService: TokenAuthService,
   ) {}
 
   @Post('register')
@@ -274,7 +276,7 @@ export class AuthController {
     },
   })
   refresh(@Body() body: { refreshToken: string }) {
-    return this.authService.refreshToken(body.refreshToken);
+    return this.tokenAuthService.refreshToken(body.refreshToken);
   }
 
   @Post('verify-backup-code')
