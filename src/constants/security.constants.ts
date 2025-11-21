@@ -367,3 +367,12 @@ export const SECURITY_VALIDATION_REGEX = {
   // 이벤트 핸들러 패턴
   EVENT_HANDLER: /on\w+\s*=/gi,
 } as const;
+
+// 쿠키 옵션 상수들
+export const COOKIE_OPTIONS = {
+  TOKEN: {
+    httpOnly: true,
+    sameSite: 'strict' as const,
+    maxAge: 24 * 60 * 60 * 1000, // 24시간 (밀리초)
+  },
+} as const;

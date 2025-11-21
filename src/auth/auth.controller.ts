@@ -58,6 +58,7 @@ import {
 import {
   RATE_LIMIT_CONFIGS,
   KEY_GENERATORS,
+  COOKIE_OPTIONS,
 } from '../constants/security.constants';
 
 @Controller('auth')
@@ -161,10 +162,8 @@ export class AuthController {
     const result = await this.authService.login(loginDto, clientInfo);
 
     res.cookie('token', result.accessToken, {
-      httpOnly: true,
+      ...COOKIE_OPTIONS.TOKEN,
       secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
     return result;
@@ -218,10 +217,8 @@ export class AuthController {
     );
 
     res.cookie('token', result.accessToken, {
-      httpOnly: true,
+      ...COOKIE_OPTIONS.TOKEN,
       secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
     return result;
@@ -247,9 +244,8 @@ export class AuthController {
     const result = this.authService.logout(token);
 
     res.clearCookie('token', {
-      httpOnly: true,
+      ...COOKIE_OPTIONS.TOKEN,
       secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'strict',
     });
 
     return result;
@@ -328,10 +324,8 @@ export class AuthController {
     );
 
     res.cookie('token', result.accessToken, {
-      httpOnly: true,
+      ...COOKIE_OPTIONS.TOKEN,
       secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
     return result;

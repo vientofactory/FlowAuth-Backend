@@ -188,23 +188,7 @@ export class TokenAuthService {
         },
       );
 
-      // Generate new access token
-      const payload: JwtPayload = {
-        sub: tokenEntity.user.id.toString(),
-        email: tokenEntity.user.email,
-        username: tokenEntity.user.username,
-        roles: [PermissionUtils.getRoleName(tokenEntity.user.permissions)],
-        permissions: tokenEntity.user.permissions,
-        type: tokenEntity.tokenType,
-        avatar: tokenEntity.user.avatar ?? undefined,
-        jti: tokenEntity.id.toString(),
-      };
-
-      const newAccessToken = this.jwtService.sign(payload, {
-        expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
-      });
-
-      // Generate new refresh token
+      // Generate new refresh token and expiry dates
       const newRefreshToken = crypto.randomBytes(32).toString('hex');
       const refreshExpiresAt = new Date();
       refreshExpiresAt.setDate(
@@ -216,9 +200,9 @@ export class TokenAuthService {
         newExpiresAt.getSeconds() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
       );
 
-      // Create new token with updated family generation
+      // Create new token with updated family generation (initially with empty access token)
       const newTokenEntity = manager.create(Token, {
-        accessToken: newAccessToken,
+        accessToken: '', // Will be updated with final JWT
         refreshToken: newRefreshToken,
         expiresAt: newExpiresAt,
         refreshExpiresAt,
@@ -232,9 +216,29 @@ export class TokenAuthService {
 
       await manager.save(newTokenEntity);
 
+      // Generate final JWT with NEW token ID for revocation capability
+      const finalPayload: JwtPayload = {
+        sub: tokenEntity.user.id.toString(),
+        email: tokenEntity.user.email,
+        username: tokenEntity.user.username,
+        roles: [PermissionUtils.getRoleName(tokenEntity.user.permissions)],
+        permissions: tokenEntity.user.permissions,
+        type: tokenEntity.tokenType,
+        avatar: tokenEntity.user.avatar ?? undefined,
+        jti: newTokenEntity.id.toString(),
+      };
+
+      const finalAccessToken = this.jwtService.sign(finalPayload, {
+        expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
+      });
+
+      // Update token with final access token
+      newTokenEntity.accessToken = finalAccessToken;
+      await manager.save(newTokenEntity);
+
       return {
         user: tokenEntity.user,
-        accessToken: newAccessToken,
+        accessToken: finalAccessToken,
         refreshToken: newRefreshToken,
         expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
       };
