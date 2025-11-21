@@ -145,7 +145,7 @@ export class OAuth2UserInfoBuilder {
           family_name: user.lastName ?? null,
           preferred_username: user.username || null,
           profile: `${backendUrl}/users/${user.id}`,
-          picture: user.avatar ?? null,
+          picture: user.avatar ? backendUrl + user.avatar : null,
           updated_at: Math.floor(
             (user.updatedAt?.getTime() || Date.now()) / 1000,
           ),
