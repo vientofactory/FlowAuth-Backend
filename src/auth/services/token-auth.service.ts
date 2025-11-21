@@ -16,6 +16,7 @@ import {
   JWT_TOKEN_EXPIRY,
   PERMISSIONS,
   type TokenType,
+  TOKEN_EXPIRY_DAYS,
 } from '@flowauth/shared';
 import { JwtPayload, LoginResponse } from '../../types/auth.types';
 import { PermissionUtils } from '../../utils/permission.util';
@@ -146,11 +147,12 @@ export class TokenAuthService {
   }
 
   async refreshToken(token: string): Promise<LoginResponse> {
-    try {
-      // Find the refresh token
-      const tokenEntity = await this.tokenRepository.findOne({
+    return await this.tokenRepository.manager.transaction(async (manager) => {
+      // Find the refresh token with a lock
+      const tokenEntity = await manager.findOne(Token, {
         where: { refreshToken: token },
         relations: ['user'],
+        lock: { mode: 'pessimistic_write' },
       });
 
       if (!tokenEntity) {
@@ -161,12 +163,11 @@ export class TokenAuthService {
         throw new NotFoundException('Token user not found');
       }
 
-      if (!tokenEntity.refreshExpiresAt) {
-        throw new ForbiddenException('Refresh token expired');
-      }
-
-      // Check if token is expired
-      if (tokenEntity.refreshExpiresAt < new Date()) {
+      // Check if refresh token is expired
+      if (
+        tokenEntity.refreshExpiresAt &&
+        tokenEntity.refreshExpiresAt < new Date()
+      ) {
         throw new ForbiddenException('Refresh token expired');
       }
 
@@ -177,9 +178,15 @@ export class TokenAuthService {
         throw new ForbiddenException('Refresh token already used');
       }
 
-      // Mark refresh token as used
-      tokenEntity.isRefreshTokenUsed = true;
-      await this.tokenRepository.save(tokenEntity);
+      // Mark current refresh token as used
+      await manager.update(
+        Token,
+        { id: tokenEntity.id },
+        {
+          isRefreshTokenUsed: true,
+          updatedAt: new Date(),
+        },
+      );
 
       // Generate new access token
       const payload: JwtPayload = {
@@ -200,23 +207,30 @@ export class TokenAuthService {
       // Generate new refresh token
       const newRefreshToken = crypto.randomBytes(32).toString('hex');
       const refreshExpiresAt = new Date();
-      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30);
+      refreshExpiresAt.setDate(
+        refreshExpiresAt.getDate() + TOKEN_EXPIRY_DAYS.REFRESH_TOKEN,
+      );
 
-      // Create new token entity
-      const newTokenEntity = this.tokenRepository.create({
+      const newExpiresAt = new Date();
+      newExpiresAt.setSeconds(
+        newExpiresAt.getSeconds() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
+      );
+
+      // Create new token with updated family generation
+      const newTokenEntity = manager.create(Token, {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
-        expiresAt: new Date(
-          Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
-        ),
+        expiresAt: newExpiresAt,
         refreshExpiresAt,
         scopes: tokenEntity.scopes,
         user: tokenEntity.user,
         tokenType: tokenEntity.tokenType,
+        tokenFamily: tokenEntity.tokenFamily,
+        rotationGeneration: (tokenEntity.rotationGeneration || 1) + 1,
         isRefreshTokenUsed: false,
       });
 
-      await this.tokenRepository.save(newTokenEntity);
+      await manager.save(newTokenEntity);
 
       return {
         user: tokenEntity.user,
@@ -224,9 +238,6 @@ export class TokenAuthService {
         refreshToken: newRefreshToken,
         expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
       };
-    } catch (error) {
-      this.logger.error('Token refresh failed:', error);
-      throw error;
-    }
+    });
   }
 }

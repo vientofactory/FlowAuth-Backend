@@ -12,7 +12,8 @@ import { User } from '../user.entity';
 import { Token } from '../../oauth2/token.entity';
 import { CreateUserDto } from '../dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
-import * as crypto from 'crypto';
+import { randomBytes } from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 import {
   AUTH_CONSTANTS,
   AUTH_ERROR_MESSAGES,
@@ -291,7 +292,7 @@ export class UserAuthService {
     await this.cacheManagerService.delCacheKey(`activities:${user.id}:10`); // default limit 10
 
     // Generate refresh token for general login
-    const refreshToken = crypto.randomBytes(32).toString('hex');
+    const refreshToken = randomBytes(32).toString('hex');
     const refreshExpiresAt = new Date();
     refreshExpiresAt.setDate(
       refreshExpiresAt.getDate() + TOKEN_EXPIRY_DAYS.REFRESH_TOKEN,
@@ -302,15 +303,17 @@ export class UserAuthService {
       try {
         // Create token entity without access token first
         const tokenEntity = manager.create(Token, {
-          accessToken: '', // Placeholder - will be updated with actual JWT
+          accessToken: '', // Will be updated with actual JWT
           refreshToken,
           expiresAt: new Date(
             Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
           ),
           refreshExpiresAt,
-          scopes: undefined, // Login tokens use JWT payload permissions instead of scopes
+          scopes: undefined,
           user,
           tokenType: TOKEN_TYPES.LOGIN,
+          tokenFamily: uuidv4(),
+          rotationGeneration: 1,
           isRefreshTokenUsed: false,
         });
 
