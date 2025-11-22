@@ -12,8 +12,7 @@ import { User } from '../user.entity';
 import { Token } from '../../oauth2/token.entity';
 import { CreateUserDto } from '../dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
+import { randomBytes, randomUUID } from 'crypto';
 import {
   AUTH_CONSTANTS,
   AUTH_ERROR_MESSAGES,
@@ -312,7 +311,7 @@ export class UserAuthService {
           scopes: undefined,
           user,
           tokenType: TOKEN_TYPES.LOGIN,
-          tokenFamily: uuidv4(),
+          tokenFamily: randomUUID(),
           rotationGeneration: 1,
           isRefreshTokenUsed: false,
         });
