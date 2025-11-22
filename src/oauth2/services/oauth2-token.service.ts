@@ -327,6 +327,11 @@ export class OAuth2TokenService {
       newToken.accessToken = newAccessToken;
       await manager.save(newToken);
 
+      // Clean up expired old token to optimize database resources
+      if (token.expiresAt && token.expiresAt < new Date()) {
+        void manager.delete(Token, { id: token.id });
+      }
+
       return {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
@@ -411,12 +416,6 @@ export class OAuth2TokenService {
   ): Promise<void> {
     if (!tokenFamily) return;
 
-    // Get all tokens in family before revoking
-    const tokensInFamily = await manager.find(Token, {
-      where: { tokenFamily },
-      select: ['id'],
-    });
-
     await manager.update(
       Token,
       { tokenFamily },
@@ -428,11 +427,6 @@ export class OAuth2TokenService {
         isRefreshTokenUsed: true,
       },
     );
-
-    // Remove all tokens from cache
-    for (const token of tokensInFamily) {
-      await this.cacheManagerService.delCacheKey(`oauth2_token:${token.id}`);
-    }
   }
 
   /**

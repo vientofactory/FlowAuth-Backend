@@ -188,6 +188,12 @@ export class TokenAuthService {
         },
       );
 
+      // Check if the old access token is expired and delete it to free up resources
+      const now = new Date();
+      if (tokenEntity.expiresAt && tokenEntity.expiresAt < now) {
+        void manager.delete(Token, { id: tokenEntity.id });
+      }
+
       // Generate new refresh token and expiry dates
       const newRefreshToken = crypto.randomBytes(32).toString('hex');
       const refreshExpiresAt = new Date();

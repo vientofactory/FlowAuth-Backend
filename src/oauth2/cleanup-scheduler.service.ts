@@ -17,8 +17,15 @@ export class CleanupSchedulerService {
   @Cron(CronExpression.EVERY_10_MINUTES)
   async handleCleanupExpiredTokens() {
     try {
-      await this.tokenService.cleanupExpiredTokens();
-      await this.authorizationCodeService.cleanupExpiredCodes();
+      const deletedTokens = await this.tokenService.cleanupExpiredTokens();
+      const deletedCodes =
+        await this.authorizationCodeService.cleanupExpiredCodes();
+
+      if (deletedTokens > 0 || deletedCodes > 0) {
+        this.logger.log(
+          `Cleanup completed: ${deletedTokens} expired tokens and ${deletedCodes} expired authorization codes removed`,
+        );
+      }
     } catch (error) {
       this.logger.error('Failed to cleanup expired tokens and codes', error);
     }
