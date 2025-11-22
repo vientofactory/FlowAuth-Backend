@@ -285,13 +285,7 @@ export class OAuth2TokenService {
         },
       );
 
-      // Generate new tokens
-      const newAccessToken = this.generateAccessTokenWithJti(
-        token.user ?? null,
-        token.client,
-        token.scopes ?? [],
-        token.id,
-      );
+      // Generate new refresh token and expiry dates
       const newRefreshToken = this.generateRefreshToken();
 
       const newExpiresAt = new Date();
@@ -306,7 +300,7 @@ export class OAuth2TokenService {
 
       // Create new token with updated family generation
       const newToken = manager.create(Token, {
-        accessToken: newAccessToken,
+        accessToken: '',
         refreshToken: newRefreshToken,
         expiresAt: newExpiresAt,
         refreshExpiresAt: newRefreshExpiresAt,
@@ -319,6 +313,18 @@ export class OAuth2TokenService {
         isRefreshTokenUsed: false,
       });
 
+      await manager.save(newToken);
+
+      // Generate new access token with new token ID for revocation capability
+      const newAccessToken = this.generateAccessTokenWithJti(
+        token.user ?? null,
+        token.client,
+        token.scopes ?? [],
+        newToken.id,
+      );
+
+      // Update token with final access token
+      newToken.accessToken = newAccessToken;
       await manager.save(newToken);
 
       return {
