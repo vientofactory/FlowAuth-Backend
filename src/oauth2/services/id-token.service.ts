@@ -92,14 +92,17 @@ export class IdTokenService {
     payload: IdTokenPayload,
     user: User,
     scopes: string[],
-  ) {
+  ): void {
+    const baseUrl =
+      this.configService.get<string>('BACKEND_URL') ?? 'http://localhost:3000';
+
     // profile scope: User profile information
     if (scopes.includes('profile')) {
       payload.name = user.username || null;
       payload.preferred_username = user.username || null;
       payload.given_name = user.firstName ?? null;
       payload.family_name = user.lastName ?? null;
-      payload.picture = user.avatar ?? null;
+      payload.picture = user.avatar ? baseUrl + user.avatar : null;
       payload.updated_at = user.updatedAt
         ? Math.floor(user.updatedAt.getTime() / 1000)
         : undefined;
