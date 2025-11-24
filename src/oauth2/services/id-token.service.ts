@@ -59,8 +59,7 @@ export class IdTokenService {
     nonce?: string,
     authTime?: number,
   ): Promise<string> {
-    const baseUrl =
-      this.configService.get<string>('BACKEND_URL') ?? 'http://localhost:3000';
+    const baseUrl = this.getBaseUrl();
 
     // Define standard ID token claims
     const payload: IdTokenPayload = {
@@ -93,8 +92,7 @@ export class IdTokenService {
     user: User,
     scopes: string[],
   ): void {
-    const baseUrl =
-      this.configService.get<string>('BACKEND_URL') ?? 'http://localhost:3000';
+    const baseUrl = this.getBaseUrl();
 
     // profile scope: User profile information
     if (scopes.includes('profile')) {
@@ -232,5 +230,14 @@ export class IdTokenService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Lookup the system's default URL
+   */
+  private getBaseUrl(): string {
+    return (
+      this.configService.get<string>('BACKEND_URL') ?? 'http://localhost:3000'
+    );
   }
 }
