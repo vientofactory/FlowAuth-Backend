@@ -138,10 +138,10 @@ export class TokenRevocationService {
 
     // Find expired tokens
     const expiredTokens = await this.tokenRepository.find({
-      where: [
-        { expiresAt: LessThan(now) },
-        { refreshExpiresAt: LessThan(now) },
-      ],
+      where: {
+        expiresAt: LessThan(now),
+        refreshExpiresAt: LessThan(now),
+      },
       select: ['id', 'accessToken'],
     });
 
