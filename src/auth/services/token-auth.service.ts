@@ -139,11 +139,22 @@ export class TokenAuthService {
       throw new ForbiddenException('Insufficient permissions');
     }
 
+    // Get tokens to revoke for cache cleanup
+    const tokensToRevoke = await this.tokenRepository.find({
+      where: { user: { id: userId }, tokenType },
+      select: ['id'],
+    });
+
     // Mark all tokens of specific type as revoked
     await this.tokenRepository.update(
       { user: { id: userId }, tokenType },
       { accessToken: 'REVOKED', isRefreshTokenUsed: true },
     );
+
+    // Clear cache for each revoked token
+    for (const token of tokensToRevoke) {
+      await this.cacheManagerService.delCacheKey(`token:${token.id}`);
+    }
   }
 
   async refreshToken(token: string): Promise<LoginResponse> {
@@ -190,8 +201,12 @@ export class TokenAuthService {
 
       // Check if the old access token is expired and delete it to free up resources
       const now = new Date();
-      if (tokenEntity.expiresAt && tokenEntity.expiresAt < now) {
-        void manager.delete(Token, { id: tokenEntity.id });
+      if (
+        (tokenEntity.expiresAt && tokenEntity.expiresAt < now) ||
+        (tokenEntity.refreshExpiresAt && tokenEntity.refreshExpiresAt < now)
+      ) {
+        await manager.delete(Token, { id: tokenEntity.id });
+        await this.cacheManagerService.delCacheKey(`token:${tokenEntity.id}`);
       }
 
       // Generate new refresh token and expiry dates
