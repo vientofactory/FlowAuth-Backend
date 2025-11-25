@@ -581,8 +581,7 @@ export class DashboardService {
           logoUrl: token.client.logoUri,
           scopes: token.scopes ?? [],
           connectedAt: token.createdAt,
-          lastUsedAt: undefined, // Token 엔티티에 lastUsedAt 필드가 없음
-          expiresAt: token.expiresAt,
+          expiresAt: token.refreshExpiresAt ?? token.expiresAt,
           status,
         });
       }
