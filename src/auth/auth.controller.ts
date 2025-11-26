@@ -30,6 +30,7 @@ import {
   RequestPasswordResetDto,
   ResetPasswordDto,
 } from './dto/password-reset.dto';
+import { RevokeTokenDto } from './dto/revoke-token.dto';
 import {
   TokenDto,
   LoginResponseDto,
@@ -832,13 +833,20 @@ OAuth2 클라이언트를 삭제합니다.
     status: 403,
     description: '권한이 없음',
   })
+  @ApiBody({
+    type: RevokeTokenDto,
+    required: false,
+    description: '비밀번호 확인 (선택사항, 보안 강화용)',
+  })
   async revokeToken(
     @Request() req: AuthenticatedRequest,
     @Param('id') tokenId: string,
+    @Body(DefaultFieldSizeLimitPipe) revokeTokenDto?: RevokeTokenDto,
   ) {
     await this.authService.revokeToken(
       req.user.id,
       ValidationService.validateIdParam(tokenId),
+      revokeTokenDto?.password,
     );
     return { message: 'Token revoked successfully' };
   }
@@ -878,9 +886,15 @@ OAuth2 클라이언트를 삭제합니다.
     status: 403,
     description: '권한이 없음',
   })
+  @ApiBody({
+    type: RevokeTokenDto,
+    required: true,
+    description: '비밀번호 확인 (보안 강화용)',
+  })
   async revokeAllTokensForType(
     @Request() req: AuthenticatedRequest,
     @Param('tokenType') tokenType: string,
+    @Body(DefaultFieldSizeLimitPipe) revokeTokenDto: RevokeTokenDto,
   ) {
     // Enhanced token type validation
     if (!tokenType || typeof tokenType !== 'string') {
@@ -900,6 +914,7 @@ OAuth2 클라이언트를 삭제합니다.
     await this.authService.revokeAllTokensForType(
       req.user.id,
       trimmedTokenType as TokenType,
+      revokeTokenDto.password,
     );
     return { message: `${trimmedTokenType} tokens revoked successfully` };
   }
