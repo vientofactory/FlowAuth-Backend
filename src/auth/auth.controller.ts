@@ -236,12 +236,12 @@ export class AuthController {
     status: 401,
     description: '인증되지 않은 요청',
   })
-  logout(
+  async logout(
     @Request() req: ExpressRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
     const token = ValidationService.extractBearerToken(req);
-    const result = this.authService.logout(token);
+    const result = await this.authService.logout(token);
 
     res.clearCookie('token', {
       ...COOKIE_OPTIONS.TOKEN,
