@@ -10,7 +10,6 @@ import { JwtService } from '@nestjs/jwt';
 import { User } from '../user.entity';
 import { Token } from '../../oauth2/token.entity';
 import { TokenDto } from '../dto/response.dto';
-import * as crypto from 'crypto';
 import {
   AUTH_CONSTANTS,
   JWT_TOKEN_EXPIRY,
@@ -21,6 +20,7 @@ import {
 import { JwtPayload, LoginResponse } from '../../types/auth.types';
 import { PermissionUtils } from '../../utils/permission.util';
 import { CacheManagerService } from '../../cache/cache-manager.service';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class TokenAuthService {
@@ -89,9 +89,6 @@ export class TokenAuthService {
     token.accessToken = 'REVOKED';
     token.isRefreshTokenUsed = true;
     await this.tokenRepository.save(token);
-
-    // Clear any cached data related to this token
-    await this.cacheManagerService.delCacheKey(`token:${tokenId}`);
   }
 
   async revokeAllUserTokens(userId: number): Promise<void> {
@@ -139,22 +136,11 @@ export class TokenAuthService {
       throw new ForbiddenException('Insufficient permissions');
     }
 
-    // Get tokens to revoke for cache cleanup
-    const tokensToRevoke = await this.tokenRepository.find({
-      where: { user: { id: userId }, tokenType },
-      select: ['id'],
-    });
-
     // Mark all tokens of specific type as revoked
     await this.tokenRepository.update(
       { user: { id: userId }, tokenType },
       { accessToken: 'REVOKED', isRefreshTokenUsed: true },
     );
-
-    // Clear cache for each revoked token
-    for (const token of tokensToRevoke) {
-      await this.cacheManagerService.delCacheKey(`token:${token.id}`);
-    }
   }
 
   async refreshToken(token: string): Promise<LoginResponse> {
@@ -206,11 +192,10 @@ export class TokenAuthService {
         (tokenEntity.refreshExpiresAt && tokenEntity.refreshExpiresAt < now)
       ) {
         await manager.delete(Token, { id: tokenEntity.id });
-        await this.cacheManagerService.delCacheKey(`token:${tokenEntity.id}`);
       }
 
       // Generate new refresh token and expiry dates
-      const newRefreshToken = crypto.randomBytes(32).toString('hex');
+      const newRefreshToken = randomBytes(32).toString('hex');
       const refreshExpiresAt = new Date();
       refreshExpiresAt.setDate(
         refreshExpiresAt.getDate() + TOKEN_EXPIRY_DAYS.REFRESH_TOKEN,
