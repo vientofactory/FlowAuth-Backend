@@ -13,7 +13,6 @@ import { Client } from '../../oauth2/client.entity';
 import { Token } from '../../oauth2/token.entity';
 import { AuthorizationCode } from '../../oauth2/authorization-code.entity';
 import { CreateClientDto } from '../dto/create-client.dto';
-import * as crypto from 'crypto';
 import { snowflakeGenerator } from '../../utils/snowflake-id.util';
 import { PermissionUtils } from '../../utils/permission.util';
 import { PERMISSIONS } from '@flowauth/shared';
@@ -30,6 +29,7 @@ import {
 } from '../../common/audit-log.entity';
 import { CacheManagerService } from '../../cache/cache-manager.service';
 import { EmailService } from '../../email/email.service';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class ClientAuthService {
@@ -109,7 +109,7 @@ export class ClientAuthService {
 
     // Generate clientId using Snowflake ID and clientSecret using crypto-safe random string
     const clientId = (await snowflakeGenerator.generate()).toString();
-    const clientSecret = crypto.randomBytes(32).toString('hex');
+    const clientSecret = randomBytes(32).toString('hex');
 
     // Set default scopes if not provided
     const clientScopes = scopes && scopes.length > 0 ? scopes : ['identify'];
@@ -233,7 +233,7 @@ export class ClientAuthService {
     }
 
     // Generate new client secret
-    const newClientSecret = crypto.randomBytes(32).toString('hex');
+    const newClientSecret = randomBytes(32).toString('hex');
 
     // Update client
     client.clientSecret = newClientSecret;

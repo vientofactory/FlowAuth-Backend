@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { existsSync, mkdirSync } from 'fs';
 import { writeFile } from 'fs/promises';
 import sharp from 'sharp';
-import * as crypto from 'crypto';
 import {
   safePath,
   validateFilename,

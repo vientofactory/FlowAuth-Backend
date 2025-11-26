@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityManager } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
 import { Token } from '../token.entity';
@@ -15,6 +14,7 @@ import { AuditLogService } from '../../common/audit-log.service';
 import { AuditLog } from '../../common/audit-log.entity';
 import { StatisticsEventService } from '../../common/statistics-event.service';
 import { CacheManagerService } from '../../cache/cache-manager.service';
+import { randomBytes } from 'crypto';
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -375,7 +375,7 @@ export class OAuth2TokenService {
   }
 
   private generateRefreshToken(): string {
-    return crypto.randomBytes(32).toString('hex');
+    return randomBytes(32).toString('hex');
   }
 
   private getAccessTokenExpiryHours(): number {

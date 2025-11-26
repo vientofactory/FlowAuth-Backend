@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { JwtTokenService } from './jwt-token.service';
 import { CacheManagerService } from '../../cache/cache-manager.service';
+import { KeyObject, verify } from 'crypto';
 
 export interface IdTokenPayload {
   iss: string;
@@ -116,14 +116,12 @@ export class IdTokenService {
   /**
    * Get RSA public key from JWT service
    */
-  private async getRsaPublicKey(kid: string): Promise<crypto.KeyObject> {
+  private async getRsaPublicKey(kid: string): Promise<KeyObject> {
     try {
       // Check public key in cache first
       const cacheKey = `rsa_public_key:${kid}`;
-      let publicKey: crypto.KeyObject | undefined =
-        await this.cacheManagerService.getCacheValue<crypto.KeyObject>(
-          cacheKey,
-        );
+      let publicKey: KeyObject | undefined =
+        await this.cacheManagerService.getCacheValue<KeyObject>(cacheKey);
 
       if (!publicKey) {
         // Get RSA public key from JWT service
@@ -193,7 +191,7 @@ export class IdTokenService {
 
       // Verify signature
       const data = `${parts[0]}.${parts[1]}`;
-      const isValid = crypto.verify(
+      const isValid = verify(
         'RSA-SHA256',
         Buffer.from(data),
         publicKey,

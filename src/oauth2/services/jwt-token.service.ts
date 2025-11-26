@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as jwt from 'jsonwebtoken';
-import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { CacheManagerService } from '../../cache/cache-manager.service';
+import { createPrivateKey, createPublicKey, KeyObject } from 'crypto';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+import * as jwt from 'jsonwebtoken';
 
 @Injectable()
 export class JwtTokenService {
@@ -26,7 +26,7 @@ export class JwtTokenService {
     if (privateKeyFile) {
       try {
         // eslint-disable-next-line security/detect-non-literal-fs-filename
-        return fs.readFileSync(path.resolve(privateKeyFile), 'utf8');
+        return readFileSync(resolve(privateKeyFile), 'utf8');
       } catch {
         throw new Error(
           `Failed to read RSA private key file: ${privateKeyFile}`,
@@ -52,7 +52,7 @@ export class JwtTokenService {
 
     if (privateKeyPem) {
       // Sign with RSA key
-      const privateKey = crypto.createPrivateKey(privateKeyPem);
+      const privateKey = createPrivateKey(privateKeyPem);
 
       // Use the same kid as JWKS
       const kid = JWT_CONSTANTS.KEY_IDS.RSA_ENV;
@@ -86,14 +86,14 @@ export class JwtTokenService {
    * Get or create development RSA key
    */
   private async getOrCreateDevRsaKey(): Promise<{
-    privateKey: crypto.KeyObject;
+    privateKey: KeyObject;
     kid: string;
   }> {
     const cacheKey = 'dev_rsa_key';
 
     // Check cache first
     const cached = await this.cacheManagerService.getCacheValue<{
-      privateKey: crypto.KeyObject;
+      privateKey: KeyObject;
       kid: string;
     }>(cacheKey);
     if (cached) {
@@ -111,7 +111,7 @@ export class JwtTokenService {
 
     const kid = JWT_CONSTANTS.KEY_IDS.RSA_DEV;
 
-    const keyPair = { privateKey: crypto.createPrivateKey(privateKeyPem), kid };
+    const keyPair = { privateKey: createPrivateKey(privateKeyPem), kid };
 
     // Cache the key pair for future use
     await this.cacheManagerService.setCacheValue(
@@ -126,15 +126,15 @@ export class JwtTokenService {
   /**
    * Fetch RSA public key
    */
-  getRsaPublicKey(): crypto.KeyObject {
+  getRsaPublicKey(): KeyObject {
     const privateKeyPem = this.getRsaPrivateKey();
 
     if (!privateKeyPem) {
       throw new Error('RSA private key not configured');
     }
 
-    const privateKey = crypto.createPrivateKey(privateKeyPem);
-    return crypto.createPublicKey(privateKey);
+    const privateKey = createPrivateKey(privateKeyPem);
+    return createPublicKey(privateKey);
   }
 
   /**
