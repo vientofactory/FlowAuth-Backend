@@ -20,7 +20,7 @@ export interface OAuth2UserInfoResponse {
   birthdate?: string | null;
   zoneinfo?: string | null;
   locale?: string | null;
-  updated_at?: number;
+  updated_at?: number | null;
   roles?: string[] | null;
 }
 
@@ -136,14 +136,14 @@ export class OAuth2UserInfoBuilder {
     switch (scope) {
       case 'profile':
         return {
-          name: user.username || null,
+          name: user.username ?? null,
           given_name:
             user.firstName ??
             user.username?.split('_')[0] ??
             user.username ??
             null,
           family_name: user.lastName ?? null,
-          preferred_username: user.username || null,
+          preferred_username: user.username ?? null,
           profile: `${backendUrl}/users/${user.id}`,
           picture: user.avatar ? backendUrl + user.avatar : null,
           updated_at: Math.floor(
@@ -153,12 +153,12 @@ export class OAuth2UserInfoBuilder {
         };
       case 'email':
         return {
-          email: user.email || null,
+          email: user.email ?? null,
           email_verified: Boolean(user.isEmailVerified),
         };
       case 'identify':
         return {
-          preferred_username: user.username || null,
+          preferred_username: user.username ?? null,
           roles: [PermissionUtils.getRoleName(user.permissions)],
         };
       default:

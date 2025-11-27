@@ -22,7 +22,7 @@ export interface IdTokenPayload {
   given_name?: string | null;
   family_name?: string | null;
   picture?: string | null;
-  updated_at?: number;
+  updated_at?: number | null;
   // email scope claims
   email?: string | null;
   email_verified?: boolean;
@@ -96,19 +96,19 @@ export class IdTokenService {
 
     // profile scope: User profile information
     if (scopes.includes('profile')) {
-      payload.name = user.username || null;
-      payload.preferred_username = user.username || null;
+      payload.name = user.username ?? null;
+      payload.preferred_username = user.username ?? null;
       payload.given_name = user.firstName ?? null;
       payload.family_name = user.lastName ?? null;
       payload.picture = user.avatar ? baseUrl + user.avatar : null;
       payload.updated_at = user.updatedAt
         ? Math.floor(user.updatedAt.getTime() / 1000)
-        : undefined;
+        : null;
     }
 
     // email scope: Email information
     if (scopes.includes('email')) {
-      payload.email = user.email || null;
+      payload.email = user.email ?? null;
       payload.email_verified = !!user.isEmailVerified;
     }
   }

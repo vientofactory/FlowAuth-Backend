@@ -110,8 +110,9 @@ export class UserinfoResponseDto {
     description: '마지막 업데이트 시간 (profile 스코프 필요)',
     example: 1638360000,
     required: false,
+    nullable: true,
   })
-  updated_at?: number;
+  updated_at?: number | null;
 
   @ApiProperty({
     description: '사용자 역할 (profile 스코프 필요)',
@@ -144,28 +145,28 @@ export class ClientInfoDto {
     example: 'A sample OAuth2 client application',
     required: false,
   })
-  description?: string;
+  description: string | null;
 
   @ApiProperty({
     description: '클라이언트 로고 URI',
     example: 'https://example.com/logo.png',
     required: false,
   })
-  logoUri?: string;
+  logoUri: string | null;
 
   @ApiProperty({
     description: '이용약관 URI',
     example: 'https://example.com/terms',
     required: false,
   })
-  termsOfServiceUri?: string;
+  termsOfServiceUri: string | null;
 
   @ApiProperty({
     description: '개인정보 정책 URI',
     example: 'https://example.com/privacy',
     required: false,
   })
-  policyUri?: string;
+  policyUri: string | null;
 }
 
 /**
