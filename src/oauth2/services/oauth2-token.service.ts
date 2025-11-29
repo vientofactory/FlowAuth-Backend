@@ -13,7 +13,6 @@ import { safeTokenCompare } from '../../utils/timing-security.util';
 import { AuditLogService } from '../../common/audit-log.service';
 import { AuditLog } from '../../common/audit-log.entity';
 import { StatisticsEventService } from '../../common/statistics-event.service';
-import { CacheManagerService } from '../../cache/cache-manager.service';
 import { randomBytes } from 'crypto';
 
 interface TokenCreateResponse {
@@ -23,13 +22,6 @@ interface TokenCreateResponse {
   scopes: string[];
   tokenType: string;
   idToken?: string;
-}
-
-interface ImplicitTokenResponse {
-  accessToken?: string;
-  idToken?: string;
-  tokenType: string;
-  expiresIn?: number;
 }
 
 @Injectable()
@@ -44,7 +36,6 @@ export class OAuth2TokenService {
     private idTokenService: IdTokenService,
     private auditLogService: AuditLogService,
     private statisticsEventService: StatisticsEventService,
-    private cacheManagerService: CacheManagerService,
   ) {}
 
   async createToken(
@@ -181,44 +172,6 @@ export class OAuth2TokenService {
 
       return response;
     });
-  }
-
-  /**
-   * Create tokens for Implicit Grant flow (OpenID Connect)
-   */
-  async createImplicitTokens(
-    user: User,
-    client: Client,
-    scopes: string[],
-    nonce?: string,
-  ): Promise<ImplicitTokenResponse> {
-    const response: ImplicitTokenResponse = {
-      tokenType: JWT_CONSTANTS.TOKEN_TYPE,
-    };
-
-    // Create tokens based on requested scopes
-    if (scopes.includes('openid')) {
-      const accessToken = this.generateAccessToken(user, client, scopes);
-      response.accessToken = accessToken;
-      response.expiresIn = this.getAccessTokenExpirySeconds();
-
-      // Generate auth time
-      const authTime = Math.floor(Date.now() / 1000);
-      response.idToken = await this.generateIdToken(
-        user,
-        client,
-        scopes,
-        nonce,
-        authTime,
-      );
-    } else {
-      // Only access token if openid scope is not requested
-      const accessToken = this.generateAccessToken(user, client, scopes);
-      response.accessToken = accessToken;
-      response.expiresIn = this.getAccessTokenExpirySeconds();
-    }
-
-    return response;
   }
 
   /**

@@ -6,25 +6,15 @@ export type OAuth2GrantType =
 export type OAuth2ResponseType =
   // Authorization Code Grant
   | 'code'
-  // Implicit Grant
-  | 'token'
   // ID Token (OpenID Connect)
   | 'id_token'
   // Hybrid Flow(Authorization Code + ID Token)
-  | 'code id_token'
-  // Hybrid Flow(Implicit Grant + ID Token)
-  | 'token id_token';
+  | 'code id_token';
 export type OAuth2TokenType = 'Bearer';
 
 // OAuth2 관련 상수들
 export const OAUTH2_CONSTANTS = {
-  SUPPORTED_RESPONSE_TYPES: [
-    'code',
-    'token',
-    'id_token',
-    'code id_token',
-    'token id_token',
-  ] as const,
+  SUPPORTED_RESPONSE_TYPES: ['code', 'id_token', 'code id_token'] as const,
   SUPPORTED_GRANT_TYPES: [
     'authorization_code',
     'refresh_token',
@@ -33,10 +23,8 @@ export const OAUTH2_CONSTANTS = {
   // Response Type 상수들
   RESPONSE_TYPES: {
     CODE: 'code',
-    TOKEN: 'token',
     ID_TOKEN: 'id_token',
     CODE_ID_TOKEN: 'code id_token',
-    TOKEN_ID_TOKEN: 'token id_token',
   } as const,
   // Token Type 상수들
   TOKEN_TYPES: {
