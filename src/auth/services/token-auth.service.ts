@@ -10,16 +10,17 @@ import { JwtService } from '@nestjs/jwt';
 import { User } from '../user.entity';
 import { Token } from '../../oauth2/token.entity';
 import { TokenDto } from '../dto/response.dto';
-import * as crypto from 'crypto';
 import {
   AUTH_CONSTANTS,
   JWT_TOKEN_EXPIRY,
   PERMISSIONS,
   type TokenType,
+  TOKEN_EXPIRY_DAYS,
 } from '@flowauth/shared';
 import { JwtPayload, LoginResponse } from '../../types/auth.types';
 import { PermissionUtils } from '../../utils/permission.util';
 import { CacheManagerService } from '../../cache/cache-manager.service';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class TokenAuthService {
@@ -88,9 +89,6 @@ export class TokenAuthService {
     token.accessToken = 'REVOKED';
     token.isRefreshTokenUsed = true;
     await this.tokenRepository.save(token);
-
-    // Clear any cached data related to this token
-    await this.cacheManagerService.delCacheKey(`token:${tokenId}`);
   }
 
   async revokeAllUserTokens(userId: number): Promise<void> {
@@ -146,11 +144,12 @@ export class TokenAuthService {
   }
 
   async refreshToken(token: string): Promise<LoginResponse> {
-    try {
-      // Find the refresh token
-      const tokenEntity = await this.tokenRepository.findOne({
+    return await this.tokenRepository.manager.transaction(async (manager) => {
+      // Find the refresh token with a lock
+      const tokenEntity = await manager.findOne(Token, {
         where: { refreshToken: token },
         relations: ['user'],
+        lock: { mode: 'pessimistic_write' },
       });
 
       if (!tokenEntity) {
@@ -161,12 +160,11 @@ export class TokenAuthService {
         throw new NotFoundException('Token user not found');
       }
 
-      if (!tokenEntity.refreshExpiresAt) {
-        throw new ForbiddenException('Refresh token expired');
-      }
-
-      // Check if token is expired
-      if (tokenEntity.refreshExpiresAt < new Date()) {
+      // Check if refresh token is expired
+      if (
+        tokenEntity.refreshExpiresAt &&
+        tokenEntity.refreshExpiresAt < new Date()
+      ) {
         throw new ForbiddenException('Refresh token expired');
       }
 
@@ -177,12 +175,55 @@ export class TokenAuthService {
         throw new ForbiddenException('Refresh token already used');
       }
 
-      // Mark refresh token as used
-      tokenEntity.isRefreshTokenUsed = true;
-      await this.tokenRepository.save(tokenEntity);
+      // Mark current refresh token as used
+      await manager.update(
+        Token,
+        { id: tokenEntity.id },
+        {
+          isRefreshTokenUsed: true,
+          updatedAt: new Date(),
+        },
+      );
 
-      // Generate new access token
-      const payload: JwtPayload = {
+      // Check if the old access token is expired and delete it to free up resources
+      const now = new Date();
+      if (
+        (tokenEntity.expiresAt && tokenEntity.expiresAt < now) ||
+        (tokenEntity.refreshExpiresAt && tokenEntity.refreshExpiresAt < now)
+      ) {
+        await manager.delete(Token, { id: tokenEntity.id });
+      }
+
+      // Generate new refresh token and expiry dates
+      const newRefreshToken = randomBytes(32).toString('hex');
+      const refreshExpiresAt = new Date();
+      refreshExpiresAt.setDate(
+        refreshExpiresAt.getDate() + TOKEN_EXPIRY_DAYS.REFRESH_TOKEN,
+      );
+
+      const newExpiresAt = new Date();
+      newExpiresAt.setSeconds(
+        newExpiresAt.getSeconds() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
+      );
+
+      // Create new token with updated family generation (initially with empty access token)
+      const newTokenEntity = manager.create(Token, {
+        accessToken: '', // Will be updated with final JWT
+        refreshToken: newRefreshToken,
+        expiresAt: newExpiresAt,
+        refreshExpiresAt,
+        scopes: tokenEntity.scopes,
+        user: tokenEntity.user,
+        tokenType: tokenEntity.tokenType,
+        tokenFamily: tokenEntity.tokenFamily,
+        rotationGeneration: (tokenEntity.rotationGeneration || 1) + 1,
+        isRefreshTokenUsed: false,
+      });
+
+      await manager.save(newTokenEntity);
+
+      // Generate final JWT with NEW token ID for revocation capability
+      const finalPayload: JwtPayload = {
         sub: tokenEntity.user.id.toString(),
         email: tokenEntity.user.email,
         username: tokenEntity.user.username,
@@ -190,43 +231,23 @@ export class TokenAuthService {
         permissions: tokenEntity.user.permissions,
         type: tokenEntity.tokenType,
         avatar: tokenEntity.user.avatar ?? undefined,
-        jti: tokenEntity.id.toString(),
+        jti: newTokenEntity.id.toString(),
       };
 
-      const newAccessToken = this.jwtService.sign(payload, {
+      const finalAccessToken = this.jwtService.sign(finalPayload, {
         expiresIn: `${JWT_TOKEN_EXPIRY.LOGIN_HOURS}h`,
       });
 
-      // Generate new refresh token
-      const newRefreshToken = crypto.randomBytes(32).toString('hex');
-      const refreshExpiresAt = new Date();
-      refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30);
-
-      // Create new token entity
-      const newTokenEntity = this.tokenRepository.create({
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
-        expiresAt: new Date(
-          Date.now() + AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS * 1000,
-        ),
-        refreshExpiresAt,
-        scopes: tokenEntity.scopes,
-        user: tokenEntity.user,
-        tokenType: tokenEntity.tokenType,
-        isRefreshTokenUsed: false,
-      });
-
-      await this.tokenRepository.save(newTokenEntity);
+      // Update token with final access token
+      newTokenEntity.accessToken = finalAccessToken;
+      await manager.save(newTokenEntity);
 
       return {
         user: tokenEntity.user,
-        accessToken: newAccessToken,
+        accessToken: finalAccessToken,
         refreshToken: newRefreshToken,
         expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRATION_SECONDS,
       };
-    } catch (error) {
-      this.logger.error('Token refresh failed:', error);
-      throw error;
-    }
+    });
   }
 }

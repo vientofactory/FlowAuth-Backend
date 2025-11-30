@@ -13,6 +13,7 @@ import { UserAuthService } from './services/user-auth.service';
 import { ClientAuthService } from './services/client-auth.service';
 import { TwoFactorAuthService } from './services/two-factor-auth.service';
 import { ValidationService } from './services/validation.service';
+import { TokenAuthService } from './services/token-auth.service';
 import { UploadModule } from '../upload/upload.module';
 import { CommonModule } from '../common/common.module';
 import { AuditLogService } from '../common/audit-log.service';
@@ -40,6 +41,7 @@ import { EmailModule } from '../email/email.module';
     ClientAuthService,
     TwoFactorAuthService,
     ValidationService,
+    TokenAuthService,
     AuditLogService,
   ],
   controllers: [AuthController, TwoFactorController],

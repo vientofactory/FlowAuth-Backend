@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityManager } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
 import { Token } from '../token.entity';
@@ -14,7 +13,7 @@ import { safeTokenCompare } from '../../utils/timing-security.util';
 import { AuditLogService } from '../../common/audit-log.service';
 import { AuditLog } from '../../common/audit-log.entity';
 import { StatisticsEventService } from '../../common/statistics-event.service';
-import { CacheManagerService } from '../../cache/cache-manager.service';
+import { randomBytes } from 'crypto';
 
 interface TokenCreateResponse {
   accessToken: string;
@@ -23,13 +22,6 @@ interface TokenCreateResponse {
   scopes: string[];
   tokenType: string;
   idToken?: string;
-}
-
-interface ImplicitTokenResponse {
-  accessToken?: string;
-  idToken?: string;
-  tokenType: string;
-  expiresIn?: number;
 }
 
 @Injectable()
@@ -44,7 +36,6 @@ export class OAuth2TokenService {
     private idTokenService: IdTokenService,
     private auditLogService: AuditLogService,
     private statisticsEventService: StatisticsEventService,
-    private cacheManagerService: CacheManagerService,
   ) {}
 
   async createToken(
@@ -184,44 +175,6 @@ export class OAuth2TokenService {
   }
 
   /**
-   * Create tokens for Implicit Grant flow (OpenID Connect)
-   */
-  async createImplicitTokens(
-    user: User,
-    client: Client,
-    scopes: string[],
-    nonce?: string,
-  ): Promise<ImplicitTokenResponse> {
-    const response: ImplicitTokenResponse = {
-      tokenType: JWT_CONSTANTS.TOKEN_TYPE,
-    };
-
-    // Create tokens based on requested scopes
-    if (scopes.includes('openid')) {
-      const accessToken = this.generateAccessToken(user, client, scopes);
-      response.accessToken = accessToken;
-      response.expiresIn = this.getAccessTokenExpirySeconds();
-
-      // Generate auth time
-      const authTime = Math.floor(Date.now() / 1000);
-      response.idToken = await this.generateIdToken(
-        user,
-        client,
-        scopes,
-        nonce,
-        authTime,
-      );
-    } else {
-      // Only access token if openid scope is not requested
-      const accessToken = this.generateAccessToken(user, client, scopes);
-      response.accessToken = accessToken;
-      response.expiresIn = this.getAccessTokenExpirySeconds();
-    }
-
-    return response;
-  }
-
-  /**
    * Issue new tokens using a refresh token
    * Implements robust handling to prevent race conditions
    */
@@ -285,13 +238,7 @@ export class OAuth2TokenService {
         },
       );
 
-      // Generate new tokens
-      const newAccessToken = this.generateAccessTokenWithJti(
-        token.user ?? null,
-        token.client,
-        token.scopes ?? [],
-        token.id,
-      );
+      // Generate new refresh token and expiry dates
       const newRefreshToken = this.generateRefreshToken();
 
       const newExpiresAt = new Date();
@@ -306,7 +253,7 @@ export class OAuth2TokenService {
 
       // Create new token with updated family generation
       const newToken = manager.create(Token, {
-        accessToken: newAccessToken,
+        accessToken: '',
         refreshToken: newRefreshToken,
         expiresAt: newExpiresAt,
         refreshExpiresAt: newRefreshExpiresAt,
@@ -320,6 +267,23 @@ export class OAuth2TokenService {
       });
 
       await manager.save(newToken);
+
+      // Generate new access token with new token ID for revocation capability
+      const newAccessToken = this.generateAccessTokenWithJti(
+        token.user ?? null,
+        token.client,
+        token.scopes ?? [],
+        newToken.id,
+      );
+
+      // Update token with final access token
+      newToken.accessToken = newAccessToken;
+      await manager.save(newToken);
+
+      // Clean up expired old token to optimize database resources
+      if (token.expiresAt && token.expiresAt < new Date()) {
+        void manager.delete(Token, { id: token.id });
+      }
 
       return {
         accessToken: newAccessToken,
@@ -364,7 +328,7 @@ export class OAuth2TokenService {
   }
 
   private generateRefreshToken(): string {
-    return crypto.randomBytes(32).toString('hex');
+    return randomBytes(32).toString('hex');
   }
 
   private getAccessTokenExpiryHours(): number {
@@ -405,12 +369,6 @@ export class OAuth2TokenService {
   ): Promise<void> {
     if (!tokenFamily) return;
 
-    // Get all tokens in family before revoking
-    const tokensInFamily = await manager.find(Token, {
-      where: { tokenFamily },
-      select: ['id'],
-    });
-
     await manager.update(
       Token,
       { tokenFamily },
@@ -422,11 +380,6 @@ export class OAuth2TokenService {
         isRefreshTokenUsed: true,
       },
     );
-
-    // Remove all tokens from cache
-    for (const token of tokensInFamily) {
-      await this.cacheManagerService.delCacheKey(`oauth2_token:${token.id}`);
-    }
   }
 
   /**

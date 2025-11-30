@@ -149,7 +149,6 @@ export class AuthorizationService {
       nonce,
     } = authorizeDto;
 
-    // Handle different response types
     if (response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE) {
       // Authorization Code Grant
       return this.handleAuthorizationCodeGrant(
@@ -162,35 +161,6 @@ export class AuthorizationService {
         code_challenge_method,
         nonce,
         response_type,
-      );
-    } else if (
-      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN
-    ) {
-      // Hybrid Flow (Authorization Code + ID Token)
-      return this.handleHybridGrant(
-        user,
-        client,
-        requestedScopes,
-        redirect_uri,
-        state,
-        code_challenge,
-        code_challenge_method,
-        nonce,
-      );
-    } else if (
-      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN ||
-      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
-      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
-    ) {
-      // Implicit Grant (Access Token and/or ID Token)
-      return this.handleImplicitGrant(
-        user,
-        client,
-        requestedScopes,
-        redirect_uri,
-        response_type,
-        state,
-        nonce,
       );
     } else {
       throw new BadRequestException(
@@ -244,122 +214,6 @@ export class AuthorizationService {
       state,
       redirect_uri: redirectUri,
     };
-  }
-
-  private async handleHybridGrant(
-    user: User,
-    client: Client,
-    requestedScopes: string[],
-    redirectUri: string,
-    state?: string,
-    codeChallenge?: string,
-    codeChallengeMethod?: string,
-    nonce?: string,
-  ): Promise<AuthorizeResponseDto> {
-    // PKCE parameter validation (OPTIONAL but RECOMMENDED for security)
-    if (codeChallenge || codeChallengeMethod) {
-      this.validatePKCEParameters(codeChallenge, codeChallengeMethod);
-    }
-
-    // If only one PKCE parameter is provided, require both
-    if (
-      (codeChallenge && !codeChallengeMethod) ||
-      (!codeChallenge && codeChallengeMethod)
-    ) {
-      throw new BadRequestException(
-        OAUTH2_ERROR_MESSAGES.PKCE_PARAMETERS_MISMATCH,
-      );
-    }
-
-    // Require openid scope for ID token issuance
-    if (!requestedScopes.includes('openid')) {
-      throw new BadRequestException(
-        OAUTH2_ERROR_MESSAGES.OPENID_SCOPE_REQUIRED,
-      );
-    }
-
-    // Generate authorization code
-    const authCode = await this.authCodeService.createAuthorizationCode(
-      user,
-      client,
-      redirectUri,
-      requestedScopes,
-      state,
-      codeChallenge,
-      codeChallengeMethod,
-      nonce,
-      OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN,
-    );
-    this.logger.log(
-      `Authorization code created for hybrid flow: ${authCode.code}`,
-    );
-
-    // Generate ID token for immediate response
-    const tokens = await this.tokenService.createImplicitTokens(
-      user,
-      client,
-      requestedScopes,
-      nonce,
-    );
-
-    return {
-      code: authCode.code,
-      id_token: tokens.idToken,
-      state,
-      redirect_uri: redirectUri,
-    };
-  }
-
-  private async handleImplicitGrant(
-    user: User,
-    client: Client,
-    requestedScopes: string[],
-    redirect_uri: string,
-    response_type: string,
-    state?: string,
-    nonce?: string,
-  ): Promise<AuthorizeResponseDto> {
-    // Generate tokens
-    const implicitTokens = await this.tokenService.createImplicitTokens(
-      user,
-      client,
-      requestedScopes,
-      nonce,
-    );
-
-    const response: AuthorizeResponseDto = {
-      redirect_uri,
-    };
-
-    // Populate response based on response_type
-    if (
-      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN ||
-      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
-    ) {
-      response.access_token = implicitTokens.accessToken;
-      response.token_type = implicitTokens.tokenType;
-      response.expires_in = implicitTokens.expiresIn;
-    }
-
-    if (
-      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
-      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
-    ) {
-      // Optional nonce validation for ID token issuance
-      // Only require nonce if client provides it (selective security layer)
-      if (nonce && !nonce.trim()) {
-        throw new BadRequestException(
-          'nonce parameter cannot be empty if provided',
-        );
-      }
-      response.id_token = implicitTokens.idToken;
-    }
-
-    if (state) {
-      response.state = state;
-    }
-
-    return response;
   }
 
   private validatePKCEParameters(
@@ -444,35 +298,6 @@ export class AuthorizationService {
         code_challenge_method,
         nonce,
         response_type,
-      );
-    } else if (
-      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN
-    ) {
-      // Hybrid Flow (Authorization Code + ID Token)
-      return this.handleHybridGrant(
-        user,
-        client,
-        requestedScopes,
-        redirect_uri,
-        state,
-        code_challenge,
-        code_challenge_method,
-        nonce,
-      );
-    } else if (
-      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN ||
-      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
-      response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
-    ) {
-      // Implicit Grant (Access Token and/or ID Token)
-      return this.handleImplicitGrant(
-        user,
-        client,
-        requestedScopes,
-        redirect_uri,
-        response_type,
-        state,
-        nonce,
       );
     } else {
       throw new BadRequestException(

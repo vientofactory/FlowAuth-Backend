@@ -22,13 +22,6 @@ interface TokenCreateResponse {
   idToken?: string;
 }
 
-interface ImplicitTokenResponse {
-  accessToken?: string;
-  idToken?: string;
-  tokenType: string;
-  expiresIn?: number;
-}
-
 @Injectable()
 export class TokenService {
   private readonly logger = new Logger(TokenService.name);
@@ -55,20 +48,6 @@ export class TokenService {
       scopes,
       nonce,
       authTime,
-    );
-  }
-
-  async createImplicitTokens(
-    user: User,
-    client: Client,
-    scopes: string[],
-    nonce?: string,
-  ): Promise<ImplicitTokenResponse> {
-    return this.oauth2TokenService.createImplicitTokens(
-      user,
-      client,
-      scopes,
-      nonce,
     );
   }
 

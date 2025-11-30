@@ -108,15 +108,6 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
 
         // Add scopes from token to payload for scope validation
         payload.scopes = token.scopes ?? [];
-      } else {
-        // For implicit grant tokens without jti, extract scopes from JWT payload
-        // Implicit grant tokens are not stored in database but have scopes in JWT
-        if (payload.scope && typeof payload.scope === 'string') {
-          payload.scopes = payload.scope.split(' ').filter((s) => s.length > 0);
-        } else if (payload.scopes?.length === 0) {
-          // Default to basic scopes if none found
-          payload.scopes = [];
-        }
       }
 
       return payload;

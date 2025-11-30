@@ -6,6 +6,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
 import type { User } from '../user.entity';
+import { USER_TYPES } from '@flowauth/shared';
 
 @Injectable()
 export class LoginTokenGuard extends AuthGuard('jwt') {
@@ -64,6 +65,7 @@ export class LoginTokenGuard extends AuthGuard('jwt') {
     }
   }
 
+  // Type guard for user object
   private isValidUser(user: any): user is User {
     if (!user || typeof user !== 'object') {
       return false;
@@ -73,8 +75,13 @@ export class LoginTokenGuard extends AuthGuard('jwt') {
 
     return (
       typeof u.id === 'number' &&
+      typeof u.username === 'string' &&
+      typeof u.permissions === 'number' &&
       typeof u.email === 'string' &&
-      typeof u.username === 'string'
+      typeof u.firstName === 'string' &&
+      typeof u.lastName === 'string' &&
+      typeof u.userType === 'string' &&
+      (Object.values(USER_TYPES) as string[]).includes(u.userType)
     );
   }
 }

@@ -288,6 +288,45 @@ npm run start:dev
 
 서버가 `http://localhost:3000`에서 실행됩니다.
 
+## 프로젝트 구조
+
+```
+backend/
+├── Dockerfile                    # Docker 이미지 설정
+├── eslint.config.mjs            # ESLint 설정
+├── nest-cli.json               # NestJS CLI 설정
+├── package.json                # 프로젝트 의존성 및 스크립트
+├── renovate.json               # Renovate 설정
+├── tsconfig.build.json         # TypeScript 빌드 설정
+├── tsconfig.json               # TypeScript 설정
+├── coverage/                   # 테스트 커버리지 보고서
+├── keys/                       # RSA 키 파일
+├── logs/                       # 애플리케이션 로그
+├── migrations/                 # 데이터베이스 마이그레이션 파일
+├── src/                        # 소스 코드
+│   ├── main.ts                 # 애플리케이션 진입점
+│   ├── api/                    # API 관련 모듈
+│   ├── auth/                   # 인증 모듈
+│   ├── cache/                  # 캐시 모듈
+│   ├── common/                 # 공통 유틸리티
+│   ├── config/                 # 설정 모듈
+│   ├── constants/              # 상수 정의
+│   ├── dashboard/              # 대시보드 모듈
+│   ├── database/               # 데이터베이스 모듈
+│   ├── email/                  # 이메일 모듈
+│   ├── health/                 # 헬스체크 모듈
+│   ├── migrations/             # 마이그레이션 모듈
+│   ├── oauth2/                 # OAuth2 모듈
+│   ├── profile/                # 프로필 모듈
+│   ├── scripts/                # 스크립트 모듈
+│   ├── types/                  # 타입 정의
+│   ├── upload/                 # 파일 업로드 모듈
+│   └── utils/                  # 유틸리티 함수
+├── test/                       # 테스트 파일
+├── uploads/                    # 업로드된 파일
+└── README.md
+```
+
 ## API 문서
 
 ### Swagger UI

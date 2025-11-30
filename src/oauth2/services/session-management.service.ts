@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
+import { createHash, randomBytes } from 'crypto';
 
 export interface SessionState {
   sessionId: string;
@@ -162,9 +162,8 @@ export class SessionManagementService {
     sessionId: string,
     salt?: string,
   ): string {
-    const actualSalt = salt ?? crypto.randomBytes(16).toString('hex');
-    const hash = crypto
-      .createHash('sha256')
+    const actualSalt = salt ?? randomBytes(16).toString('hex');
+    const hash = createHash('sha256')
       .update(clientId + ' ' + sessionId + ' ' + actualSalt)
       .digest('hex');
 

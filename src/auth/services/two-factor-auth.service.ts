@@ -2,7 +2,6 @@ import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
-import * as crypto from 'crypto';
 import { User } from '../user.entity';
 import { Token } from '../../oauth2/token.entity';
 import {
@@ -14,6 +13,7 @@ import {
 import { JwtPayload, LoginResponse } from '../../types/auth.types';
 import { PermissionUtils } from '../../utils/permission.util';
 import { TwoFactorService } from '../two-factor.service';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class TwoFactorAuthService {
@@ -88,7 +88,7 @@ export class TwoFactorAuthService {
 
       // Generate initial access token
       const initialAccessToken = this.jwtService.sign(initialPayload);
-      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const refreshToken = randomBytes(32).toString('hex');
 
       const refreshExpiresAt = new Date();
       refreshExpiresAt.setDate(
@@ -206,7 +206,7 @@ export class TwoFactorAuthService {
 
       // Generate initial access token
       const initialAccessToken = this.jwtService.sign(initialPayload);
-      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const refreshToken = randomBytes(32).toString('hex');
 
       const refreshExpiresAt = new Date();
       refreshExpiresAt.setDate(

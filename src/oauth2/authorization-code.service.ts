@@ -11,7 +11,7 @@ import {
   OAUTH2_ERROR_MESSAGES,
   OAUTH2_CONSTANTS,
 } from '../constants/oauth2.constants';
-import * as crypto from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 
 @Injectable()
 export class AuthorizationCodeService {
@@ -132,7 +132,7 @@ export class AuthorizationCodeService {
   }
 
   private generateCode(): string {
-    return crypto.randomBytes(this.appConfig.codeLength).toString('hex');
+    return randomBytes(this.appConfig.codeLength).toString('hex');
   }
 
   private verifyCodeChallenge(
@@ -197,10 +197,7 @@ export class AuthorizationCodeService {
   }
 
   private verifyS256Challenge(verifier: string, challenge: string): boolean {
-    const hash = crypto
-      .createHash('sha256')
-      .update(verifier)
-      .digest('base64url');
+    const hash = createHash('sha256').update(verifier).digest('base64url');
 
     if (!safeStringCompare(hash, challenge)) {
       throw new BadRequestException(

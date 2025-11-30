@@ -27,6 +27,7 @@ import {
 } from '@flowauth/shared';
 import { JwtPayload, LoginResponse } from '../types/auth.types';
 import { PermissionUtils } from '../utils/permission.util';
+import { PasswordUtils } from './utils/password.utils';
 import { UserAuthService } from './services/user-auth.service';
 import { ClientAuthService } from './services/client-auth.service';
 import { TwoFactorAuthService } from './services/two-factor-auth.service';
@@ -277,7 +278,31 @@ export class AuthService {
     }));
   }
 
-  async revokeToken(userId: number, tokenId: number): Promise<void> {
+  async revokeToken(
+    userId: number,
+    tokenId: number,
+    password?: string,
+  ): Promise<void> {
+    // If password is provided, verify it first
+    if (password) {
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+        select: ['id', 'password'],
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      const isPasswordValid = await PasswordUtils.verifyPassword(
+        password,
+        user.password,
+      );
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Invalid password');
+      }
+    }
+
     const token = await this.tokenRepository.findOne({
       where: { id: tokenId, user: { id: userId } },
     });
@@ -297,7 +322,26 @@ export class AuthService {
   async revokeAllTokensForType(
     userId: number,
     tokenType: TokenType,
+    password: string,
   ): Promise<void> {
+    // Verify password first
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'password'],
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const isPasswordValid = await PasswordUtils.verifyPassword(
+      password,
+      user.password,
+    );
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid password');
+    }
+
     await this.tokenRepository.delete({ user: { id: userId }, tokenType });
   }
 
@@ -390,10 +434,33 @@ export class AuthService {
   }
 
   // Logout
-  logout(token: string): { message: string } {
+  async logout(token: string): Promise<{ message: string }> {
     try {
-      // Validate token (optional: add to blacklist or perform other cleanup)
-      this.jwtService.verify(token);
+      // Validate token and extract payload
+      const payload = this.jwtService.verify<JwtPayload>(token);
+
+      // If token has JTI (JWT ID), revoke the specific token
+      if (payload.jti) {
+        const tokenId = parseInt(payload.jti, 10);
+        try {
+          await this.revokeToken(parseInt(payload.sub, 10), tokenId);
+        } catch (revokeError) {
+          this.logger.warn(
+            `Failed to revoke token ${tokenId} during logout: ${revokeError instanceof Error ? revokeError.message : 'Unknown error'}`,
+          );
+          // Continue with logout even if token revocation fails
+        }
+      } else {
+        // Fallback: revoke all user tokens if no JTI
+        try {
+          await this.revokeAllUserTokens(parseInt(payload.sub, 10));
+        } catch (revokeError) {
+          this.logger.warn(
+            `Failed to revoke all tokens during logout: ${revokeError instanceof Error ? revokeError.message : 'Unknown error'}`,
+          );
+          // Continue with logout even if token revocation fails
+        }
+      }
 
       return { message: 'Logged out successfully' };
     } catch (error) {

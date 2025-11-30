@@ -7,7 +7,6 @@ import {
   validateFilename,
   sanitizeFilename,
 } from '../utils/path-security.util';
-import { v4 as uuidv4 } from 'uuid';
 import { MulterFile, FileUploadError } from './types';
 import { UPLOAD_CONFIG, getUploadPath } from './config';
 import { DevelopmentLogger } from '../common/utils/development-logger.util';
@@ -72,7 +71,7 @@ export class ImageProcessingService {
       // Generate unique filename using UUID
       const fileExtension =
         file.originalname.split('.').pop()?.toLowerCase() ?? '';
-      const uniqueId = uuidv4();
+      const uniqueId = crypto.randomUUID();
 
       // Determine output format based on input and supported formats
       const outputFormat = this.determineOutputFormat(

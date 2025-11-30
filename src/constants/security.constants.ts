@@ -1,7 +1,7 @@
 /**
  * 레이트 리미팅 및 입력 크기 제한 설정
  */
-import * as crypto from 'crypto';
+import { createHash } from 'crypto';
 import type { Request } from 'express';
 
 interface AuthenticatedRequest extends Request {
@@ -220,8 +220,7 @@ export const KEY_GENERATORS = {
   IP_USER_AGENT: (req: AuthenticatedRequest) => {
     const ip = getClientIp(req);
     const userAgent = req.headers['user-agent'] ?? 'unknown';
-    const hash = crypto
-      .createHash('md5')
+    const hash = createHash('md5')
       .update(userAgent)
       .digest('hex')
       .substring(0, 8);
@@ -237,8 +236,7 @@ export const KEY_GENERATORS = {
     } catch {
       email = 'unknown';
     }
-    const emailHash = crypto
-      .createHash('md5')
+    const emailHash = createHash('md5')
       .update(email.toLowerCase())
       .digest('hex')
       .substring(0, 12);
@@ -366,4 +364,13 @@ export const SECURITY_VALIDATION_REGEX = {
 
   // 이벤트 핸들러 패턴
   EVENT_HANDLER: /on\w+\s*=/gi,
+} as const;
+
+// 쿠키 옵션 상수들
+export const COOKIE_OPTIONS = {
+  TOKEN: {
+    httpOnly: true,
+    sameSite: 'strict' as const,
+    maxAge: 24 * 60 * 60 * 1000, // 24시간 (밀리초)
+  },
 } as const;

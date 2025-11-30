@@ -12,7 +12,7 @@ export interface TokenIntrospectionResult {
   exp?: number;
   iat?: number;
   sub?: string;
-  scope?: string;
+  scope?: string | null;
   token_type?: string;
   username?: string | null;
   email?: string | null;
@@ -134,7 +134,7 @@ export class TokenIntrospectionService {
         sub: payload.sub,
         token_type: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_TYPES.ID_TOKEN,
         username: username ?? null,
-        email: payload.email,
+        email: payload.email ?? null,
         email_verified: emailVerified,
       };
     } catch (error) {
@@ -181,9 +181,7 @@ export class TokenIntrospectionService {
         exp: payload.exp,
         iat: payload.iat,
         sub: payload.sub,
-        scope: Array.isArray(payload.scopes)
-          ? payload.scopes.join(' ')
-          : undefined,
+        scope: Array.isArray(payload.scopes) ? payload.scopes.join(' ') : null,
         token_type: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_TYPES.ACCESS_TOKEN,
         username: payload.sub,
       };
@@ -242,9 +240,9 @@ export class TokenIntrospectionService {
         exp: Math.floor(tokenEntity.refreshExpiresAt.getTime() / 1000),
         iat: Math.floor(tokenEntity.createdAt.getTime() / 1000),
         sub: tokenEntity.user?.id.toString(),
-        scope: tokenEntity.scopes ? tokenEntity.scopes.join(' ') : '',
+        scope: tokenEntity.scopes ? tokenEntity.scopes.join(' ') : null,
         token_type: TOKEN_INTROSPECTION_CONSTANTS.TOKEN_TYPES.REFRESH_TOKEN,
-        username: tokenEntity.user?.username,
+        username: tokenEntity.user?.username ?? null,
       };
     } catch (error) {
       this.logger.warn(

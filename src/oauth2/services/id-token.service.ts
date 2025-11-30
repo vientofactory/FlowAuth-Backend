@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { User } from '../../auth/user.entity';
 import { Client } from '../client.entity';
 import { JWT_CONSTANTS } from '../../constants/jwt.constants';
 import { CACHE_CONFIG } from '../../constants/cache.constants';
 import { JwtTokenService } from './jwt-token.service';
 import { CacheManagerService } from '../../cache/cache-manager.service';
+import { KeyObject, verify } from 'crypto';
 
 export interface IdTokenPayload {
   iss: string;
@@ -22,7 +22,7 @@ export interface IdTokenPayload {
   given_name?: string | null;
   family_name?: string | null;
   picture?: string | null;
-  updated_at?: number;
+  updated_at?: number | null;
   // email scope claims
   email?: string | null;
   email_verified?: boolean;
@@ -59,8 +59,7 @@ export class IdTokenService {
     nonce?: string,
     authTime?: number,
   ): Promise<string> {
-    const baseUrl =
-      this.configService.get<string>('BACKEND_URL') ?? 'http://localhost:3000';
+    const baseUrl = this.getBaseUrl();
 
     // Define standard ID token claims
     const payload: IdTokenPayload = {
@@ -92,22 +91,24 @@ export class IdTokenService {
     payload: IdTokenPayload,
     user: User,
     scopes: string[],
-  ) {
+  ): void {
+    const baseUrl = this.getBaseUrl();
+
     // profile scope: User profile information
     if (scopes.includes('profile')) {
-      payload.name = user.username || null;
-      payload.preferred_username = user.username || null;
+      payload.name = user.username ?? null;
+      payload.preferred_username = user.username ?? null;
       payload.given_name = user.firstName ?? null;
       payload.family_name = user.lastName ?? null;
-      payload.picture = user.avatar ?? null;
+      payload.picture = user.avatar ? baseUrl + user.avatar : null;
       payload.updated_at = user.updatedAt
         ? Math.floor(user.updatedAt.getTime() / 1000)
-        : undefined;
+        : null;
     }
 
     // email scope: Email information
     if (scopes.includes('email')) {
-      payload.email = user.email || null;
+      payload.email = user.email ?? null;
       payload.email_verified = !!user.isEmailVerified;
     }
   }
@@ -115,14 +116,12 @@ export class IdTokenService {
   /**
    * Get RSA public key from JWT service
    */
-  private async getRsaPublicKey(kid: string): Promise<crypto.KeyObject> {
+  private async getRsaPublicKey(kid: string): Promise<KeyObject> {
     try {
       // Check public key in cache first
       const cacheKey = `rsa_public_key:${kid}`;
-      let publicKey: crypto.KeyObject | undefined =
-        await this.cacheManagerService.getCacheValue<crypto.KeyObject>(
-          cacheKey,
-        );
+      let publicKey: KeyObject | undefined =
+        await this.cacheManagerService.getCacheValue<KeyObject>(cacheKey);
 
       if (!publicKey) {
         // Get RSA public key from JWT service
@@ -192,7 +191,7 @@ export class IdTokenService {
 
       // Verify signature
       const data = `${parts[0]}.${parts[1]}`;
-      const isValid = crypto.verify(
+      const isValid = verify(
         'RSA-SHA256',
         Buffer.from(data),
         publicKey,
@@ -229,5 +228,14 @@ export class IdTokenService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Lookup the system's default URL
+   */
+  private getBaseUrl(): string {
+    return (
+      this.configService.get<string>('BACKEND_URL') ?? 'http://localhost:3000'
+    );
   }
 }

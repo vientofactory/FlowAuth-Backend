@@ -581,8 +581,7 @@ export class DashboardService {
           logoUrl: token.client.logoUri,
           scopes: token.scopes ?? [],
           connectedAt: token.createdAt,
-          lastUsedAt: undefined, // Token 엔티티에 lastUsedAt 필드가 없음
-          expiresAt: token.expiresAt,
+          expiresAt: token.refreshExpiresAt ?? token.expiresAt,
           status,
         });
       }
@@ -672,7 +671,7 @@ export class DashboardService {
         await this.auditLogService.create({
           eventType: AuditEventType.TOKEN_REVOKED,
           severity: AuditSeverity.MEDIUM,
-          description: `Tokens revoked due to connection revocation. Client: ${client?.name ?? 'Unknown'}`,
+          description: `연결 해제로 인해 토큰이 취소되었습니다. 클라이언트: ${client?.name ?? 'Unknown'}`,
           userId,
           clientId,
           resourceId: clientId,
