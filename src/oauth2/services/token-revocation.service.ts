@@ -135,9 +135,35 @@ export class TokenRevocationService {
 
   async cleanupExpiredTokens(): Promise<number> {
     const now = new Date();
-    const result = await this.tokenRepository.delete({
-      expiresAt: LessThan(now),
+
+    // Find expired tokens
+    const expiredTokens = await this.tokenRepository.find({
+      where: {
+        expiresAt: LessThan(now),
+        refreshExpiresAt: LessThan(now),
+      },
+      select: ['id', 'accessToken'],
     });
+
+    if (expiredTokens.length === 0) {
+      return 0;
+    }
+
+    // Delete expired tokens from database
+    const tokenIds = expiredTokens.map((token) => token.id);
+    const result = await this.tokenRepository.delete(tokenIds);
+
+    // Clean up cache for deleted tokens
+    const cachePromises = expiredTokens
+      .filter((token) => token.accessToken)
+      .map((token) =>
+        this.cacheManagerService.delCacheKey(
+          CACHE_KEYS.oauth2.token(token.accessToken),
+        ),
+      );
+
+    await Promise.all(cachePromises);
+
     return result.affected ?? 0;
   }
 }

@@ -7,13 +7,16 @@ import {
   validateFilename,
   sanitizeFilename,
 } from '../utils/path-security.util';
-import { v4 as uuidv4 } from 'uuid';
 import { MulterFile, FileUploadError } from './types';
 import { UPLOAD_CONFIG, getUploadPath } from './config';
+import { DevelopmentLogger } from '../common/utils/development-logger.util';
 
 @Injectable()
 export class ImageProcessingService {
   private readonly logger = new Logger(ImageProcessingService.name);
+  private readonly devLogger = new DevelopmentLogger(
+    ImageProcessingService.name,
+  );
 
   constructor() {
     this.ensureDirectoriesExist();
@@ -27,7 +30,7 @@ export class ImageProcessingService {
       if (!existsSync(path)) {
         // eslint-disable-next-line security/detect-non-literal-fs-filename
         mkdirSync(path, { recursive: true });
-        this.logger.log(`Created image directory for ${type}: ${path}`);
+        this.devLogger.devLog(`Created image directory for ${type}: ${path}`);
       }
     });
   }
@@ -68,7 +71,7 @@ export class ImageProcessingService {
       // Generate unique filename using UUID
       const fileExtension =
         file.originalname.split('.').pop()?.toLowerCase() ?? '';
-      const uniqueId = uuidv4();
+      const uniqueId = crypto.randomUUID();
 
       // Determine output format based on input and supported formats
       const outputFormat = this.determineOutputFormat(
@@ -108,7 +111,7 @@ export class ImageProcessingService {
         if (!existsSync(destinationPath)) {
           // eslint-disable-next-line security/detect-non-literal-fs-filename
           mkdirSync(destinationPath, { recursive: true });
-          this.logger.log(`Created directory: ${destinationPath}`);
+          this.devLogger.devLog(`Created directory: ${destinationPath}`);
         }
       } catch {
         throw new FileUploadError(
@@ -166,7 +169,7 @@ export class ImageProcessingService {
       // Get file URL using the actual saved filename
       const imageUrl = this.getFileUrl(type, sanitizedFilename);
 
-      this.logger.log(
+      this.devLogger.devLog(
         `${type.charAt(0).toUpperCase() + type.slice(1)} processed${
           userId ? ` for user ${userId}` : ''
         }: ${sanitizedFilename} (${processedBuffer.length} bytes)`,

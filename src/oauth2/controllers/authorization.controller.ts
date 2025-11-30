@@ -423,10 +423,10 @@ OAuth2 Authorization Code Flow의 시작점입니다.
     const clientInfo: ClientInfoDto = {
       id: client.clientId,
       name: client.name,
-      description: client.description,
-      logoUri: client.logoUri,
-      termsOfServiceUri: client.termsOfServiceUri,
-      policyUri: client.policyUri,
+      description: client.description ?? null,
+      logoUri: client.logoUri ?? null,
+      termsOfServiceUri: client.termsOfServiceUri ?? null,
+      policyUri: client.policyUri ?? null,
     };
 
     return {

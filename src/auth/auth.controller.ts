@@ -30,6 +30,7 @@ import {
   RequestPasswordResetDto,
   ResetPasswordDto,
 } from './dto/password-reset.dto';
+import { RevokeTokenDto } from './dto/revoke-token.dto';
 import {
   TokenDto,
   LoginResponseDto,
@@ -42,6 +43,7 @@ import { User } from './user.entity';
 import type { AuthenticatedRequest } from '../types/auth.types';
 import { PERMISSIONS, TOKEN_TYPES, type TokenType } from '@flowauth/shared';
 import { ConfigService } from '@nestjs/config';
+import { TokenAuthService } from './services/token-auth.service';
 import { ValidationService } from './services/validation.service';
 import { validateOAuth2RedirectUri } from '../utils/url-security.util';
 import { RequestInfoUtils } from '../utils/request-info.util';
@@ -57,6 +59,7 @@ import {
 import {
   RATE_LIMIT_CONFIGS,
   KEY_GENERATORS,
+  COOKIE_OPTIONS,
 } from '../constants/security.constants';
 
 @Controller('auth')
@@ -66,6 +69,7 @@ export class AuthController {
   constructor(
     private readonly configService: ConfigService,
     private readonly authService: AuthService,
+    private readonly tokenAuthService: TokenAuthService,
   ) {}
 
   @Post('register')
@@ -159,10 +163,8 @@ export class AuthController {
     const result = await this.authService.login(loginDto, clientInfo);
 
     res.cookie('token', result.accessToken, {
-      httpOnly: true,
+      ...COOKIE_OPTIONS.TOKEN,
       secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
     return result;
@@ -216,10 +218,8 @@ export class AuthController {
     );
 
     res.cookie('token', result.accessToken, {
-      httpOnly: true,
+      ...COOKIE_OPTIONS.TOKEN,
       secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
     return result;
@@ -237,25 +237,22 @@ export class AuthController {
     status: 401,
     description: '인증되지 않은 요청',
   })
-  logout(
+  async logout(
     @Request() req: ExpressRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
     const token = ValidationService.extractBearerToken(req);
-    const result = this.authService.logout(token);
+    const result = await this.authService.logout(token);
 
     res.clearCookie('token', {
-      httpOnly: true,
+      ...COOKIE_OPTIONS.TOKEN,
       secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'strict',
     });
 
     return result;
   }
 
   @Post('refresh')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'JWT 토큰 리프래시' })
   @ApiResponse({
     status: 200,
@@ -266,9 +263,17 @@ export class AuthController {
     status: 401,
     description: '유효하지 않은 토큰',
   })
-  refresh(@Request() req: ExpressRequest) {
-    const token = ValidationService.extractBearerToken(req);
-    return this.authService.refreshToken(token);
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        refreshToken: { type: 'string', description: '리프래시 토큰' },
+      },
+      required: ['refreshToken'],
+    },
+  })
+  refresh(@Body() body: { refreshToken: string }) {
+    return this.tokenAuthService.refreshToken(body.refreshToken);
   }
 
   @Post('verify-backup-code')
@@ -320,10 +325,8 @@ export class AuthController {
     );
 
     res.cookie('token', result.accessToken, {
-      httpOnly: true,
+      ...COOKIE_OPTIONS.TOKEN,
       secure: this.configService.get('NODE_ENV') === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000, // 24h
     });
 
     return result;
@@ -830,13 +833,20 @@ OAuth2 클라이언트를 삭제합니다.
     status: 403,
     description: '권한이 없음',
   })
+  @ApiBody({
+    type: RevokeTokenDto,
+    required: false,
+    description: '비밀번호 확인 (선택사항, 보안 강화용)',
+  })
   async revokeToken(
     @Request() req: AuthenticatedRequest,
     @Param('id') tokenId: string,
+    @Body(DefaultFieldSizeLimitPipe) revokeTokenDto?: RevokeTokenDto,
   ) {
     await this.authService.revokeToken(
       req.user.id,
       ValidationService.validateIdParam(tokenId),
+      revokeTokenDto?.password,
     );
     return { message: 'Token revoked successfully' };
   }
@@ -876,9 +886,15 @@ OAuth2 클라이언트를 삭제합니다.
     status: 403,
     description: '권한이 없음',
   })
+  @ApiBody({
+    type: RevokeTokenDto,
+    required: true,
+    description: '비밀번호 확인 (보안 강화용)',
+  })
   async revokeAllTokensForType(
     @Request() req: AuthenticatedRequest,
     @Param('tokenType') tokenType: string,
+    @Body(DefaultFieldSizeLimitPipe) revokeTokenDto: RevokeTokenDto,
   ) {
     // Enhanced token type validation
     if (!tokenType || typeof tokenType !== 'string') {
@@ -898,6 +914,7 @@ OAuth2 클라이언트를 삭제합니다.
     await this.authService.revokeAllTokensForType(
       req.user.id,
       trimmedTokenType as TokenType,
+      revokeTokenDto.password,
     );
     return { message: `${trimmedTokenType} tokens revoked successfully` };
   }

@@ -28,11 +28,13 @@ import { COOKIE_KEYS, TOKEN_TYPES } from '@flowauth/shared';
 import { OAUTH2_CONSTANTS } from '../../constants/oauth2.constants';
 import { TokenUtils } from '../../utils/permission.util';
 import type { User } from '../../auth/user.entity';
+import { DevelopmentLogger } from 'src/common/utils/development-logger.util';
 
 @Controller('oauth2')
 @ApiTags('OAuth2 Flow')
 export class ConsentController {
   private readonly logger = new Logger(ConsentController.name);
+  private readonly devLogger = new DevelopmentLogger(ConsentController.name);
 
   constructor(
     private readonly oauth2Service: OAuth2Service,
@@ -156,53 +158,6 @@ export class ConsentController {
         if (authorizeDto.state) {
           redirectUrl.searchParams.set('state', authorizeDto.state);
         }
-      } else if (
-        authorizeDto.response_type ===
-        OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN
-      ) {
-        // Hybrid Flow: query parameter에 code, fragment에 id_token 포함
-        if (result.code) {
-          redirectUrl.searchParams.set('code', result.code);
-        }
-        if (authorizeDto.state) {
-          redirectUrl.searchParams.set('state', authorizeDto.state);
-        }
-
-        const fragmentParams = new URLSearchParams();
-        if (result.id_token) {
-          fragmentParams.set('id_token', result.id_token);
-        }
-        if (authorizeDto.state) {
-          fragmentParams.set('state', authorizeDto.state);
-        }
-        redirectUrl.hash = fragmentParams.toString();
-      } else if (
-        authorizeDto.response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN ||
-        authorizeDto.response_type ===
-          OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
-        authorizeDto.response_type ===
-          OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
-      ) {
-        // Implicit Grant: fragment에 토큰 포함
-        const fragmentParams = new URLSearchParams();
-
-        if (result.access_token) {
-          fragmentParams.set('access_token', result.access_token);
-        }
-        if (result.id_token) {
-          fragmentParams.set('id_token', result.id_token);
-        }
-        if (result.token_type) {
-          fragmentParams.set('token_type', result.token_type);
-        }
-        if (result.expires_in) {
-          fragmentParams.set('expires_in', result.expires_in.toString());
-        }
-        if (authorizeDto.state) {
-          fragmentParams.set('state', authorizeDto.state);
-        }
-
-        redirectUrl.hash = fragmentParams.toString();
       }
 
       res.redirect(redirectUrl.toString());
@@ -258,7 +213,7 @@ export class ConsentController {
     @Body() consentDto: AuthorizeConsentDto,
     @Request() req: ExpressRequest,
   ): Promise<RedirectUrlResponseDto> {
-    this.logger.log(
+    this.devLogger.devDebug(
       `Consent request received: client_id=${consentDto.client_id}, approved=${consentDto.approved}, scope=${consentDto.scope}`,
     );
 
@@ -326,53 +281,6 @@ export class ConsentController {
         if (authorizeDto.state) {
           redirectUrl.searchParams.set('state', authorizeDto.state);
         }
-      } else if (
-        authorizeDto.response_type ===
-        OAUTH2_CONSTANTS.RESPONSE_TYPES.CODE_ID_TOKEN
-      ) {
-        // Hybrid Flow: query parameter에 code, fragment에 id_token 포함
-        if (result.code) {
-          redirectUrl.searchParams.set('code', result.code);
-        }
-        if (authorizeDto.state) {
-          redirectUrl.searchParams.set('state', authorizeDto.state);
-        }
-
-        const fragmentParams = new URLSearchParams();
-        if (result.id_token) {
-          fragmentParams.set('id_token', result.id_token);
-        }
-        if (authorizeDto.state) {
-          fragmentParams.set('state', authorizeDto.state);
-        }
-        redirectUrl.hash = fragmentParams.toString();
-      } else if (
-        authorizeDto.response_type === OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN ||
-        authorizeDto.response_type ===
-          OAUTH2_CONSTANTS.RESPONSE_TYPES.ID_TOKEN ||
-        authorizeDto.response_type ===
-          OAUTH2_CONSTANTS.RESPONSE_TYPES.TOKEN_ID_TOKEN
-      ) {
-        // Implicit Grant: fragment에 토큰 포함
-        const fragmentParams = new URLSearchParams();
-
-        if (result.access_token) {
-          fragmentParams.set('access_token', result.access_token);
-        }
-        if (result.id_token) {
-          fragmentParams.set('id_token', result.id_token);
-        }
-        if (result.token_type) {
-          fragmentParams.set('token_type', result.token_type);
-        }
-        if (result.expires_in) {
-          fragmentParams.set('expires_in', result.expires_in.toString());
-        }
-        if (authorizeDto.state) {
-          fragmentParams.set('state', authorizeDto.state);
-        }
-
-        redirectUrl.hash = fragmentParams.toString();
       }
 
       return { redirect_url: redirectUrl.toString() };

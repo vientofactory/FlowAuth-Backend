@@ -7,12 +7,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { DevelopmentLogger } from '../../common/utils/development-logger.util';
 import { User } from '../user.entity';
 import { Client } from '../../oauth2/client.entity';
 import { Token } from '../../oauth2/token.entity';
 import { AuthorizationCode } from '../../oauth2/authorization-code.entity';
 import { CreateClientDto } from '../dto/create-client.dto';
-import * as crypto from 'crypto';
 import { snowflakeGenerator } from '../../utils/snowflake-id.util';
 import { PermissionUtils } from '../../utils/permission.util';
 import { PERMISSIONS } from '@flowauth/shared';
@@ -29,10 +29,12 @@ import {
 } from '../../common/audit-log.entity';
 import { CacheManagerService } from '../../cache/cache-manager.service';
 import { EmailService } from '../../email/email.service';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class ClientAuthService {
   private readonly logger = new Logger(ClientAuthService.name);
+  private readonly devLogger = new DevelopmentLogger(ClientAuthService.name);
 
   constructor(
     @InjectRepository(User)
@@ -107,7 +109,7 @@ export class ClientAuthService {
 
     // Generate clientId using Snowflake ID and clientSecret using crypto-safe random string
     const clientId = (await snowflakeGenerator.generate()).toString();
-    const clientSecret = crypto.randomBytes(32).toString('hex');
+    const clientSecret = randomBytes(32).toString('hex');
 
     // Set default scopes if not provided
     const clientScopes = scopes && scopes.length > 0 ? scopes : ['identify'];
@@ -176,7 +178,7 @@ export class ClientAuthService {
         savedClient.name,
         savedClient.clientId,
       );
-      this.logger.log(
+      this.devLogger.devLog(
         `Client created notification queued for ${user.email} (client: ${savedClient.name})`,
       );
     } catch (emailError) {
@@ -194,13 +196,15 @@ export class ClientAuthService {
       relations: ['user'],
     });
 
-    // Log client logo URIs for debugging
-    clients.forEach((client) => {
-      if (client.logoUri) {
-        this.logger.log(
-          `Client ${client.name} (ID: ${client.id}) has logoUri: ${client.logoUri}`,
-        );
-      }
+    // Log client logo URIs for debugging (development only)
+    this.devLogger.devOnly(() => {
+      clients.forEach((client) => {
+        if (client.logoUri) {
+          this.devLogger.devLog(
+            `Client ${client.name} (ID: ${client.id}) has logoUri: ${client.logoUri}`,
+          );
+        }
+      });
     });
 
     return clients;
@@ -229,7 +233,7 @@ export class ClientAuthService {
     }
 
     // Generate new client secret
-    const newClientSecret = crypto.randomBytes(32).toString('hex');
+    const newClientSecret = randomBytes(32).toString('hex');
 
     // Update client
     client.clientSecret = newClientSecret;
@@ -358,14 +362,14 @@ export class ClientAuthService {
         where: { client: { id } },
       });
 
-      this.logger.log(
+      this.devLogger.devLog(
         `Deleting client ${auditData.clientName} (ID: ${id}) with ${deletedTokensCount} tokens and ${deletedAuthCodesCount} authorization codes`,
       );
 
       // Delete the client (cascade will handle tokens and auth codes)
       await manager.remove(Client, client);
 
-      this.logger.log(
+      this.devLogger.devLog(
         `Successfully deleted client ${auditData.clientName} (ID: ${id}) and ${deletedTokensCount} related tokens and ${deletedAuthCodesCount} authorization codes`,
       );
     });

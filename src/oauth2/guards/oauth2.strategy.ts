@@ -37,9 +37,6 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
       if (payload.jti) {
         // Validate that jti is a valid numeric string
         if (typeof payload.jti !== 'string' || isNaN(Number(payload.jti))) {
-          this.logger.warn('Invalid jti format in OAuth2 payload', {
-            jti: payload.jti,
-          });
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
@@ -92,54 +89,25 @@ export class OAuth2Strategy extends PassportStrategy(Strategy, 'oauth2') {
         }
 
         if (!token) {
-          this.logger.warn('OAuth2 token not found in database', {
-            jti: payload.jti,
-          });
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
         if (!token.client) {
-          this.logger.warn('OAuth2 token has no associated client', {
-            jti: payload.jti,
-          });
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
         // Verify token belongs to the client
         if (payload.client_id && token.client.clientId !== payload.client_id) {
-          this.logger.warn('OAuth2 token client mismatch', {
-            jti: payload.jti,
-            payloadClientId: payload.client_id,
-            tokenClientId: token.client.clientId,
-          });
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
         // Verify token is not revoked and not expired
         if (token.isRevoked || token.expiresAt < new Date()) {
-          this.logger.warn('OAuth2 token is revoked or expired', {
-            jti: payload.jti,
-            isRevoked: token.isRevoked,
-            expiresAt: token.expiresAt,
-          });
           throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
         }
 
         // Add scopes from token to payload for scope validation
         payload.scopes = token.scopes ?? [];
-      } else {
-        // For implicit grant tokens without jti, extract scopes from JWT payload
-        // Implicit grant tokens are not stored in database but have scopes in JWT
-        if (payload.scope && typeof payload.scope === 'string') {
-          payload.scopes = payload.scope.split(' ').filter((s) => s.length > 0);
-        } else if (payload.scopes?.length === 0) {
-          this.logger.warn('OAuth2 token without jti has no scopes', {
-            clientId: payload.client_id,
-            sub: payload.sub,
-          });
-          // Default to basic scopes if none found
-          payload.scopes = [];
-        }
       }
 
       return payload;

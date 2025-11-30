@@ -6,9 +6,9 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Request } from 'express';
-import * as crypto from 'crypto';
 import { CacheManagerService } from '../../cache/cache-manager.service';
 import { RATE_LIMIT_CONFIGS } from '../../constants/security.constants';
+import { createHash } from 'crypto';
 
 @Injectable()
 export class PasswordResetRateLimitGuard implements CanActivate {
@@ -71,8 +71,7 @@ export class PasswordResetRateLimitGuard implements CanActivate {
     } catch {
       email = 'unknown';
     }
-    const emailHash = crypto
-      .createHash('md5')
+    const emailHash = createHash('md5')
       .update(email.toLowerCase())
       .digest('hex')
       .substring(0, 12);

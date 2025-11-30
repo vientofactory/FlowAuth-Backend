@@ -299,7 +299,7 @@ export class AuditLog {
     return {
       eventType: AuditEventType.TOKEN_REVOKED,
       severity: AuditSeverity.MEDIUM,
-      description: `Tokens revoked due to connection revocation. Client: ${clientName ?? 'Unknown'}`,
+      description: `연결 해제로 인해 토큰이 취소되었습니다. 클라이언트: ${clientName ?? 'Unknown'}`,
       userId,
       clientId,
       resourceId: clientId,

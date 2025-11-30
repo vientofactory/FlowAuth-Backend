@@ -3,7 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { TokenAuthService } from './services/token-auth.service';
 import { CacheManagerService } from '../cache/cache-manager.service';
+import { JwtService } from '@nestjs/jwt';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { User } from './user.entity';
+import { Token } from '../oauth2/token.entity';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -22,6 +27,12 @@ describe('AuthController', () => {
           },
         },
         {
+          provide: TokenAuthService,
+          useValue: {
+            refreshToken: jest.fn(),
+          },
+        },
+        {
           provide: ConfigService,
           useValue: {
             get: jest.fn(),
@@ -33,6 +44,34 @@ describe('AuthController', () => {
             getCacheValue: jest.fn(),
             setCacheValue: jest.fn(),
             delCacheKey: jest.fn(),
+          },
+        },
+        {
+          provide: JwtService,
+          useValue: {
+            sign: jest.fn(),
+            verify: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: {
+            findOne: jest.fn(),
+            save: jest.fn(),
+            update: jest.fn(),
+            delete: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Token),
+          useValue: {
+            findOne: jest.fn(),
+            save: jest.fn(),
+            update: jest.fn(),
+            delete: jest.fn(),
+            manager: {
+              transaction: jest.fn(),
+            },
           },
         },
       ],

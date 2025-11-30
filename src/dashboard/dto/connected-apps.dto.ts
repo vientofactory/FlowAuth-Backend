@@ -41,13 +41,6 @@ export class ConnectedAppDto {
   connectedAt: Date;
 
   @ApiProperty({
-    description: '마지막 토큰 사용 일시',
-    example: '2024-01-20T14:45:00Z',
-    required: false,
-  })
-  lastUsedAt?: Date;
-
-  @ApiProperty({
     description: '토큰 만료 일시',
     example: '2024-01-22T10:30:00Z',
   })
